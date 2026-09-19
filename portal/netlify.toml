@@ -1,0 +1,13 @@
+# Netlify: sitio estatico puro, sin funciones serverless.
+# Las dos variables VITE_* se cargan en el panel de Netlify:
+#   Site settings > Environment variables
+[build]
+  base    = "portal"
+  command = "npm run build"
+  publish = "dist"
+
+# El portal es una sola pagina: cualquier ruta sirve el index.
+[[redirects]]
+  from = "/*"
+  to   = "/index.html"
+  status = 200

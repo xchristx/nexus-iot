@@ -1,0 +1,44 @@
+# Evita que Supabase pause el proyecto por inactividad.
+#
+# POR QUE EXISTE: Supabase pausa los proyectos del plan gratuito tras 7 dias
+# de baja actividad. Este sistema se usa intensamente unas pocas semanas por
+# cuatrimestre y despues queda quieto meses, asi que sin esto el proyecto se
+# pausa solo. Y pasados 90 dias pausado se pierde el restore de un clic: hay
+# que restaurar un backup en un proyecto NUEVO, con URL y claves nuevas, o
+# sea que los 20 alumnos tienen que reconfigurar placa y app.
+#
+# Una request por dia alcanza para evitarlo.
+#
+# CONFIGURACION (una sola vez):
+#   Settings > Secrets and variables > Actions > New repository secret
+#     SUPABASE_URL       https://TUPROYECTO.supabase.co
+#     SUPABASE_PUBLISHABLE_KEY  la publishable key (sb_publishable_...)
+#
+# Si no usas GitHub, cualquier cron externo sirve (por ejemplo cron-job.org)
+# apuntando a la misma URL.
+
+name: Mantener vivo el backend
+
+on:
+  schedule:
+    - cron: '17 9 * * *'    # todos los dias a las 09:17 UTC
+  workflow_dispatch:        # y a mano desde la pestaña Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar a salud()
+        run: |
+          respuesta=$(curl --silent --show-error --fail-with-body \
+            --max-time 30 \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/salud?apikey=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}")
+
+          echo "$respuesta"
+
+          # Que el job falle si el backend no contesta lo que corresponde:
+          # un cron que "anda" pero pega contra un proyecto ya pausado no
+          # sirve de nada, y este es el unico momento en que alguien mira.
+          echo "$respuesta" | grep -q '"ok" : true' \
+            || echo "$respuesta" | grep -q '"ok":true' \
+            || { echo "::error::El backend no respondio ok:true"; exit 1; }

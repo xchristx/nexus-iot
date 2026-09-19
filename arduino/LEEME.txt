@@ -1,0 +1,94 @@
+NEXUS IoT - ESP32 + backend propio  (version Arduino IDE)
+=========================================================
+
+QUE ES ESTO
+  El mismo programa que corre en PlatformIO, empaquetado como sketch de
+  Arduino IDE. El codigo es identico; lo unico que cambia es que el archivo
+  se llama .ino y vive en una carpeta con su mismo nombre, que es como el
+  Arduino IDE espera encontrarlo.
+
+COMO ABRIRLO
+  Descomprimi todo y abri  NexusIoT/NexusIoT.ino  con doble clic.
+  IMPORTANTE: la carpeta tiene que seguir llamandose NexusIoT. Si le cambias
+  el nombre a la carpeta o al archivo, el IDE no lo abre.
+
+PASO 1 - SOPORTE PARA ESP32  (una sola vez)
+  Archivo > Preferencias
+    En "URLs adicionales de gestor de tarjetas" pega:
+      https://espressif.github.io/arduino-esp32/package_esp32_index.json
+  Herramientas > Placa > Gestor de tarjetas
+    Busca "esp32" (de Espressif Systems) y dale Instalar.
+    Son ~200 MB, tarda un rato.
+
+PASO 2 - LIBRERIA  (una sola vez)
+  Programa > Incluir libreria > Administrar bibliotecas
+    Instala:  ArduinoJson   (de Benoit Blanchon, version 7 o mayor)
+
+  Solo si vas a conectar el sensor DHT de verdad, instala ademas:
+    DHT sensor library        (de Adafruit)
+    Adafruit Unified Sensor   (de Adafruit)
+  y en el codigo cambia  #define USAR_SENSOR 0  por  1.
+
+  WiFi, WiFiClientSecure, HTTPClient y Preferences NO se instalan: ya vienen
+  con el paquete ESP32.
+
+PASO 3 - CONFIGURAR
+  Arriba del todo en el sketch, en la seccion "1. CONFIGURACION":
+    WIFI_SSID / WIFI_PASS   tu red de 2.4 GHz (el ESP32 no ve las de 5 GHz)
+    SUPABASE_URL            la URL del backend
+    PUBLISHABLE_KEY         la clave publica del backend (sb_publishable_...)
+    CLAVE                   la clave de TU placa
+
+  Los ultimos tres los sacas del portal, en "Mis datos".
+
+PASO 4 - QUE TU SKETCH COINCIDA CON TU PORTAL
+  El sketch trae el kit del curso: sensores "t" y "h", reles "bomba", "vent"
+  y "luz". Si en el portal (Configurar) cambiaste algo, cambialo tambien aca:
+
+    Un sensor  -> seccion "2. Sensores": una funcion de lectura y una fila
+                  en la tabla sensores[], con el mismo id del portal.
+    Un rele    -> seccion "3. Reles": una fila en la tabla reles[], con el
+                  mismo id, pin y nivel (LOW o HIGH) del portal.
+
+  Las reglas del modo automatico NO se escriben aca: se arman en el portal y
+  le llegan solas a la placa.
+
+  Si te olvidas de algo, no pasa nada grave: el portal te avisa en "Mi placa"
+  que nombres no coinciden.
+
+PASO 5 - SUBIR
+  Herramientas > Placa > esp32 > ESP32 Dev Module
+    (si no anda, proba "DOIT ESP32 DEVKIT V1" o "NodeMCU-32S")
+  Herramientas > Puerto > el COM que aparece al enchufar la placa
+  Boton Subir (la flechita)
+  Herramientas > Monitor Serie, a 115200 baudios
+
+  Si al subir dice que no entra en la memoria, en
+  Herramientas > Partition Scheme elegi "Huge APP (3MB No OTA)".
+  El sketch usa ~71% de la flash porque TLS ocupa bastante.
+
+CONEXIONES DEL KIT DEL CURSO
+  GPIO 26 -> IN1 del modulo de reles  (bomba)
+  GPIO 27 -> IN2 del modulo de reles  (ventilador)
+  GPIO 2  -> LED de la placa          (luz, hasta que haya un tercer rele)
+  GPIO 4  -> DHT22, solo si USAR_SENSOR esta en 1
+
+SI ALGO FALLA
+  Lo primero: abri el portal y mira "Mi placa". Si tu ESP32 esta mandando algo
+  mal, ahi te dice exactamente que. No hace falta el monitor serie para eso.
+
+  "EL SERVIDOR RECHAZO EL SYNC"  -> leelo completo, el mensaje dice que
+                                    arreglar. Si generaste el codigo con una
+                                    IA, pegaselo y lo corrige.
+  "[aviso] ..."                  -> un nombre no coincide con lo que
+                                    declaraste en el portal. No frena nada,
+                                    pero casi siempre es un error de tipeo.
+  "Clave invalida"               -> la constante CLAVE esta mal copiada
+  "Demasiado rapido"             -> hay que esperar al menos 3 segundos entre
+                                    un sync y otro
+  "sin conexion"                 -> no hay WiFi o la red es de 5 GHz. Las
+                                    reglas guardadas siguen funcionando igual.
+  No aparece el puerto COM       -> falta el driver USB de la placa
+                                    (CP2102 o CH340)
+  El rele queda al reves         -> en la tabla reles[], cambia LOW por HIGH
+                                    (y tambien en el portal)

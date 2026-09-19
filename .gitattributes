@@ -1,0 +1,6 @@
+# Normaliza los finales de linea: en el repo van LF, en Windows se ven CRLF.
+* text=auto
+
+*.aia binary
+*.zip binary
+*.png binary

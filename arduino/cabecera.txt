@@ -1,0 +1,31 @@
+/*
+ * ====================================================================
+ *  VERSION PARA ARDUINO IDE
+ * ====================================================================
+ *  Antes de compilar, una sola vez:
+ *
+ *  1) Soporte para ESP32
+ *     Archivo > Preferencias > "URLs adicionales de gestor de tarjetas":
+ *       https://espressif.github.io/arduino-esp32/package_esp32_index.json
+ *     Despues: Herramientas > Placa > Gestor de tarjetas > buscar "esp32"
+ *     (de Espressif Systems) > Instalar.
+ *
+ *  2) Libreria
+ *     Programa > Incluir libreria > Administrar bibliotecas...
+ *       - "ArduinoJson" de Benoit Blanchon  (version 7 o mayor)
+ *     Solo si vas a usar el DHT de verdad (USAR_SENSOR 1), instala tambien:
+ *       - "DHT sensor library" de Adafruit
+ *       - "Adafruit Unified Sensor" de Adafruit
+ *     WiFi, WiFiClientSecure, HTTPClient y Preferences ya vienen con el
+ *     paquete ESP32: no se instalan.
+ *
+ *  3) Al compilar
+ *     Herramientas > Placa > esp32 > "ESP32 Dev Module"
+ *     Herramientas > Puerto > el COM que aparezca al enchufar la placa
+ *     Monitor Serie a 115200 baudios
+ *
+ *  Si la placa no es una DevKit generica, proba con "DOIT ESP32 DEVKIT V1"
+ *  o "NodeMCU-32S". Para una ESP32-C3, "ESP32C3 Dev Module".
+ * ====================================================================
+ */
+

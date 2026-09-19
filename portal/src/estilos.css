@@ -1,0 +1,312 @@
+/* Nexus IoT — portal.
+   Pensado para que se use desde el celular: los alumnos lo abren al lado de
+   la placa, no sentados frente a una pantalla grande. */
+
+:root {
+  --fondo: #0f1115;
+  --tarjeta: #171a21;
+  --campo: #0d0f13;
+  --borde: #262b36;
+  --borde-fuerte: #3a4150;
+  --texto: #e6e9ef;
+  --tenue: #8b93a3;
+  --acento: #4ade80;
+  --sobre-acento: #06210f;
+  --rojo: #f87171;
+  --ambar: #fbbf24;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px 64px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 0 0 6px; }
+h3 { font-size: 15px; margin: 0; }
+
+code {
+  font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--texto);
+}
+
+.subtitulo { font-size: 13px; }
+.tenue     { color: var(--tenue); }
+.ayuda     { color: var(--tenue); font-size: 14px; margin: 6px 0 14px; }
+.error     { color: var(--rojo); font-size: 14px; margin: 10px 0; }
+.pie       { color: var(--tenue); font-size: 13px; text-align: center; margin-top: 18px; }
+
+/* --- tarjetas ------------------------------------------------------ */
+
+.tarjeta, .bloque {
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.bloque-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+/* --- formularios --------------------------------------------------- */
+
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--tenue);
+  margin-bottom: 14px;
+}
+
+input, select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px 12px;
+  background: var(--campo);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 16px;            /* 16px evita que iOS haga zoom al enfocar */
+}
+
+input:focus, select:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
+input:disabled { color: var(--tenue); }
+
+.ayuda-campo { display: block; margin-top: 5px; font-size: 12px; line-height: 1.45; }
+
+.dos-columnas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+@media (max-width: 420px) {
+  .dos-columnas { grid-template-columns: 1fr; }
+}
+
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--texto);
+}
+
+.casilla input { width: auto; margin: 0; }
+
+.acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acciones .principal { width: auto; }
+
+/* --- botones ------------------------------------------------------- */
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--borde);
+  background: #21262f;
+  color: var(--texto);
+  padding: 9px 14px;
+}
+
+button:hover    { border-color: var(--borde-fuerte); }
+button:disabled { opacity: .5; cursor: default; }
+
+.principal {
+  width: 100%;
+  padding: 13px;
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--sobre-acento);
+  font-weight: 600;
+}
+
+.chico        { font-size: 12px; padding: 5px 10px; }
+.chico.activo { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
+.peligro      { color: var(--rojo); }
+.copiar       { font-size: 12px; padding: 5px 11px; flex: none; }
+.salir        { font-size: 13px; padding: 5px 10px; color: var(--tenue); }
+
+/* --- pestañas ------------------------------------------------------ */
+
+nav { display: flex; gap: 8px; margin-bottom: 16px; }
+nav button { flex: 1; padding: 9px 6px; }
+nav button.activo { background: var(--texto); color: var(--fondo); border-color: var(--texto); }
+
+/* --- estado de la placa -------------------------------------------- */
+
+.pastilla {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.punto {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--rojo);
+  flex: none;
+}
+
+.estado.viva   .punto    { background: var(--acento); box-shadow: 0 0 0 4px rgba(74, 222, 128, .15); }
+.estado.muerta .pastilla { color: var(--tenue); }
+
+.datos { display: flex; flex-wrap: wrap; gap: 14px 26px; margin-top: 18px; }
+.dato  { display: flex; flex-direction: column; align-items: flex-start; }
+.dato-titulo { font-size: 12px; color: var(--tenue); text-transform: uppercase; letter-spacing: .05em; }
+.dato-valor  { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+.dato-valor small { font-size: 15px; color: var(--tenue); margin-left: 3px; font-weight: 400; }
+
+/* El error y los avisos de la placa son la razón de ser de esta pantalla:
+   lo que evita que el alumno necesite el monitor serie. */
+.problema          { border-color: var(--ambar); }
+.problema h3       { color: var(--ambar); margin-bottom: 10px; }
+.atencion          { border-color: var(--borde-fuerte); }
+.atencion h3       { color: var(--ambar); margin-bottom: 8px; }
+.lista-avisos      { margin: 0; padding-left: 18px; font-size: 14px; color: var(--tenue); }
+.lista-avisos li + li { margin-top: 6px; }
+
+/* --- relés --------------------------------------------------------- */
+
+.salidas { display: flex; flex-direction: column; gap: 14px; }
+.salida  { display: flex; flex-direction: column; gap: 6px; }
+
+.salida-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.interruptor { display: flex; gap: 6px; flex: none; }
+.interruptor button { padding: 6px 16px; font-size: 13px; }
+.interruptor .on.activo  { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
+.interruptor .off.activo { background: var(--borde-fuerte); border-color: #4b5261; }
+
+/* Lo que se pidió y la placa todavía no recogió: late, sin mover nada de lugar.
+   El botón relleno sigue siendo lo que la placa informó. */
+.interruptor button.pendiente {
+  border-color: var(--acento);
+  animation: latir 1s ease-in-out infinite;
+}
+
+@keyframes latir {
+  50% { background: rgba(74, 222, 128, .22); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interruptor button.pendiente { animation: none; background: rgba(74, 222, 128, .22); }
+}
+
+.regla-linea {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--tenue);
+}
+
+/* --- configurar ---------------------------------------------------- */
+
+.fila-canal {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--borde);
+  font-size: 15px;
+}
+
+.bloque-cab + .fila-canal, .ayuda + .fila-canal { border-top: none; }
+
+.acciones-fila { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex: none; }
+.detalle { font-size: 13px; margin-top: 3px; }
+
+/* En un celular, tres botones al costado dejan el texto en renglones de dos
+   palabras. Abajo del texto se lee mucho mejor. */
+@media (max-width: 480px) {
+  .fila-canal    { flex-direction: column; gap: 8px; }
+  .acciones-fila { justify-content: flex-start; }
+}
+
+.etiqueta {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 7px;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--acento);
+  vertical-align: middle;
+}
+
+.etiqueta.tenue { color: var(--tenue); }
+
+/* --- mis datos ----------------------------------------------------- */
+
+.hardware {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+pre {
+  background: var(--campo);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+  overflow-x: auto;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;      /* las URLs con la clave son larguísimas */
+}
+
+.bloque.destacado { border-color: var(--acento); }
+
+/* El prompt es largo: se muestra recortado y se copia entero con el botón. */
+.prompt {
+  max-height: 260px;
+  overflow-y: auto;
+  word-break: normal;
+  color: var(--tenue);
+}
