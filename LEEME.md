@@ -64,7 +64,7 @@ Environment variables**:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-`netlify.toml` ya tiene el resto configurado.
+`netlify.toml` (en la raíz del repo, porque ahí lo busca Netlify) ya tiene el resto configurado.
 
 ### 3. Repartir
 
