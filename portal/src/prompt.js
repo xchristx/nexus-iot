@@ -4,8 +4,10 @@
 // entrada, su prompt la incluye sola.
 //
 // PROMPT.md (en la raíz del repo) se genera desde acá con `npm run prompt`,
-// usando el kit de ejemplo. Si cambia el contrato de la API, se cambia este
-// archivo y se regenera aquel.
+// usando el kit de ejemplo. Si cambia el contrato con Firebase, se cambia este
+// archivo, src/main.cpp y se regenera PROMPT.md.
+//
+// La contraseña del alumno NUNCA va en el prompt: queda "" y la completa él.
 
 const numeroEjemplo = [24.5, 61.2]
 
@@ -18,22 +20,27 @@ function lineaEntrada(e) {
 
 function lineaSalida(s) {
   const conexion = s.conexion ? ` ${s.conexion}.` : ''
-  return `- "${s.id}": ${s.nombre || s.id}. GPIO ${s.pin}, se activa con nivel ${s.nivel_activo}.${conexion}`
+  const pulsador = s.pulsador != null
+    ? ` Tiene un pulsador en GPIO ${s.pulsador} (entre el GPIO y GND) que la prende o la apaga.`
+    : ' No tiene pulsador.'
+  return `- "${s.id}": ${s.nombre || s.id}. GPIO ${s.pin}, se activa con nivel ${s.nivel_activo}.${conexion}${pulsador}`
 }
 
 const lista = (items) => items.map((x) => `"${x.id}"`).join(', ')
 
-function cuerpoEjemplo(entradas, salidas) {
+function estadoEjemplo(entradas, salidas) {
   const estado = {}
   entradas.forEach((e, i) => { estado[e.id] = numeroEjemplo[i] ?? 10.5 })
   salidas.forEach((s) => { estado[s.id] = 0 })
+  estado.visto = { '.sv': 'timestamp' }
   return JSON.stringify(estado).replace(/,/g, ', ').replace(/:/g, ': ')
 }
 
-export function generarPrompt({ url, publicable, clave, canales }) {
+export function generarPrompt({ apiKey, databaseURL, usuario, canales, pulsadorModo }) {
   const entradas = canales.filter((c) => c.tipo === 'entrada')
   const salidas = canales.filter((c) => c.tipo === 'salida')
   const librerias = [...new Set(entradas.map((e) => e.libreria).filter(Boolean))]
+  const hayPulsadores = salidas.some((s) => s.pulsador != null) || pulsadorModo != null
 
   const salidaEj = salidas[0]?.id ?? 'vent'
   const entradaEj = entradas[0]?.id ?? 't'
@@ -41,8 +48,8 @@ export function generarPrompt({ url, publicable, clave, canales }) {
   const s = []
 
   s.push(`Necesito el código completo para un ESP32 (Arduino / C++) que lea entradas
-(sensores, botones), maneje salidas (relés, LEDs) y se comunique con un backend
-por HTTPS.`)
+(sensores, botones), maneje salidas (relés, LEDs) con pulsadores locales y un
+modo automático, y se comunique en tiempo real con Firebase Realtime Database.`)
 
   s.push(`## Hardware
 
@@ -54,14 +61,24 @@ ${entradas.map(lineaEntrada).join('\n') || '(ninguna por ahora)'}
 Salidas (lo que se prende y se apaga):
 ${salidas.map(lineaSalida).join('\n') || '(ninguna por ahora)'}
 
+Pulsador de modo automático: ${pulsadorModo != null
+    ? `GPIO ${pulsadorModo} (entre el GPIO y GND). Cada pulsación activa o desactiva el modo automático.`
+    : 'no hay. Dejá la constante PIN_PULSADOR_MODO en -1.'}
+
 Definí las entradas y las salidas como **tablas**, para que agregar una sea
 agregar una fila:
 
-- entradas: un arreglo de structs {id, función de lectura, último valor}. Si
-  una lectura falla (NaN), se conserva el valor anterior.
-- salidas: un arreglo de structs {id, pin, nivel activo, encendida, momento del
-  último cambio}. Cada salida tiene su propia polaridad (LOW o HIGH): resolvela
-  por salida, no con una constante global.
+- entradas: un arreglo de structs {id, función de lectura, último valor,
+  último valor publicado}. Si una lectura falla (NaN), se conserva el valor
+  anterior.
+- salidas: un arreglo de structs {id, pin, nivel activo, pulsador, encendida,
+  momento del último cambio}. Cada salida tiene su propia polaridad (LOW o
+  HIGH): resolvela por salida, no con una constante global. El pulsador es un
+  GPIO o -1 si no tiene.
+
+Declará todos los structs arriba, antes de la primera función: el Arduino IDE
+agrega las declaraciones de las funciones antes de la primera, y si un struct
+que usan está más abajo, no compila.
 
 No uses GPIO 0, 12, 14 ni 15 para salidas: emiten pulsos durante el arranque y
 un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna y
@@ -69,78 +86,168 @@ GPIO 34 a 39 solo sirven para entradas.`)
 
   s.push(`## Librerías a usar
 
-WiFi.h, WiFiClientSecure.h, HTTPClient.h, ArduinoJson.h (versión 7) y
-Preferences.h.${librerias.length ? `\nPara las entradas: ${librerias.join('; ')}.` : ''}
+- **FirebaseClient de Mobizt, versión 2.2 o mayor** (\`#include <FirebaseClient.h>\`).
+  **No uses** "Firebase ESP32 Client" ni "Firebase Arduino Client Library for
+  ESP8266 and ESP32" (Firebase_ESP_Client.h, FirebaseESP32.h): están
+  discontinuadas y tienen otra API. Si no conocés bien FirebaseClient 2.x,
+  copiá el esqueleto de abajo tal cual.
+- ArduinoJson (versión 7), para leer y armar los JSON.
+- WiFi.h, WiFiClientSecure.h y Preferences.h, que vienen con el ESP32.${librerias.length ? `\n- Para las entradas: ${librerias.join('; ')}.` : ''}
+
 No uses ninguna otra.`)
 
-  s.push(`## Comunicación con el backend
+  s.push(`## Dónde están los datos
 
-Cada 5 segundos, mandar todos los valores y recibir en la MISMA respuesta los
-comandos pendientes y las reglas del modo automático.
+La placa entra a Firebase con un usuario y contraseña, y trabaja SOLO dentro de
+\`/placas/${usuario}\`:
 
-### La llamada
+- \`/placas/${usuario}/estado\`: lo escribe la placa. Un objeto con las
+  entradas (${lista(entradas) || 'ninguna'}, números decimales con un decimal), las
+  salidas (${lista(salidas) || 'ninguna'}, 1 encendida o 0 apagada), \`"visto"\` (la
+  hora del servidor, como latido) y \`"aviso"\` (un texto, opcional). Ejemplo:
 
-POST ${url}/rest/v1/rpc/sync?apikey=${publicable}
+  \`\`\`json
+  ${estadoEjemplo(entradas, salidas)}
+  \`\`\`
 
-El único header que hace falta es: Content-Type: application/json
+  Los ids son exactamente esos, sin traducirlos ni cambiar mayúsculas. Una
+  entrada que todavía no tiene ninguna lectura buena no se manda.
+- \`/placas/${usuario}/control\`: lo escriben la app y el portal; la placa lo
+  lee. Ejemplo:
 
-Cuerpo:
+  \`\`\`json
+  {"auto": true,
+   "reglas": {"${salidaEj}": {"entrada": "${entradaEj}", "condicion": ">", "umbral": 28, "hist": 1.5}},
+   "cmd": {"${salidaEj}": 1}}
+  \`\`\`
 
-\`\`\`json
-{
-  "p_clave": "${clave}",
-  "p_estado": ${cuerpoEjemplo(entradas, salidas)}
+  - \`auto\`: el modo automático (ver más abajo).
+  - \`reglas\`: una por salida como mucho, con el id de la salida como clave.
+  - \`cmd\`: pedidos de prender (1) o apagar (0) una salida. **La placa aplica
+    cada uno y después lo BORRA** de la base, se haya aplicado o no.
+
+**Los valores de "auto" y de "cmd" pueden llegar como booleano, como número o
+como texto** ("1", "true", "on", e incluso con comillas adentro: "\\"1\\""),
+porque la app de Kodular a veces los guarda así. Escribí una función que
+acepte todas esas formas.`)
+
+  s.push(`## Cómo conectarse (esqueleto de FirebaseClient 2.x)
+
+Usá dos clientes: uno queda abierto escuchando \`control\` (el stream) y el
+otro es para leer y escribir. Esta es la parte de Firebase; respetala:
+
+\`\`\`cpp
+#define ENABLE_USER_AUTH
+#define ENABLE_DATABASE
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <FirebaseClient.h>
+#include <ArduinoJson.h>
+
+WiFiClientSecure ssl, sslStream;
+AsyncClientClass cliente(ssl), clienteStream(sslStream);
+UserAuth usuarioAuth(API_KEY, String(USUARIO) + "@nexus-iot.example.com", CONTRASENA, 3000);
+FirebaseApp app;
+RealtimeDatabase Database;
+const String RAIZ = String("/placas/") + USUARIO;
+
+void alResultado(AsyncResult &r);
+
+// en setup(), después de intentar el WiFi:
+ssl.setInsecure();
+sslStream.setInsecure();
+initializeApp(cliente, app, getAuth(usuarioAuth), alResultado, "entrar");
+app.getApp<RealtimeDatabase>(Database);
+Database.url(DATABASE_URL);
+clienteStream.setSSEFilters("get,put,patch,cancel,auth_revoked");
+Database.get(clienteStream, RAIZ + "/control", alResultado, true /* stream */, "stream");
+
+// en loop(), solo si hay WiFi:
+app.loop();
+if (app.ready()) { /* acá se lee y se escribe */ }
+
+// Todas las respuestas llegan acá; el último parámetro de cada pedido es su nombre.
+void alResultado(AsyncResult &r) {
+  if (r.isError()) {
+    Serial.printf("[firebase] %s: %s (codigo %d)\\n", r.uid().c_str(),
+                  r.error().message().c_str(), r.error().code());
+    return;
+  }
+  if (!r.available()) return;
+  if (r.uid() == "stream")       pedirControl = true;       // algo cambió en control
+  else if (r.uid() == "control") procesarControl(r.c_str()); // control completo, en JSON
 }
+
+// Leer control completo (con el cliente normal, NO con el del stream):
+Database.get(cliente, RAIZ + "/control", alResultado, false, "control");
+
+// Publicar el estado: un JSON armado con ArduinoJson, como object_t.
+Database.update(cliente, RAIZ + "/estado", object_t(cuerpoJson), alResultado, "publicar");
+
+// Borrar un comando ya procesado:
+Database.remove(cliente, RAIZ + "/control/cmd/" + id, alResultado, "borrar_cmd");
+
+// Escribir el modo automático:
+Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo");
 \`\`\`
 
-${[
-    entradas.length ? `Las entradas (${lista(entradas)}) van como números decimales.` : '',
-    salidas.length ? `Las salidas (${lista(salidas)}) van como 1 (encendida) o 0 (apagada).` : '',
-  ].filter(Boolean).join(' ')} Los nombres son exactamente esos, sin
-traducirlos ni cambiar mayúsculas. Si una entrada todavía no tiene ninguna
-lectura buena, su valor NaN se manda como null (ArduinoJson ya lo hace solo) y
-el servidor lo acepta.
+- **Ante cualquier evento del stream, no interpretes lo que trae**: marcá
+  \`pedirControl = true\` y en el loop, si está marcado (y \`app.ready()\`),
+  leé \`control\` completo con \`Database.get\` y procesalo entero. Así no hay
+  que interpretar rutas parciales.
+- \`control\` puede venir "null" si todavía está vacío: tratalo como vacío.
+- Para "visto", mandá \`{"visto": {".sv": "timestamp"}}\` dentro del mismo
+  update: la hora la pone el servidor.
+- Si el pedido "entrar" da error, imprimí que se revisen USUARIO y CONTRASENA
+  (son los mismos del portal). Al arrancar, el stream puede dar un error de
+  permisos antes de terminar de entrar: es normal y se reconecta solo.
+- **Armá los JSON con ArduinoJson (JsonDocument y serializeJson), no
+  concatenando strings.**`)
 
-**Armá el cuerpo con ArduinoJson (JsonDocument y serializeJson), no
-concatenando strings.** Con strings, una coma o una comilla de menos arma un
-JSON inválido que el servidor rechaza antes de poder decir qué está mal.
+  s.push(`## Qué hacer con "control"
 
-### La respuesta
+Procesalo en este orden:
 
-Cuando sale bien:
+1. **"auto"**: activá o desactivá el modo automático. Excepción: si el
+   pulsador de modo lo cambió y todavía no se pudo escribir en Firebase, ignorá
+   el valor que llega (es viejo).
+2. **"reglas"**: reemplazan completas a las anteriores (si no hay, no hay
+   ninguna regla). Guardalas en Preferences como el texto JSON recibido,
+   **solo si cambió**, y cargalas al arrancar.
+3. **"cmd"**: por cada salida, aplicá el comando como una acción manual (ver
+   "Modo automático") y borralo de la base. Si nombra una salida que la placa
+   no tiene, avisá y borralo igual.
 
-\`\`\`json
-{"ok": true,
- "cmd": ["${salidaEj}=1"],
- "reglas": [{"salida": "${salidaEj}", "entrada": "${entradaEj}", "condicion": ">", "umbral": 28, "hist": 1.5}],
- "avisos": []}
-\`\`\`
+Después, evaluá las reglas.`)
 
-Procesala en este orden:
+  s.push(`## Modo automático y control local
 
-1. **"cmd"**: lista de comandos "salida=valor" (valor 1 o 0). Aplicá cada uno a
-   su salida. Si llega una salida que la placa no tiene, ignoralo e imprimí un
-   aviso.
-2. **"reglas"**: ver "Modo automático" más abajo.
-3. **"avisos"**: textos que avisan que un nombre no coincide con lo declarado
-   (casi siempre un error de tipeo). Imprimilos por serie, pero solo cuando
-   cambian respecto de la respuesta anterior, para no repetirlos cada 5 segundos.
+Hay UN modo automático para toda la placa (\`auto\`), guardado en Preferences
+para que sobreviva a un reinicio.
 
-Cuando algo está mal, la respuesta trae "ok": false y un "error" que dice
-exactamente qué corregir. **Si la respuesta no trae "ok": true, imprimí la
-respuesta COMPLETA en el monitor serie.** No preguntes solo por "ok": false: si
-la URL o la clave pública están mal, la respuesta viene de otro lado y no trae
-"ok".`)
+- **Modo automático activado**: las salidas que tienen regla las maneja la
+  regla. Cualquier acción manual sobre ellas (un "cmd" de la app o del portal,
+  o su pulsador) **se ignora**, y la placa escribe en "aviso" un texto como
+  "${salidaEj}: pulsador ignorado, esta en modo automatico". Las salidas sin
+  regla se siguen manejando a mano.
+- **Modo automático desactivado**: las reglas no se evalúan; todo es manual.
+${hayPulsadores ? `
+Pulsadores (todos entre el GPIO y GND):
 
-  s.push(`## Modo automático: reglas
-
-Las reglas las arma el usuario desde una app y llegan en cada respuesta. La
-placa las evalúa ella misma, así sigue regulando aunque se corte internet.
-
+- Configuralos con \`pinMode(pin, INPUT_PULLUP)\`: suelto lee HIGH, apretado lee LOW.
+- **Antirrebote obligatorio**: la lectura tiene que quedarse igual 50 ms antes
+  de tomarla como cambio. Actuá una sola vez por pulsación, al apretar.
+- El pulsador de una salida la alterna (si estaba prendida la apaga y
+  viceversa), como acción manual.
+- El pulsador de modo alterna el modo automático, lo guarda en Preferences, y
+  lo escribe en \`control/auto\` (apenas haya conexión, si no la hay). Mientras
+  no se haya escrito, el "auto" que llega de Firebase se ignora.
+- Revisá los pulsadores en CADA vuelta del loop, con o sin internet.
+` : ''}
 Cada regla es:
 
 \`\`\`json
-{"salida": "${salidaEj}", "entrada": "${entradaEj}", "condicion": ">", "umbral": 28, "hist": 1.5}
+"${salidaEj}": {"entrada": "${entradaEj}", "condicion": ">", "umbral": 28, "hist": 1.5}
 \`\`\`
 
 Qué significa, sin excepciones:
@@ -154,50 +261,49 @@ Si no se cumple ninguna de las dos, la salida queda como está. Esa franja del
 medio es la histéresis, y es obligatoria: sin ella, con el valor oscilando
 alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
 
-Reglas de implementación, todas obligatorias:
-
-- Llegan **solo las reglas activas**, como mucho una por salida. No hay que
-  chequear ningún campo "activa".
-- La lista **reemplaza completa** a la anterior. Si llega vacía ([]), no hay
-  ninguna regla.
 - Guardá hasta 10 reglas en un arreglo de structs {salida, entrada, condicion,
   umbral, hist}.
 - Si una regla nombra una entrada o una salida que la placa no tiene, o la
   entrada todavía no tiene ninguna lectura buena, ignorala.
 - Una misma salida no puede cambiar de estado por una regla más de una vez cada
-  30 segundos.
-- Guardá la lista en Preferences como el texto JSON recibido, **solo si cambió**
-  respecto de la guardada, y cargala al arrancar. Así la placa regula aunque
-  arranque sin internet.
-- En cada ciclo de 5 segundos, el orden es: leer entradas → evaluar reglas →
-  sincronizar con el backend.`)
+  30 segundos.`)
+
+  s.push(`## Cuándo publicar el estado
+
+- Leé las entradas y evaluá las reglas una vez por segundo (con millis()).
+- Una salida que cambia (por regla, comando o pulsador) se publica enseguida.
+- Una entrada se publica cuando cambió al menos 0,1 respecto de lo último
+  publicado, y como mucho una vez por segundo.
+- Aunque nada cambie, publicá cada 15 segundos: es el latido ("visto") con el
+  que el portal sabe que la placa está conectada.
+- Al conectarse (o reconectarse) a Firebase, publicá todo enseguida.
+- El "aviso" se manda en la siguiente publicación, y a los 20 segundos se
+  borra mandando "aviso": "".`)
 
   s.push(`## Robustez
 
 - **El WiFi no puede bloquear el loop.** Al arrancar, esperá la conexión como
   mucho 15 segundos y seguí. Si se cae, reintentá con WiFi.reconnect() cada 10
-  segundos, sin esperar. Mientras no hay WiFi, se siguen leyendo entradas y
-  evaluando reglas; solo se saltea la sincronización.
-- El servidor rechaza los envíos a menos de 3 segundos del anterior, aunque el
-  anterior haya sido rechazado. Usá millis() para espaciarlos cada 5 segundos;
-  **no uses delay() largo** ni llames a la sincronización en cada vuelta del loop.
-- Para que el handshake TLS no se repita en cada llamada, usá una sola
-  instancia global de WiFiClientSecure con setInsecure(), y HTTPClient con
-  setReuse(true).
+  segundos, sin esperar. Mientras no hay WiFi no llames a app.loop(), pero se
+  siguen leyendo entradas, evaluando reglas y atendiendo los pulsadores.
+- **No uses delay()** en el loop: con un delay los pulsadores no responden.
 - Guardá en Preferences el estado de cada salida (una clave por id) y
   restauralo al arrancar, así un corte de luz no las deja en cualquier
-  posición. Usá espacios de nombres separados para las salidas y las reglas.`)
+  posición. Usá espacios de nombres separados para las salidas, las reglas y
+  el modo.`)
 
   s.push(`## Configuración
 
 Dejá arriba de todo, bien visibles, estas constantes, con estos nombres:
 
 \`\`\`cpp
-const char *WIFI_SSID       = "";    // la red de 2.4 GHz de casa
-const char *WIFI_PASS       = "";
-const char *SUPABASE_URL    = "${url}";
-const char *PUBLISHABLE_KEY = "${publicable}";
-const char *CLAVE           = "${clave}";
+const char *WIFI_SSID    = "";    // la red de 2.4 GHz de casa
+const char *WIFI_PASS    = "";
+const char *API_KEY      = "${apiKey}";
+const char *DATABASE_URL = "${databaseURL}";
+const char *USUARIO      = "${usuario}";
+const char *CONTRASENA   = "";    // la completo yo: es la misma del portal
+const int PIN_PULSADOR_MODO = ${pulsadorModo ?? -1};
 \`\`\`
 
 Agregá un modo de prueba (una constante #define) que, cuando está activo,
@@ -208,7 +314,8 @@ puedo probar sin cablear nada.`)
 
 El sketch completo en un solo archivo, que compile tal cual, con comentarios en
 español explicando las partes que no son obvias. Imprimí por serie a 115200 lo
-que va pasando, para poder seguirlo desde el monitor.`)
+que va pasando (conexión, comandos, cambios de salidas, modo, avisos), para
+poder seguirlo desde el monitor.`)
 
   return s.join('\n\n')
 }

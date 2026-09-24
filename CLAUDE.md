@@ -6,224 +6,225 @@ Respondé en español rioplatense (voseo), que es como escribe el usuario.
 
 El usuario (Christian) le arma la infraestructura a un amigo docente. Una clase de
 ~20 alumnos practica **Kodular** contra un backend real, con un ESP32 por alumno.
-Los alumnos no aprenden backend ni firmware: sacan su clave de un portal, generan
+Los alumnos no aprenden backend ni firmware: se dan de alta en un portal, generan
 el sketch con una IA a partir de un prompt, y hacen su app Kodular desde una
 plantilla. La plantilla propia del docente NO está en el repo; la que generamos
-nosotros está en `kodular/` (ver abajo).
+nosotros está en `kodular/` (ver abajo). El docente tiene poco tiempo: todo tiene
+que andar sin que él toque código.
 
-Empezó como un ESP32 contra Adafruit IO; se reemplazó porque el plan gratuito
-tiene 30 datos por minuto para toda la cuenta.
+Historia: Adafruit IO (30 datos/min para toda la cuenta) → Supabase con HTTP y
+polling (v1–v3, hasta 10 s de demora) → **v4: Firebase, en tiempo real**.
 
-**Estado (2026-09-16):** versión 3, "hardware dinámico por alumno", implementada y
-verificada localmente. El usuario ya la está probando con su Supabase real y una
-placa. Lo último que se hizo: el ON/OFF del portal tardaba en reflejarse; se
-agregó `pendientes` en `leer_estado`, el reflejo inmediato del comando al
-entregarlo en `sync`, y un estado "enviando… / esperando a la placa…" en el portal.
-Para llevar eso a su Supabase alcanza con volver a correr `backend/02-funciones.sql`
-(no hace falta `00`).
+**Estado (2026-09-24):** v4 implementada y verificada local (emuladores + placa
+simulada + navegador + compilación). Todavía nadie la usó contra un Firebase real
+ni con una placa. Pedidos que la motivaron:
 
-El 2026-09-19 se preparó el repo para GitHub: se sacaron las claves reales de
-`src/main.cpp` (quedaron en `src/main.local.cpp`, ignorado), se agregaron
-`README.md` y `.gitattributes`, y se hizo el commit inicial en `main`.
+- **Tiempo real** en vez de cada 5 s.
+- **Control local**: un pulsador por salida (alterna) y un **pulsador de modo**.
+- **Modo automático UNO por placa** (`control/auto`). En AUTO, las salidas con
+  regla las maneja la regla y **se ignora todo lo manual** (app, portal, pulsador;
+  la placa escribe un `aviso`). Las salidas sin regla siguen manuales. El usuario
+  lo eligió así; reemplaza el "comando manual desactiva la regla" de v3.
+- Todo pasó a Firebase, Supabase se eliminó (el usuario lo eligió).
 
-El 2026-09-23, a pedido del usuario: **no se dice "sensores" ni "relés"** sino
-**entradas** (lo que la placa mide o lee: un sensor, un botón) y **salidas** (lo
-que prende y apaga: un relé, un LED). El renombre llega al contrato: `tipo`
-`entrada`/`salida`, plantilla `{entradas, salidas, reglas}`, reglas
-`{salida, entrada, ...}`, parámetros `p_salida`, firmware `USAR_DHT`. "Relé" o
-"sensor" solo quedan como ejemplos de componentes físicos ("módulo de relés",
-"DHT sensor library"). Además, **la plantilla por defecto está vacía**: cada
-alumno arranca sin nada. Para llevarlo a Supabase hay que correr `00`→`03`
-(cambiaron columnas de `reglas`).
+Vocabulario (pedido del usuario, 2026-09-23): **entradas** (lo que la placa mide o
+lee) y **salidas** (lo que prende y apaga), nunca "sensores"/"relés" salvo como
+ejemplo de componente físico ("módulo de relés", "DHT sensor library").
+
+Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 
 ## Mapa del repo
 
 | Ruta | Qué es |
 |---|---|
-| `backend/00-borrar-todo.sql` | Borra TODO (datos incluidos). Solo para pasar desde versiones viejas |
-| `backend/01-esquema.sql` | Tablas, RLS cerrado, `util.nombre_clave`, plantilla por defecto del curso (vacía) |
-| `backend/02-funciones.sql` | Las 11 funciones RPC y los helpers en `util`. Re-ejecutable sin perder datos |
-| `backend/03-curso-ejemplo.sql` | Crea el curso `IOT2026` (vacío) + recetas del docente comentadas, incluida "Cargar un kit" |
-| `backend/LEEME.md` | Puesta en marcha en Supabase, pruebas con curl, decisiones |
-| `portal/` | React + Vite, para Netlify. `src/pantallas/` (Entrar, MiPlaca, Configurar, MisDatos), `src/componentes/comunes.jsx`, `src/api.js`, `src/prompt.js` |
+| `firebase/database.rules.json` | Reglas de RTDB: aislamiento por usuario, docente, validación de forma |
+| `firebase/pruebas/reglas.test.mjs` | 21 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
+| `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores |
+| `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
+| `firebase/LEEME.md` | Puesta en marcha en Firebase, recetas del docente, límites, emuladores |
+| `portal/` | React + Vite, para Netlify. `src/firebase.js` (toda la capa de datos), `src/validar.js`, `src/pantallas/` (Entrar, MiPlaca, Configurar, MisDatos, Clase = docente) |
 | `portal/src/prompt.js` | Genera el prompt del firmware con el hardware del alumno. **Única fuente** de `PROMPT.md` (`cd portal && npm run prompt`) |
-| `portal/src/plantilla-ejemplo.js` | Kit de ejemplo (DHT22 + bomba, vent, luz); solo para generar `PROMPT.md`. Igual a la receta de `03` y a las tablas de `main.cpp` |
-| `src/main.cpp` | Firmware de referencia (PlatformIO). Entradas, salidas y reglas en tablas, con el kit de ejemplo |
-| `arduino/NexusIoT/NexusIoT.ino` | Mismo firmware para Arduino IDE = `arduino/cabecera.txt` + `main.cpp` con `USAR_DHT 0` y WiFi vacío |
+| `portal/src/plantilla-ejemplo.js` | Kit de ejemplo; solo para `PROMPT.md`. Igual a `plantilla-kit-ejemplo.json` y a las tablas de `main.cpp` |
+| `src/main.cpp` | Firmware de referencia (PlatformIO, FirebaseClient 2.2.13). Tablas de entradas y salidas (con pulsador), reglas, modo |
+| `arduino/NexusIoT/NexusIoT.ino` | Mismo firmware para Arduino IDE = `arduino/cabecera.txt` + `main.cpp` con `USAR_DHT 0` y WiFi/contraseña vacíos |
 | `NexusIoT-arduino.zip` | Lo que se reparte: el `.ino` + `arduino/LEEME.txt` |
-| `kodular/generar-aia.mjs` | Genera `NexusIoT.aia` (marcadores) y `NexusIoT_curso.aia` (con `portal/.env`, en `.gitignore`). Node sin dependencias |
-| `kodular/GUIA.md` | Importar el `.aia`, usar `valor`/`enviarComando`/`enviando`, pasar bloques por PNG, armarlo a mano |
-| `README.md` | Portada de GitHub: qué es y a qué documento ir. Corta, sin duplicar `LEEME.md` |
-| `LEEME.md` | Documentación general, API, decisiones, costos |
-| `.github/workflows/mantener-vivo.yml` | Ping diario a `salud()` para que Supabase no pause el proyecto |
-
-Es un repo git desde el 2026-09-19 (rama `main`).
+| `kodular/generar-aia.mjs` | Genera `NexusIoT.aia` (sin google-services) y `NexusIoT_curso.aia` (con `kodular/google-services.json`, en `.gitignore`). Node sin dependencias |
+| `kodular/GUIA.md` | Importar, compilar el APK (el Companion NO anda), usar los bloques, armarlo a mano |
+| `README.md` | Portada de GitHub. Corta, sin duplicar `LEEME.md` |
+| `LEEME.md` | Documentación general, modelo, decisiones, firmware, qué falta probar |
 
 ## ⚠️ Secretos
 
-Todo lo versionado lleva **marcadores**, no datos reales: `WIFI_SSID`/`WIFI_PASS`
-vacíos, `https://TUPROYECTO.supabase.co`, `"sb_publishable_PEGA_ACA_LA_TUYA"`,
-`"PEGA_ACA_TU_CLAVE"`. Nunca los reemplaces por los del usuario en algo que se
+Todo lo versionado lleva **marcadores**: `WIFI_SSID`/`WIFI_PASS`/`CONTRASENA`
+vacíos, `"PEGA_ACA_LA_API_KEY"`, `https://TUPROYECTO-default-rtdb.firebaseio.com`,
+`"PEGA_ACA_TU_USUARIO"`. Nunca los reemplaces por los del usuario en algo que se
 commitee, ni copies sus datos a documentación, prompts o al `.ino`/zip.
 
-Sus datos reales viven en tres archivos que están en `.gitignore` — no los leas
-salvo que haga falta, y no los cites:
+Sus datos reales viven en archivos que están en `.gitignore` — no los leas salvo
+que haga falta, y no los cites:
 
-- `src/main.local.cpp` — su copia del firmware con WiFi y claves cargadas.
-  PlatformIO no la compila (`build_src_filter` en `platformio.ini`). Para
-  flashear, él la copia sobre `src/main.cpp` y después restaura los marcadores.
-- `portal/.env` — URL y publishable key de su proyecto Supabase.
-- `kodular/NexusIoT_curso.aia` — el `.aia` generado con esos datos adentro.
+- `src/main.local.cpp` — su copia del firmware con datos cargados.
+- `portal/.env` — hoy todavía tiene las variables VIEJAS de Supabase; hay que
+  cambiarlas por las `VITE_FIREBASE_*` (ver `portal/.env.example`).
+- `kodular/google-services.json` y `kodular/NexusIoT_curso.aia`.
+
+⚠️ El commit `1223146` ("labels renombrados", ya pusheado) tiene su contraseña de
+WiFi real en `src/main.cpp`. Se le avisó el 2026-09-24; reescribir el historial
+es decisión suya.
 
 Antes de cualquier `git add`, si tocaste `src/main.cpp`, el `.ino` o el `.aia`,
 verificá que sigan con los marcadores.
 
-## Modelo de datos
+## Modelo de datos (RTDB)
 
-- `cursos` — `codigo` en mayúsculas, `abierto`, `plantilla` jsonb
-  `{entradas, salidas, reglas}` que se COPIA a cada alumno nuevo. Por defecto
-  vacía. Trigger que la valida.
-- `dispositivos` — un alumno. `clave` (placa + app), `clave_admin` (portal),
-  `pin_hash` (bcrypt), bloqueo tras 5 PIN mal (15 min). Único por
-  `(curso, util.nombre_clave(alumno))`: ignora tildes, mayúsculas y espacios.
-- `canales` — entradas y salidas del alumno (los "feeds"), `tipo`
-  `'entrada'`/`'salida'`. PK `(device_id, id)`.
-  `id` `^[a-z][a-z0-9_]{0,14}$` (15 = largo máximo de clave de Preferences).
-  Salidas exigen `pin` y `nivel_activo` LOW/HIGH. Máximo 10 entradas y 10 salidas.
-  Orden: `order by tipo` ascendente = entradas primero.
-- `reglas` — UNA por salida. Columnas `salida` (PK con device_id), `entrada`,
-  `condicion` `>`/`<`, `umbral`, `hist`, `activa`. FK a canales con cascade.
-- `estado` — `valores` jsonb (último sync), `avisos`, `visto_en` (último válido),
-  `ultimo_intento` (rate limit), `ultimo_error`, `syncs`.
-- `comandos` — cola `salida=1|0` (ej. `bomba=1`), tope 20 por dispositivo.
+```text
+cursos/{CODIGO}      {nombre, abierto, plantilla:{entradas[], salidas[], reglas[], pulsador_modo}}
+docentes/{uid}       true        (se crea a mano en la consola)
+alumnos/{usuario}    {curso, nombre, creado}
+placas/{usuario}/
+  config/entradas/{id}   {nombre, unidad, conexion, libreria, pin, orden}
+  config/salidas/{id}    {nombre, pin (0-33), nivel_activo LOW|HIGH, pulsador (0-33), conexion, orden}
+  config/pulsador_modo   GPIO
+  control/auto           bool (o "1"/"true"… si lo escribe Kodular)
+  control/reglas/{salida} {entrada, condicion >|<, umbral, hist}
+  control/cmd/{salida}   1|0 (o texto); la placa lo aplica y lo BORRA
+  estado/{id}            número o 0/1; estado/visto (timestamp servidor); estado/aviso (texto)
+```
 
-## API (11 funciones, todas SECURITY DEFINER)
+- **Usuario** = `curso.toLowerCase() + '-' + nombre normalizado` (sin tildes,
+  minúsculas, espacios→`_`): `iot2026-ana_perez`. **Correo** = usuario +
+  `@nexus-iot.example.com` (no existe). Las reglas comparan
+  `auth.token.email === $usuario + DOMINIO`. Ese dominio está en: reglas, portal,
+  prompt, `main.cpp`, placa simulada, generador del `.aia`.
+- Una cuenta por alumno, para portal, placa y app. Contraseña ≥ 6 (mínimo de Firebase).
+- Ids `^[a-z][a-z0-9_]{0,14}$`, reservados `visto, aviso, auto, cmd, reglas`. Máx.
+  10 entradas y 10 salidas: lo controla el portal (las reglas de RTDB no cuentan hijos).
+- Alta: `registrar()` en `firebase.js` crea la cuenta (o entra si ya existe con esa
+  contraseña), y si falta `alumnos/{usuario}` escribe alta + copia de la plantilla
+  en un solo `update`. Si el alta ya existía (el docente borró la cuenta en Auth
+  por olvido de contraseña) conserva todo.
 
-Con `clave_admin` (portal): `entrar(curso, alumno, pin)`, `leer_config`,
-`guardar_canal`, `borrar_canal`, `guardar_regla`, `borrar_regla(p_admin, p_salida)`.
+## Firmware (src/main.cpp)
 
-Con `clave` (placa y Kodular): `leer_estado` (STABLE → GET sin headers),
-`enviar_comando`, `ajustar_regla(p_clave, p_salida, p_cambios)` (solo
-`activa`/`umbral`/`hist`), `sync`.
-Además `salud()`.
-
-`sync` responde `{ok, cmd:[...], reglas:[solo activas, sin campo activa], avisos:[...]}`.
-`leer_estado` pone los valores en el primer nivel y agrega `detectados`, `faltan`,
-`pendientes`, `reglas` (todas, con `activa`), `edad`, `avisos`, `ultimo_error`,
-`syncs`. Esos nombres están en `util.reservados()`.
+- FirebaseClient (Mobizt) 2.2.x con `UserAuth`; dos `AsyncClientClass`: uno para
+  el stream de `control`, otro para get/update/remove/set.
+- **Ante cualquier evento del stream, relee `control` completo** y lo procesa:
+  auto → reglas → cmd (aplica como manual y borra). No interpretar rutas del SSE.
+- Publica `estado` con `update`: salidas al instante, entradas si cambian ≥ 0,1 y a
+  lo sumo 1/s, latido cada 15 s, todo al reconectar. `aviso` se borra a los 20 s.
+- Pulsadores `INPUT_PULLUP` a GND, antirrebote 50 ms. Pulsador de modo: cambia
+  `modoAuto`, lo guarda y lo escribe en `control/auto` (flag `modoLocal`: mientras
+  no se escribió, se ignora el `auto` remoto).
+- Sin WiFi no llama a `app.loop()` pero sigue leyendo, regulando y atendiendo
+  pulsadores.
+- **Los structs van antes de cualquier función**: el convertidor de `.ino` inserta
+  prototipos antes de la primera función (falló así; el prompt también lo pide).
+- ~73 % de la flash.
 
 ## Decisiones tomadas (no revertir sin hablarlo con el usuario)
 
-1. **Nunca lanzan excepción**: siempre 200 + `{ok:true|false,...}`. El firmware lo
-   genera una IA y suele mirar solo el body.
-2. **Errores que dicen qué falta, cómo llegó y cómo va.** Se guardan en
-   `ultimo_error` y el portal los muestra (el alumno no necesita monitor serie).
-3. **Forma incorrecta → rechazo; nombres que no coinciden → aviso.** Un canal
-   declarado ausente o uno no declarado presente NO rechazan el sync.
-4. **`null` = "no llegó valor"**, no error: ArduinoJson serializa NaN como null y
-   un DHT22 que falla devuelve NaN.
-5. **Rate limit de 3 s contra `ultimo_intento`**, no contra `visto_en`: si no, un
-   sketch que manda JSON inválido en loop nunca se frena.
-6. **Dos claves**: la del APK es extraíble, así que no puede cambiar la estructura.
-7. **Reglas evaluadas en la placa** (el usuario lo eligió, para que regule sin
-   internet), acotadas para que la IA no se equivoque: una por salida, `>`/`<`,
-   histéresis siempre, a la placa solo le llegan las activas, la lista reemplaza
-   completa a la anterior. Un comando manual desactiva la regla de ESA salida.
-8. **El comando se refleja en `estado.valores` al entregarse en `sync`**; si la
-   placa no lo aplica, el sync siguiente lo corrige.
-9. **Claves en la URL (`?apikey=`)**: concesión consciente para que Kodular lea
-   con un `Web.Get` sin headers. Documentado en `LEEME.md`.
-10. **Publishable key (`sb_publishable_...`), no la legacy anon.** Pero el ROL de
-    Postgres se sigue llamando `anon`: los `grant ... to anon` están bien.
-11. **`search_path = public, util, extensions`** en las funciones: en Supabase
-    pgcrypto vive en `extensions`.
-12. **El firmware arma el JSON con ArduinoJson**, nunca concatenando strings: un
-    JSON inválido lo rechaza Supabase antes de llegar a `sync` y no deja rastro.
-13. **El WiFi no bloquea el loop** en el firmware: sin red se siguen leyendo
-    entradas y evaluando reglas.
-14. Historial y gráficos: **pospuestos**. Se engancharían en `sync` con una tabla
-    `lecturas` (máx. 1 por minuto por placa, borrar > 24 h).
+1. **Firebase RTDB + Auth**, todo ahí. Se descartaron WebSocket propio (Kodular no
+   tiene) y MQTT (extensión en Kodular, aislamiento flojo en brokers gratis).
+2. **Modo automático por placa** que bloquea lo manual en salidas con regla (ver arriba).
+3. **Reglas evaluadas en la placa**, acotadas: una por salida, `>`/`<`,
+   histéresis siempre, 30 s mínimo entre conmutaciones por regla.
+4. **`cmd` es un buzón** que la placa vacía; el portal muestra "esperando a la
+   placa…" mientras exista.
+5. **Tolerancia a cómo guarda Kodular**: reglas y placa aceptan bool/número/texto
+   (`"1"`, `"true"`, `"\"1\""`, `on/off`) en `auto` y `cmd`.
+6. **La contraseña nunca va en el prompt**; el alumno la escribe en el código.
+7. **El firmware arma el JSON con ArduinoJson**, nunca concatenando strings.
+8. **El WiFi no bloquea el loop.**
+9. **La ruta en Kodular se arma con el usuario tipeado**, no con el uid de
+   `LoginSuccess` (no se pudo verificar el nombre de ese parámetro).
+10. Historial y gráficos: **pospuestos** (`placas/{u}/lecturas`, 1/min, borrar > 24 h).
 
-Presupuesto: free tier de Supabase, límite real = 5 GB/mes de egress; estimado
-~2,8 GB en semana pico.
+Presupuesto: Spark gratis. Techo real = **100 conexiones simultáneas** (~3 por
+alumno: placa, app, portal). Descarga estimada 1,5–3 GB/mes de 10. RTDB no se
+pausa: no hay keep-alive.
+
+## Kodular (lo verificado para generar el `.aia`)
+
+Kodular Creator no se puede abrir desde acá. Formato sacado de proyectos reales
+exportados (`gh search code ... extension:bky`) y de un proyecto de julio 2026 con
+ESP32 + Firebase (`KPSP-28P23W00645/KPSP_NSC_DOORBELL-32`).
+
+- `YaVersion` 247, `language-version` 34, Form 46. Label 10, Button 13, TextBox
+  13, PasswordTextBox 6, Clock 4, TinyDB 2, arrangements 10.
+- Desde **Kodular 2026.05** el `FirebaseDB` viejo **rompe el build**. Se usa
+  `KodularFirebaseDatabase` v1 (propiedad `ProjectPath`; eventos DataChanged,
+  GotValue, TagList, FirebaseError; métodos StoreValue, GetValue, GetTagList) y
+  `KodularFirebaseAuthentication` v4 (EmailPasswordLogin, LoginSuccess,
+  LoginFailed, Logout). Necesitan `assets/google-services.json` cuyo
+  `package_name` = `packagename=` en `project.properties`. **No andan en el
+  Companion**: hay que compilar el APK.
+- Sin diccionarios: lo que llega se guarda en `TinyDBEstado` (Namespace propio).
+- Verificados en `.bky` reales: `text_changeCase` (OP DOWNCASE), `math_subtract`,
+  `Clock.SystemTime`, `TinyDB.GetTags/ClearAll`, `logic_compare`.
+- `aia-kit` lee el `.aia`; da "nonVisible" en los componentes Firebase porque su
+  catálogo es viejo (no es un error del archivo).
+- Kodular importa PNG de bloques arrastrándolos; la mochila es solo entre
+  proyectos del mismo usuario.
 
 ## Si cambia el contrato
 
-Tocar juntos: `backend/02-funciones.sql`, `portal/src/prompt.js` (+ `npm run prompt`),
-`src/main.cpp` (+ regenerar `.ino` y zip), `kodular/generar-aia.mjs` y `kodular/GUIA.md`
-(+ `node kodular/generar-aia.mjs`), y los `LEEME`. Si `leer_estado` suma una clave
-del sistema, va también en la lista `SISTEMA` del generador. Si cambia la plantilla por
-defecto en `01-esquema.sql` (hoy vacía), revisar `LEEME.md` y `backend/LEEME.md`. El
-kit de ejemplo está en tres lugares iguales: receta de `03`, `plantilla-ejemplo.js`
-y tablas de `main.cpp`.
+Tocar juntos: `firebase/database.rules.json` (+ `npm test`), `portal/src/firebase.js`
+y pantallas, `portal/src/prompt.js` (+ `npm run prompt`), `src/main.cpp` (+ `.ino` y
+zip), `firebase/pruebas/simular-placa.mjs`, `kodular/generar-aia.mjs` y `GUIA.md`
+(+ `node kodular/generar-aia.mjs`), y los `LEEME`. Si la placa suma una clave a
+`estado` que no es entrada ni salida, va en `RESERVADOS` (firebase.js), en las
+reglas y en `SISTEMA` del generador. El kit de ejemplo está en tres lugares iguales.
 
-Regenerar el `.ino` (bash, desde la raíz): el comando está en `LEEME.md`, sección
-Firmware. Además de `USAR_DHT 1`→`0`, vacía `WIFI_SSID`/`WIFI_PASS` por si
-`src/main.cpp` tiene cargado el WiFi del usuario (pasa: lo carga para flashear).
+Regenerar el `.ino`: comando en `LEEME.md`, sección Firmware (vacía WiFi y
+contraseña por si `main.cpp` tiene los del usuario).
 
-Regenerar el zip (PowerShell; `zip` no existe en este Windows):
+Regenerar el zip con **PowerShell 7** (herramienta PowerShell, no `powershell.exe`:
+el 5.1 escribe las rutas con `\`):
 `Compress-Archive -Path arduino\NexusIoT, arduino\LEEME.txt -DestinationPath NexusIoT-arduino.zip -Force`
 
 ## Cómo se verificó (y cómo repetirlo)
 
-Los scripts de prueba vivían en el scratchpad de la conversación anterior y ya no
-están; esto es lo necesario para rearmarlos.
-
-- **Postgres local**: binarios de scoop en `C:/Users/chris/scoop/apps/postgresql/current/bin`
-  (no hay servidor corriendo). `initdb` en el scratchpad con `-U postgres -E UTF8 --no-locale`,
-  levantar con `pg_ctl ... -o "-p 55434" start` **en segundo plano** (si no, bloquea la
-  terminal), crear roles `anon` y `authenticated`, correr `00`→`03`. El `01` instala
-  pgcrypto en el esquema `extensions`, igual que Supabase: si una función no tiene
-  `extensions` en el `search_path`, falla también local.
-- **Probar como Supabase**: `set role anon;` antes de llamar las funciones (tablas y
-  `util` tienen que dar permission denied).
-- **API falsa para el portal**: un server Node en :8787 que recibe
-  `/rest/v1/rpc/<fn>` y ejecuta `set role anon; select public.<fn>(...)` por psql,
-  pasando los valores **por stdin con dollar-quoting** (ver trampas).
-- **Navegador**: `playwright-core` (sin navegadores descargados) con Edge en
-  `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`, headless, viewport
-  390×844. Build del portal con `VITE_SUPABASE_URL=http://127.0.0.1:8787`.
-- **Firmware**: `~/.platformio/penv/Scripts/pio.exe run` (compila; no hay placa).
+- **Java**: la máquina tiene Java 8; firebase-tools pide 21. Se usó un JDK 21
+  portable (Adoptium zip) en el scratchpad, con `JAVA_HOME` y `PATH` en formato
+  `/c/...` (con `C:/` los dos puntos rompen el PATH de bash).
+- **Reglas**: `cd firebase && npm test` (o `npx firebase emulators:start --project
+  demo-nexus` en segundo plano y `node --test pruebas/`).
+- **Sembrar el emulador**: `curl` con `Authorization: Bearer owner` contra
+  `http://127.0.0.1:9000/<ruta>.json?ns=demo-nexus-default-rtdb`; usuarios con
+  `POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`
+  y borrar todos con `DELETE .../emulator/v1/projects/demo-nexus/accounts`.
+- **Portal contra emuladores**: build con `VITE_USAR_EMULADOR=1`,
+  `VITE_FIREBASE_API_KEY=fake`, `VITE_FIREBASE_PROJECT_ID=demo-nexus`,
+  `VITE_FIREBASE_DATABASE_URL=https://demo-nexus-default-rtdb.firebaseio.com`,
+  `--outDir` en el scratchpad (no pisar `portal/dist`), y `vite preview`.
+- **Navegador**: `playwright-core` con Edge
+  (`C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`), headless,
+  390×844, lanzando `simular-placa.mjs` como proceso hijo y escribiéndole `p bomba`
+  / `m` por stdin. 27 chequeos pasaron (alta, errores, plantilla, validación de
+  GPIO, comando en ~50 ms, AUTO bloquea, pulsadores, prompt sin contraseña,
+  docente).
+- **Firmware**: `~/.platformio/penv/Scripts/pio.exe run`, y el `.ino` con
+  `pio ci --project-conf platformio.ini arduino/NexusIoT/NexusIoT.ino`.
 
 ## Trampas del entorno (Windows + Git Bash)
 
-- **Las tildes se rompen en argumentos de línea de comando** (`psql -c`, `psql -v`,
-  `curl -d` desde bash). Pasá texto con acentos por archivo o por stdin.
-- `echo $?`/`${PIPESTATUS}` después de `$(... | grep)` mide el `grep`, no psql.
-- En una misma consulta SQL, `sync(...)` y `leer_estado(...)` comparten foto: lo que
-  escribe una no lo ve la otra. Separá en consultas distintas.
-- Playwright `getByRole({name})` busca por substring: "desactivado" contiene
-  "activado". Usá `exact: true`.
-- Después de un build de prueba, `portal/dist` queda con la URL de prueba: rearmalo
-  con `env -u VITE_SUPABASE_URL -u VITE_SUPABASE_PUBLISHABLE_KEY npm run build` para
-  que tome el `.env` del usuario.
-- Heredocs con JSX largo pueden romper el parseo de bash: usá la herramienta de
-  escritura de archivos.
+- **Las tildes se rompen en argumentos de línea de comando** (`curl -d`, `node -e`
+  con acentos). Pasá texto con acentos por archivo o por stdin.
+- **No hay Python.** Para ediciones con script, `node -e`.
+- Heredocs largos con comillas simples adentro pueden romper el parseo de bash:
+  usá la herramienta de escritura de archivos.
+- `vite preview` escucha en `localhost` (IPv6), no en `127.0.0.1`.
+- Playwright `getByRole({name})` busca por substring ("DESACTIVADO" contiene
+  "ACTIVADO"): usá `exact: true`.
+- Un `max` en un `<input type=number>` hace que el navegador bloquee el submit con
+  su propio aviso antes de nuestras validaciones: en los GPIO no se usa.
 
 ## Pendiente de probar en el mundo real
 
-- Supabase real: el GET sin headers de `leer_estado` y que `entrar` encuentre pgcrypto.
-- La placa real, incluido cortar el WiFi y ver que las reglas siguen andando.
-- El prompt (`PROMPT.md`) en dos IA distintas, compilando lo que salga sin retocar:
-  el motor de reglas lo escribe la IA.
-- El GitHub Action necesita que el repo esté en GitHub con los secretos
-  `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY`.
-- El `.aia` importado en Kodular Creator y corriendo contra la placa.
-
-## Kodular: lo que se verificó para generar el `.aia`
-
-Kodular Creator no se puede abrir desde acá (es web y con login). El formato se sacó
-de proyectos reales exportados por Kodular en GitHub (buscar con
-`gh search code '"creator.kodular.io"'`) y de `github.com/Kodular/aia-kit`
-(`src/environments/kodular-creator/simple_components.json` tiene métodos y eventos).
-
-- `YaVersion` 242, `language-version` 34, desde 2022 hasta 2025. Versiones de
-  componentes de Kodular, **no** las de App Inventor: Form 44, Label 10, Button 13,
-  TextBox 13, Web 6, Clock 4, TinyDB 2, arrangements 10.
-- Kodular **no tiene** `Web.JsonTextDecodeWithDictionaries` ni `JsonObjectEncode`:
-  se usa `JsonTextDecode` (lista de pares) + `lists_lookup_in_pairs`.
-- `math_is_a_number` no se usa: en Kodular no tiene el desplegable (campo `OP`).
-- Todo tipo de bloque y nombre de entrada del generador aparece en `.bky` reales
-  de Kodular. El `npm` `aia-kit` (`AIAReader.parse`) lee el `.aia` generado.
-- Kodular importa PNG de bloques arrastrándolos (desde la versión Eagle); la
-  mochila es solo entre proyectos del mismo usuario.
+- Un proyecto Firebase real (apps web y Android registradas, reglas publicadas).
+- La placa real con FirebaseClient: auth, stream, pulsadores, cortar el WiFi.
+- El `.aia` en Kodular: importar, compilar con `google-services.json`, y **cómo
+  codifica los valores `KodularFirebaseDatabase`** (código cerrado). También si
+  cambiar `ProjectPath` por bloques re-engancha el listener (por las dudas, al
+  entrar se piden los valores con `GetTagList`/`GetValue`).
+- El prompt (`PROMPT.md`) en dos IA distintas, compilando lo que salga sin retocar.

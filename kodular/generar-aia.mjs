@@ -1,24 +1,34 @@
 // Genera un proyecto de Kodular (.aia) con los bloques genéricos de Nexus IoT:
-// leer el estado de la placa y mandarle comandos.
+// entrar con el usuario del alumno, recibir el estado de la placa en tiempo
+// real y mandarle comandos y el modo automático.
 //
 //   node kodular/generar-aia.mjs
 //
-// Escribe siempre kodular/NexusIoT.aia, con marcadores en URL_BASE y
-// PUBLICABLE: es el que se le puede pasar a cualquiera. Si portal/.env tiene
-// VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY, escribe además
-// kodular/NexusIoT_curso.aia con esos valores, listo para los alumnos del
-// curso (está en .gitignore).
+// Escribe siempre kodular/NexusIoT.aia, SIN google-services.json: es el que
+// se le puede pasar a cualquiera (hay que subirle ese archivo en Media). Si
+// existe kodular/google-services.json (el de la app Android del proyecto
+// Firebase, en .gitignore), escribe además kodular/NexusIoT_curso.aia con ese
+// archivo adentro y el package que dice, listo para los alumnos del curso.
 //
 // El formato está copiado de proyectos exportados por Kodular Creator
-// (YaVersion 242, de 2022 a 2025). Dos cosas que importan:
+// (YaVersion 247, julio de 2026). Lo que importa:
 //
-// - Kodular NO tiene Web.JsonTextDecodeWithDictionaries: eso es de App
-//   Inventor. Por eso el JSON se decodifica con JsonTextDecode, que da una
-//   lista de pares, y se lee con "look up in pairs".
+// - Desde Kodular 2026.05 el componente viejo FirebaseDB no compila. Se usan
+//   KodularFirebaseDatabase (versión 1, una sola propiedad: ProjectPath) y
+//   KodularFirebaseAuthentication (versión 4). Los dos leen el proyecto de
+//   assets/google-services.json, cuyo package_name tiene que ser igual al
+//   package de la app (packagename en project.properties).
+//
+// - Esos componentes NO andan en el Companion: para probar hay que compilar
+//   el APK.
+//
+// - Kodular NO tiene diccionarios de App Inventor ni JsonTextDecodeWithDictionaries.
+//   Lo que llega de la placa se guarda en un TinyDB con su propio Namespace
+//   (TinyDBEstado), que hace de diccionario: StoreValue, GetValue, GetTags.
 //
 // - Las versiones de los componentes son las de Kodular, no las de App
-//   Inventor (Web es 6 en Kodular y 9 en App Inventor). Una versión más nueva
-//   que la del servidor hace fallar la importación.
+//   Inventor. Una versión más nueva que la del servidor hace fallar la
+//   importación.
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -27,15 +37,21 @@ import { deflateRawSync } from 'node:zlib'
 
 const AQUI = dirname(fileURLToPath(import.meta.url))
 
-const YA_VERSION = '242'
+const YA_VERSION = '247'
 const LANGUAGE_VERSION = '34'
 const VERSIONES = {
-  Form: 44, Label: 10, Button: 13, TextBox: 13, Web: 6, Clock: 4, TinyDB: 2,
+  Form: 46, Label: 10, Button: 13, TextBox: 13, PasswordTextBox: 6, Clock: 4, TinyDB: 2,
   VerticalArrangement: 10, HorizontalArrangement: 10,
+  KodularFirebaseDatabase: 1, KodularFirebaseAuthentication: 4,
 }
 
-const MARCADOR_URL = 'https://TUPROYECTO.supabase.co'
-const MARCADOR_PUBLICABLE = 'sb_publishable_PEGA_ACA_LA_TUYA'
+// Tiene que ser el mismo dominio que en firebase/database.rules.json, en el
+// portal (src/firebase.js) y en el firmware.
+const DOMINIO = '@nexus-iot.example.com'
+
+// El package de la app Android que se registra en Firebase. Si hay un
+// google-services.json, se usa el package que dice ese archivo.
+const PAQUETE_POR_DEFECTO = 'io.nexusiot.app'
 
 
 // ===================================================================
@@ -46,24 +62,34 @@ const MARCADOR_PUBLICABLE = 'sb_publishable_PEGA_ACA_LA_TUYA'
 // Los nombres de los componentes son parte del contrato: los bloques los
 // nombran, y un bloque pegado en otro proyecto queda en rojo si no existen.
 const COMPONENTES = [
-  ['VerticalArrangement', 'ArregloClave', { Width: '-2' }, [
-    ['Label', 'LabelClave', { Text: 'Clave de tu placa (la sacás del portal, en Mis datos):' }],
-    ['TextBox', 'TextBoxClave', { Hint: 'pegá acá tu clave', Width: '-2' }],
-    ['Button', 'BotonGuardarClave', { Text: 'Guardar clave' }],
+  ['VerticalArrangement', 'ArregloLogin', { Width: '-2' }, [
+    ['Label', 'LabelLogin', { Text: 'Tu usuario y tu contraseña (los mismos del portal):' }],
+    ['TextBox', 'TextBoxUsuario', { Hint: 'iot2026-tu_nombre', Width: '-2' }],
+    ['PasswordTextBox', 'TextBoxContrasena', { Hint: 'tu contraseña', Width: '-2' }],
+    ['Button', 'BotonEntrar', { Text: 'Entrar' }],
   ]],
-  ['Label', 'LabelConexion', { FontBold: 'True', FontSize: '18', Text: 'Conectando…' }],
-  ['Label', 'LabelDatos', { FontSize: '16' }],
-  ['Label', 'LabelBomba', { FontSize: '16', Text: 'Bomba: ?' }],
-  ['HorizontalArrangement', 'ArregloBomba', { Width: '-2' }, [
-    ['Button', 'BotonPrender', { Text: 'Prender bomba', Width: '-2' }],
-    ['Button', 'BotonApagar', { Text: 'Apagar bomba', Width: '-2' }],
+  ['Label', 'LabelConexion', { FontBold: 'True', FontSize: '18', Text: 'Entrá con tu usuario.' }],
+  ['VerticalArrangement', 'ArregloPlaca', { Width: '-2', Visible: 'False' }, [
+    ['Label', 'LabelDatos', { FontSize: '16' }],
+    ['Label', 'LabelModo', { FontSize: '16', Text: 'Modo automático: ?' }],
+    ['Button', 'BotonModo', { Text: 'Cambiar modo', Width: '-2' }],
+    ['Label', 'LabelBomba', { FontSize: '16', Text: 'Bomba: ?' }],
+    ['HorizontalArrangement', 'ArregloBomba', { Width: '-2' }, [
+      ['Button', 'BotonPrender', { Text: 'Prender bomba', Width: '-2' }],
+      ['Button', 'BotonApagar', { Text: 'Apagar bomba', Width: '-2' }],
+    ]],
+    ['Button', 'BotonSalir', { Text: 'Cambiar de usuario' }],
   ]],
-  ['Web', 'WebEstado', {}],
-  ['Web', 'WebComando', {}],
-  // TimerAlwaysFires en False: con la app en segundo plano no sigue leyendo.
-  // Veinte teléfonos en el bolsillo gastarían la transferencia del plan gratuito.
-  ['Clock', 'RelojEstado', { TimerAlwaysFires: 'False', TimerInterval: '5000' }],
+  ['KodularFirebaseAuthentication', 'FirebaseAuth', {}],
+  // Tres "bases", una por rama: cada una escucha y escribe en su ProjectPath,
+  // que se fija después de entrar (lleva el usuario).
+  ['KodularFirebaseDatabase', 'DBEstado', {}],
+  ['KodularFirebaseDatabase', 'DBControl', {}],
+  ['KodularFirebaseDatabase', 'DBCmd', {}],
+  // Solo actualiza el cartel de "conectada": no consulta nada por internet.
+  ['Clock', 'RelojConexion', { TimerAlwaysFires: 'False', TimerInterval: '5000' }],
   ['TinyDB', 'TinyDB1', {}],
+  ['TinyDB', 'TinyDBEstado', { Namespace: 'NexusEstado' }],
 ]
 
 const TIPOS = { Screen1: 'Form' }
@@ -92,7 +118,7 @@ function scm(nombreApp) {
   }
   // Kodular escribe los caracteres no ASCII como \uXXXX.
   const json = JSON.stringify({ authURL: ['creator.kodular.io'], YaVersion: YA_VERSION, Source: 'Form', Properties: form })
-    .replace(/[-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+    .replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
   return `#|\n$JSON\n${json}\n|#`
 }
 
@@ -148,6 +174,10 @@ const elemento = (l, i) => bloque('lists_select_item', { valores: { LIST: l, NUM
 const logica = (op, a, b) => bloque('logic_operation', { mutacion: '<mutation items="2"></mutation>', campos: { OP: op }, valores: { A: a, B: b } })
 const no = v => bloque('logic_negate', { valores: { BOOL: v } })
 const comparar = (a, op, b) => bloque('math_compare', { campos: { OP: op }, valores: { A: a, B: b } })
+// Igualdad que sirve para texto y números (el = de la sección Lógica).
+const iguales = (a, b) => bloque('logic_compare', { campos: { OP: 'EQ' }, valores: { A: a, B: b } })
+const restar = (a, b) => bloque('math_subtract', { valores: { A: a, B: b } })
+const minusculas = t => bloque('text_changeCase', { campos: { OP: 'DOWNCASE' }, valores: { TEXT: t } })
 // Sin math_is_a_number: en App Inventor tiene un desplegable (campo OP) que
 // según la documentación de Kodular allá no existe, y un campo desconocido
 // puede hacer fallar la importación.
@@ -191,10 +221,12 @@ const cuando = (comp, evento, cuerpo) => bloque('component_event', {
 // Las firmas van acá arriba porque un procedimiento se puede llamar antes de
 // estar definido en el archivo (mostrarEstado, por ejemplo).
 const FIRMAS = {
-  pedirEstado: [],
+  entrar: [],
   valor: ['id'],
-  enviando: ['salida'],
+  conectada: [],
+  autoActivo: [],
   enviarComando: ['salida', 'prender'],
+  modoAuto: ['activar'],
   mostrarError: ['mensaje'],
   mostrarEstado: [],
 }
@@ -238,118 +270,161 @@ const llamarFuncion = (nombre, ...args) => bloque('procedures_callreturn', {
 //  BLOQUES — el programa
 // ===================================================================
 
-function programa(urlBase, publicable) {
-  const errorHttp = () => llamar('mostrarError',
-    unir(texto('El servidor respondió '), parametroEvento('responseCode'), texto(': '), parametroEvento('responseContent')))
+function programa() {
+  const errorFirebase = () => llamar('mostrarError', parametroEvento('message'))
+  const guardarDato = () => sec(
+    metodo('TinyDBEstado', 'StoreValue', parametroEvento('tag'), parametroEvento('value')),
+    llamar('mostrarEstado'))
+  const ruta = (resto) => unir(texto('placas/'), global('USUARIO'), texto(resto))
 
   // ---------------- 1. configuración ----------------
   const configuracion = [
-    comentar(declararGlobal('URL_BASE', texto(urlBase)),
-      'La URL de tu proyecto de Supabase + /rest/v1/rpc/. Es la misma para todo el curso.'),
-    comentar(declararGlobal('PUBLICABLE', texto(publicable)),
-      'La publishable key del proyecto (sb_publishable_...). Es la misma para todo el curso.'),
-    comentar(declararGlobal('CLAVE', texto('')),
-      'La clave de la placa. Dejala vacía: la app la pide y la guarda en TinyDB. '
-      + 'Si la escribís acá, se usa hasta que alguien guarde otra desde la app.'),
-    comentar(declararGlobal('estado', lista()),
-      'Lo último que devolvió leer_estado, como lista de pares. Leelo con la función valor.'),
+    comentar(declararGlobal('DOMINIO', texto(DOMINIO)),
+      'Se agrega al usuario para armar el correo de Firebase. No lo cambies: es el mismo para todo el curso.'),
+    comentar(declararGlobal('USUARIO', texto('')),
+      'Tu usuario, por ejemplo iot2026-ana_perez. Dejalo vacío: la app lo pide y lo guarda.'),
+    comentar(declararGlobal('CONTRASENA', texto('')),
+      'Tu contraseña. Dejala vacía: la app la pide y la guarda en el teléfono.'),
+    comentar(declararGlobal('AUTO', booleano(false)),
+      'El modo automático, tal como llega de Firebase. Leelo con la función autoActivo.'),
   ]
 
   // ---------------- 2. bloques Nexus ----------------
-  // Las claves de leer_estado que no son entradas ni salidas (util.reservados()
-  // en backend/02-funciones.sql, sin las que no vienen en esa respuesta).
-  const SISTEMA = ['ok', 'device_id', 'alumno', 'detectados', 'faltan', 'pendientes',
-                   'reglas', 'edad', 'avisos', 'ultimo_error', 'syncs']
+  // Lo que la placa escribe en "estado" y no es una entrada ni una salida.
+  const SISTEMA = ['visto', 'aviso']
 
   const nexus = [
     comentar(declararGlobal('SISTEMA', lista(...SISTEMA.map(texto))),
-      'Las claves de la respuesta que no son entradas ni salidas. mostrarEstado las saltea.'),
+      'Lo que llega en "estado" que no es una entrada ni una salida. mostrarEstado lo saltea.'),
 
-    comentar(procedimiento('pedirEstado',
-      si([[estaVacio(global('CLAVE')),
-           fijar('LabelConexion', 'Text', texto('Pegá la clave de tu placa y tocá "Guardar clave".'))]],
-         sec(
-           fijar('WebEstado', 'Url', unir(global('URL_BASE'), texto('leer_estado?apikey='), global('PUBLICABLE'),
-                                           texto('&p_clave='), global('CLAVE'))),
-           metodo('WebEstado', 'Get')))),
-      'Pide el estado de la placa. La respuesta NO vuelve acá: llega en WebEstado.GotText.'),
+    comentar(procedimiento('entrar', sec(
+      fijar('LabelConexion', 'Text', texto('Entrando…')),
+      metodo('FirebaseAuth', 'EmailPasswordLogin', unir(global('USUARIO'), global('DOMINIO')), global('CONTRASENA')))),
+      'Entra a Firebase con tu usuario. La respuesta llega en FirebaseAuth.LoginSuccess o LoginFailed.'),
 
-    comentar(cuando('WebEstado', 'GotText',
-      si([[comparar(parametroEvento('responseCode'), 'NEQ', numero(200)), errorHttp()]],
-         sec(
-           fijarGlobal('estado', metodo('WebEstado', 'JsonTextDecode', parametroEvento('responseContent'))),
-           si([[buscarEnPares(texto('ok'), global('estado'), booleano(false)), llamar('mostrarEstado')]],
-              llamar('mostrarError', buscarEnPares(texto('error'), global('estado'), texto('respuesta inesperada'))))))),
-      'Guarda la respuesta en la variable estado y llama a mostrarEstado.'),
+    comentar(cuando('FirebaseAuth', 'LoginSuccess', sec(
+      metodo('TinyDBEstado', 'ClearAll'),
+      fijar('DBEstado', 'ProjectPath', ruta('/estado')),
+      fijar('DBControl', 'ProjectPath', ruta('/control')),
+      fijar('DBCmd', 'ProjectPath', ruta('/control/cmd')),
+      fijar('ArregloLogin', 'Visible', booleano(false)),
+      fijar('ArregloPlaca', 'Visible', booleano(true)),
+      metodo('DBEstado', 'GetTagList'),
+      metodo('DBControl', 'GetValue', texto('auto'), booleano(false)),
+      llamar('mostrarEstado'))),
+      'Ya adentro: cada base apunta a su rama de TU placa. Desde acá, todo lo que cambie llega solo en DataChanged.'),
+
+    cuando('FirebaseAuth', 'LoginFailed', sec(
+      fijar('ArregloLogin', 'Visible', booleano(true)),
+      fijar('ArregloPlaca', 'Visible', booleano(false)),
+      llamar('mostrarError', texto('No se pudo entrar. Revisá tu usuario y tu contraseña: son los mismos del portal.')))),
+
+    comentar(cuando('DBEstado', 'DataChanged', guardarDato()),
+      'Llega cada vez que la placa cambia algo: tag es el id ("t", "bomba", "visto"...) y value su valor.'),
+
+    comentar(cuando('DBEstado', 'TagList',
+      paraCada('tag', parametroEvento('value'), metodo('DBEstado', 'GetValue', local('tag'), texto('')))),
+      'Al entrar, pide todos los valores que ya estaban.'),
+
+    cuando('DBEstado', 'GotValue', guardarDato()),
+
+    cuando('DBControl', 'DataChanged',
+      si([[iguales(parametroEvento('tag'), texto('auto')),
+           sec(fijarGlobal('AUTO', parametroEvento('value')), llamar('mostrarEstado'))]])),
+
+    cuando('DBControl', 'GotValue',
+      si([[iguales(parametroEvento('tag'), texto('auto')),
+           sec(fijarGlobal('AUTO', parametroEvento('value')), llamar('mostrarEstado'))]])),
 
     comentar(funcion('valor',
-      buscarEnPares(local('id'), global('estado'), numero(0))),
+      metodo('TinyDBEstado', 'GetValue', local('id'), numero(0))),
       'El valor de una entrada o salida, por su id: valor("t"), valor("bomba"). Si todavía no llegó, da 0.'),
 
-    comentar(funcion('enviando',
-      logica('OR',
-        estaEnLista(unir(local('salida'), texto('=1')), buscarEnPares(texto('pendientes'), global('estado'), lista())),
-        estaEnLista(unir(local('salida'), texto('=0')), buscarEnPares(texto('pendientes'), global('estado'), lista())))),
-      'Verdadero mientras la placa todavía no recogió el último comando para esa salida (tarda unos 5 segundos).'),
+    comentar(funcion('conectada',
+      comparar(restar(metodo('RelojConexion', 'SystemTime'), llamarFuncion('valor', texto('visto'))), 'LT', numero(60000))),
+      'Verdadero si la placa mandó noticias en el último minuto (manda un latido cada 15 segundos).'),
 
-    comentar(procedimiento('enviarComando', sec(
-      fijar('WebComando', 'Url', unir(global('URL_BASE'), texto('enviar_comando?apikey='), global('PUBLICABLE'))),
-      fijar('WebComando', 'RequestHeaders', lista(lista(texto('Content-Type'), texto('application/json')))),
-      metodo('WebComando', 'PostText',
-        unir(texto('{"p_clave":"'), global('CLAVE'), texto('","p_cmd":"'), local('salida'), texto('='), local('prender'), texto('"}'))))),
-      'Prende (1) o apaga (0) una salida: enviarComando("bomba", 1). Si la salida tenía modo automático, se desactiva.'),
+    comentar(funcion('autoActivo',
+      estaEnLista(minusculas(unir(texto(''), global('AUTO'))), lista(texto('true'), texto('1')))),
+      'Verdadero si el modo automático está activado. Acepta true, "true", 1 o "1".'),
 
-    cuando('WebComando', 'GotText',
-      si([[comparar(parametroEvento('responseCode'), 'NEQ', numero(200)), errorHttp()]],
-         conLocal('respuesta', metodo('WebComando', 'JsonTextDecode', parametroEvento('responseContent')),
-           si([[buscarEnPares(texto('ok'), local('respuesta'), booleano(false)), llamar('pedirEstado')]],
-              llamar('mostrarError', buscarEnPares(texto('error'), local('respuesta'), texto('respuesta inesperada'))))))),
+    comentar(procedimiento('enviarComando',
+      metodo('DBCmd', 'StoreValue', local('salida'), local('prender'))),
+      'Prende (1) o apaga (0) una salida: enviarComando("bomba", 1). Llega a la placa en menos de un segundo. '
+      + 'En modo automático, una salida con regla no obedece: la placa lo ignora y avisa.'),
 
-    cuando('RelojEstado', 'Timer', llamar('pedirEstado')),
+    comentar(procedimiento('modoAuto',
+      metodo('DBControl', 'StoreValue', texto('auto'), local('activar'))),
+      'Activa (true) o desactiva (false) el modo automático de la placa.'),
+
+    cuando('DBEstado', 'FirebaseError', errorFirebase()),
+    cuando('DBControl', 'FirebaseError', errorFirebase()),
+    cuando('DBCmd', 'FirebaseError', errorFirebase()),
+
+    comentar(cuando('RelojConexion', 'Timer', llamar('mostrarEstado')),
+      'Solo para que el cartel pase a "desconectada" si la placa deja de mandar. No usa internet.'),
 
     comentar(procedimiento('mostrarError',
       fijar('LabelConexion', 'Text', unir(texto('Error: '), local('mensaje')))),
-      'Muestra el error en pantalla. Los mensajes del servidor dicen qué corregir.'),
+      'Muestra el error en pantalla.'),
 
     comentar(cuando('Screen1', 'ErrorOccurred',
       llamar('mostrarError', unir(parametroEvento('functionName'), texto(': '), parametroEvento('message')))),
-      'Sin esto, un corte de internet abre un cartel cada 5 segundos.'),
+      'Sin esto, un error abre un cartel que hay que cerrar a mano.'),
   ]
 
   // ---------------- 3. la app de ejemplo ----------------
-  const edad = () => llamarFuncion('valor', texto('edad'))
-  const par = i => elemento(local('par'), i)
+  const aviso = () => metodo('TinyDBEstado', 'GetValue', texto('aviso'), texto(''))
 
   const app = [
     cuando('Screen1', 'Initialize', sec(
-      fijarGlobal('CLAVE', metodo('TinyDB1', 'GetValue', texto('clave'), global('CLAVE'))),
-      fijar('TextBoxClave', 'Text', global('CLAVE')),
-      llamar('pedirEstado'))),
+      fijarGlobal('USUARIO', metodo('TinyDB1', 'GetValue', texto('usuario'), texto(''))),
+      fijarGlobal('CONTRASENA', metodo('TinyDB1', 'GetValue', texto('contrasena'), texto(''))),
+      fijar('TextBoxUsuario', 'Text', global('USUARIO')),
+      si([[no(estaVacio(global('CONTRASENA'))), llamar('entrar')]]))),
 
-    cuando('BotonGuardarClave', 'Click', sec(
-      fijarGlobal('CLAVE', recortar(leer('TextBoxClave', 'Text'))),
-      metodo('TinyDB1', 'StoreValue', texto('clave'), global('CLAVE')),
-      metodo('TextBoxClave', 'HideKeyboard'),
-      llamar('pedirEstado'))),
+    cuando('BotonEntrar', 'Click', sec(
+      fijarGlobal('USUARIO', minusculas(recortar(leer('TextBoxUsuario', 'Text')))),
+      fijarGlobal('CONTRASENA', leer('TextBoxContrasena', 'Text')),
+      metodo('TinyDB1', 'StoreValue', texto('usuario'), global('USUARIO')),
+      metodo('TinyDB1', 'StoreValue', texto('contrasena'), global('CONTRASENA')),
+      metodo('TextBoxUsuario', 'HideKeyboard'),
+      llamar('entrar'))),
+
+    cuando('BotonSalir', 'Click', sec(
+      metodo('FirebaseAuth', 'Logout'),
+      metodo('TinyDB1', 'ClearTag', texto('contrasena')),
+      fijarGlobal('CONTRASENA', texto('')),
+      fijar('TextBoxContrasena', 'Text', texto('')),
+      fijar('ArregloPlaca', 'Visible', booleano(false)),
+      fijar('ArregloLogin', 'Visible', booleano(true)),
+      fijar('LabelConexion', 'Text', texto('Entrá con tu usuario.')))),
 
     comentar(procedimiento('mostrarEstado', sec(
-      si([[comparar(edad(), 'LT', numero(0)),
+      si([[comparar(llamarFuncion('valor', texto('visto')), 'EQ', numero(0)),
            fijar('LabelConexion', 'Text', texto('La placa todavía no se conectó nunca.'))],
-          [comparar(edad(), 'GT', numero(30)),
-           fijar('LabelConexion', 'Text', unir(texto('Placa desconectada: el último dato es de hace '), edad(), texto(' segundos.')))]],
-         fijar('LabelConexion', 'Text', texto('Placa conectada'))),
+          [llamarFuncion('conectada'),
+           fijar('LabelConexion', 'Text', texto('Placa conectada'))]],
+         fijar('LabelConexion', 'Text', texto('Placa desconectada: estos son los últimos datos que mandó.'))),
       fijar('LabelDatos', 'Text', texto('')),
-      paraCada('par', global('estado'),
-        si([[no(estaEnLista(par(1), global('SISTEMA'))),
-             fijar('LabelDatos', 'Text', unir(leer('LabelDatos', 'Text'), par(1), texto(': '), par(2), texto('\\n')))]])),
-      si([[llamarFuncion('enviando', texto('bomba')),
-           fijar('LabelBomba', 'Text', texto('Bomba: enviando…'))],
-          [comparar(llamarFuncion('valor', texto('bomba')), 'EQ', numero(1)),
+      paraCada('id', metodo('TinyDBEstado', 'GetTags'),
+        si([[no(estaEnLista(local('id'), global('SISTEMA'))),
+             fijar('LabelDatos', 'Text', unir(leer('LabelDatos', 'Text'), local('id'), texto(': '),
+                                               llamarFuncion('valor', local('id')), texto('\\n')))]])),
+      si([[no(estaVacio(aviso())),
+           fijar('LabelDatos', 'Text', unir(leer('LabelDatos', 'Text'), texto('Aviso de la placa: '), aviso()))]]),
+      si([[llamarFuncion('autoActivo'),
+           sec(fijar('LabelModo', 'Text', texto('Modo automático: ACTIVADO')),
+               fijar('BotonModo', 'Text', texto('Pasar a manual')))]],
+         sec(fijar('LabelModo', 'Text', texto('Modo automático: DESACTIVADO')),
+             fijar('BotonModo', 'Text', texto('Pasar a automático')))),
+      si([[comparar(llamarFuncion('valor', texto('bomba')), 'EQ', numero(1)),
            fijar('LabelBomba', 'Text', texto('Bomba: prendida'))]],
          fijar('LabelBomba', 'Text', texto('Bomba: apagada'))))),
-      'ESTE ES TUYO. Se llama cada vez que llegan datos nuevos. Cambialo para mostrar tus entradas y salidas: '
+      'ESTE ES TUYO. Se llama cada vez que llega un dato nuevo. Cambialo para mostrar tus entradas y salidas: '
       + 'el ejemplo usa una salida "bomba"; poné el id de la tuya.'),
 
+    cuando('BotonModo', 'Click', llamar('modoAuto', no(llamarFuncion('autoActivo')))),
     cuando('BotonPrender', 'Click', llamar('enviarComando', texto('bomba'), numero(1))),
     cuando('BotonApagar', 'Click', llamar('enviarComando', texto('bomba'), numero(0))),
   ]
@@ -474,7 +549,7 @@ function zip(archivos) {
 //  ARMADO
 // ===================================================================
 
-function propiedades(nombre) {
+function propiedades(nombre, paquete) {
   return [
     `main=io.kodular.nexus.${nombre}.Screen1`,
     `name=${nombre}`,
@@ -485,6 +560,8 @@ function propiedades(nombre) {
     'versionname=1.0',
     'useslocation=False',
     'aname=Nexus IoT',
+    // Tiene que coincidir con el package_name de google-services.json.
+    `packagename=${paquete}`,
     'sizing=Responsive',
     'showlistsasjson=False',
     'theme=AppTheme',
@@ -501,32 +578,35 @@ function propiedades(nombre) {
 
 // Kodular toma el nombre del proyecto del nombre del archivo, y solo acepta
 // letras, números y guión bajo.
-function generar(nombre, url, publicable) {
+function generar(nombre, paquete, googleServices) {
   const pantalla = scm(nombre)                 // primero: registra los tipos de componentes
-  const bloques = bky(programa(url.replace(/\/+$/, '') + '/rest/v1/rpc/', publicable))
+  const bloques = bky(programa())
   const carpeta = `src/io/kodular/nexus/${nombre}`
   const destino = join(AQUI, nombre + '.aia')
-  writeFileSync(destino, zip([
-    ['youngandroidproject/project.properties', propiedades(nombre)],
+  const archivos = [
+    ['youngandroidproject/project.properties', propiedades(nombre, paquete)],
     [`${carpeta}/Screen1.scm`, pantalla],
     [`${carpeta}/Screen1.bky`, bloques],
-  ]))
-  console.log('escrito', destino)
+  ]
+  if (googleServices) archivos.push(['assets/google-services.json', googleServices])
+  writeFileSync(destino, zip(archivos))
+  console.log('escrito', destino, '(package ' + paquete + (googleServices ? ', con google-services.json)' : ', sin google-services.json)'))
 }
 
-function leerEnv(ruta) {
-  if (!existsSync(ruta)) return {}
-  return Object.fromEntries(readFileSync(ruta, 'utf8').split(/\r?\n/)
-    .map(l => l.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/))
-    .filter(Boolean)
-    .map(([, k, v]) => [k, v.replace(/^(['"])(.*)\1$/, '$2')]))
+// El package de la primera app Android del archivo.
+function paqueteDe(googleServices) {
+  const datos = JSON.parse(googleServices)
+  const paquete = datos.client?.[0]?.client_info?.android_client_info?.package_name
+  if (!paquete) throw new Error('kodular/google-services.json no tiene client[0].client_info.android_client_info.package_name')
+  return paquete
 }
 
-generar('NexusIoT', MARCADOR_URL, MARCADOR_PUBLICABLE)
+generar('NexusIoT', PAQUETE_POR_DEFECTO, null)
 
-const env = leerEnv(join(AQUI, '..', 'portal', '.env'))
-if (env.VITE_SUPABASE_URL && env.VITE_SUPABASE_PUBLISHABLE_KEY) {
-  generar('NexusIoT_curso', env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY)
+const rutaServicios = join(AQUI, 'google-services.json')
+if (existsSync(rutaServicios)) {
+  const servicios = readFileSync(rutaServicios, 'utf8')
+  generar('NexusIoT_curso', paqueteDe(servicios), servicios)
 } else {
-  console.log('portal/.env no tiene VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY: no se generó NexusIoT_curso.aia')
+  console.log('No hay kodular/google-services.json: no se generó NexusIoT_curso.aia (ver firebase/LEEME.md).')
 }

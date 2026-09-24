@@ -1,0 +1,106 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "docentes": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "cursos": {
+      ".read": "auth != null && root.child('docentes').child(auth.uid).exists()",
+      "$curso": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('docentes').child(auth.uid).exists()",
+        ".validate": "$curso.matches(/^[A-Z0-9]{3,12}$/) && newData.hasChildren(['nombre', 'abierto'])",
+        "nombre":    { ".read": true, ".validate": "newData.isString() && newData.val().length <= 80" },
+        "abierto":   { ".read": true, ".validate": "newData.isBoolean()" },
+        "plantilla": { ".validate": true },
+        "$otro":     { ".validate": false }
+      }
+    },
+
+    "alumnos": {
+      ".read": "auth != null && root.child('docentes').child(auth.uid).exists()",
+      ".indexOn": ["curso"],
+      "$usuario": {
+        ".read": "auth != null && auth.token.email === $usuario + '@nexus-iot.example.com'",
+        ".write": "auth != null && ((auth.token.email === $usuario + '@nexus-iot.example.com' && !data.exists() && root.child('cursos').child(newData.child('curso').val() + '').child('abierto').val() === true) || root.child('docentes').child(auth.uid).exists())",
+        ".validate": "newData.hasChildren(['curso', 'nombre', 'creado']) && $usuario.beginsWith(newData.child('curso').val().toLowerCase() + '-')",
+        "curso":  { ".validate": "newData.isString()" },
+        "nombre": { ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 40" },
+        "creado": { ".validate": "newData.isNumber()" },
+        "$otro":  { ".validate": false }
+      }
+    },
+
+    "placas": {
+      ".read": "auth != null && root.child('docentes').child(auth.uid).exists()",
+      "$usuario": {
+        ".read":  "auth != null && (auth.token.email === $usuario + '@nexus-iot.example.com' || root.child('docentes').child(auth.uid).exists())",
+        ".write": "auth != null && ((auth.token.email === $usuario + '@nexus-iot.example.com' && (root.child('alumnos').child($usuario).exists() || newData.parent().parent().child('alumnos').child($usuario).exists())) || root.child('docentes').child(auth.uid).exists())",
+
+        "config": {
+          "entradas": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z][a-z0-9_]{0,14}$/) && $id !== 'visto' && $id !== 'aviso' && $id !== 'auto' && $id !== 'cmd' && $id !== 'reglas' && newData.hasChildren(['orden']) && !newData.parent().parent().child('salidas').child($id).exists()",
+              "nombre":   { ".validate": "newData.isString() && newData.val().length <= 40" },
+              "unidad":   { ".validate": "newData.isString() && newData.val().length <= 10" },
+              "conexion": { ".validate": "newData.isString() && newData.val().length <= 120" },
+              "libreria": { ".validate": "newData.isString() && newData.val().length <= 120" },
+              "pin":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 39 && newData.val() % 1 === 0" },
+              "orden":    { ".validate": "newData.isNumber()" },
+              "$otro":    { ".validate": false }
+            }
+          },
+          "salidas": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z][a-z0-9_]{0,14}$/) && $id !== 'visto' && $id !== 'aviso' && $id !== 'auto' && $id !== 'cmd' && $id !== 'reglas' && newData.hasChildren(['pin', 'nivel_activo', 'orden']) && !newData.parent().parent().child('entradas').child($id).exists()",
+              "nombre":       { ".validate": "newData.isString() && newData.val().length <= 40" },
+              "conexion":     { ".validate": "newData.isString() && newData.val().length <= 120" },
+              "pin":          { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 33 && newData.val() % 1 === 0" },
+              "nivel_activo": { ".validate": "newData.val() === 'LOW' || newData.val() === 'HIGH'" },
+              "pulsador":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 33 && newData.val() % 1 === 0" },
+              "orden":        { ".validate": "newData.isNumber()" },
+              "$otro":        { ".validate": false }
+            }
+          },
+          "pulsador_modo": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 33 && newData.val() % 1 === 0" },
+          "$otro":         { ".validate": false }
+        },
+
+        "control": {
+          "auto": {
+            ".validate": "newData.isBoolean() || (newData.isNumber() && (newData.val() === 0 || newData.val() === 1)) || (newData.isString() && newData.val().matches(/^\"?(0|1|true|false)\"?$/i))"
+          },
+          "reglas": {
+            "$salida": {
+              ".validate": "newData.hasChildren(['entrada', 'condicion', 'umbral', 'hist']) && newData.parent().parent().parent().child('config/salidas').child($salida).exists() && newData.parent().parent().parent().child('config/entradas').child(newData.child('entrada').val() + '').exists()",
+              "entrada":   { ".validate": "newData.isString()" },
+              "condicion": { ".validate": "newData.val() === '>' || newData.val() === '<'" },
+              "umbral":    { ".validate": "newData.isNumber()" },
+              "hist":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "$otro":     { ".validate": false }
+            }
+          },
+          "cmd": {
+            "$salida": {
+              ".validate": "newData.parent().parent().parent().child('config/salidas').child($salida).exists() && (newData.isBoolean() || (newData.isNumber() && (newData.val() === 0 || newData.val() === 1)) || (newData.isString() && newData.val().matches(/^\"?(0|1|true|false|on|off)\"?$/i)))"
+            }
+          },
+          "$otro": { ".validate": false }
+        },
+
+        "estado": {
+          "$id": {
+            ".validate": "($id === 'visto' && newData.isNumber()) || ($id === 'aviso' && newData.isString() && newData.val().length <= 200) || ($id.matches(/^[a-z][a-z0-9_]{0,14}$/) && $id !== 'visto' && $id !== 'aviso' && (newData.isNumber() || newData.isBoolean()))"
+          }
+        },
+
+        "$otro": { ".validate": false }
+      }
+    }
+  }
+}

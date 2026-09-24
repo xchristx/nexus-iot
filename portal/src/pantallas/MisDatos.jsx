@@ -1,47 +1,35 @@
-import { urlKodularLeer, urlKodularPost, datosSketch } from '../api.js'
+import { firebaseConfig } from '../firebase.js'
 import { generarPrompt } from '../prompt.js'
-import { Bloque, Copiar, Etiqueta, textoRegla } from '../componentes/comunes.jsx'
+import { Bloque, Copiar, textoRegla } from '../componentes/comunes.jsx'
 
-export default function MisDatos({ config }) {
-  const { clave, canales, reglas } = config
+export default function MisDatos({ usuario, placa }) {
+  const { canales, reglas, pulsadorModo } = placa
   const entradas = canales.filter(c => c.tipo === 'entrada')
   const salidas = canales.filter(c => c.tipo === 'salida')
-  const ids = canales.map(c => c.id)
 
   const prompt = canales.length
-    ? generarPrompt({ url: datosSketch.url, publicable: datosSketch.publicable, clave, canales })
+    ? generarPrompt({ apiKey: firebaseConfig.apiKey, databaseURL: firebaseConfig.databaseURL, usuario, canales, pulsadorModo })
     : null
 
-  const salidaEj = salidas[0]?.id || 'bomba'
-  const salidaConRegla = reglas[0]?.salida || salidaEj
-
   const sketch =
-    'const char *SUPABASE_URL    = "' + datosSketch.url + '";\n' +
-    'const char *PUBLISHABLE_KEY = "' + datosSketch.publicable + '";\n' +
-    'const char *CLAVE           = "' + clave + '";'
+    'const char *API_KEY      = "' + firebaseConfig.apiKey + '";\n' +
+    'const char *DATABASE_URL = "' + firebaseConfig.databaseURL + '";\n' +
+    'const char *USUARIO      = "' + usuario + '";\n' +
+    'const char *CONTRASENA   = "";   // la misma con la que entrás acá'
 
-  const comando =
-    'URL:    ' + urlKodularPost('enviar_comando') + '\n' +
-    'Header: Content-Type: application/json\n' +
-    'Body:   {"p_clave":"' + clave + '","p_cmd":"' + salidaEj + '=1"}\n\n' +
-    'Salidas: ' + (salidas.map(r => r.id).join(', ') || '(ninguna declarada)') + '    Valores: 1 o 0'
-
-  const automatico =
-    'URL:    ' + urlKodularPost('ajustar_regla') + '\n' +
-    'Header: Content-Type: application/json\n' +
-    'Body:   {"p_clave":"' + clave + '","p_salida":"' + salidaConRegla + '",\n' +
-    '         "p_cambios":{"activa":true,"umbral":30}}\n\n' +
-    'Se puede cambiar: activa, umbral, hist.\n' +
-    'Crear o borrar reglas se hace acá en el portal, en Configurar.'
+  const rutas =
+    'placas/' + usuario + '/estado       lo que manda la placa (se lee)\n' +
+    'placas/' + usuario + '/control/cmd  prender o apagar: etiqueta = id, valor = 1 o 0\n' +
+    'placas/' + usuario + '/control      etiqueta "auto": true o false'
 
   return (
     <>
       <Bloque
-        titulo="La clave de tu placa"
-        ayuda="Va en tu sketch y en tu app. No es tu PIN: con esta clave se leen datos y se prenden salidas, pero no se puede cambiar tu configuración."
-        texto={clave} />
+        titulo="Tu usuario"
+        ayuda="Con este usuario y tu contraseña entran tu placa y tu app. La contraseña es la misma que usás acá: no se la pases a nadie ni la pegues en la IA."
+        texto={usuario} />
 
-      <Bloque titulo="Tu hardware" ayuda="Lo que declaraste en Configurar. Los ids son los nombres que viajan en el JSON.">
+      <Bloque titulo="Tu hardware" ayuda="Lo que declaraste en Configurar. Los ids son los nombres que usan tu sketch y tu app.">
         {canales.length === 0
           ? <p className="ayuda">Todavía no declaraste nada.</p>
           : (
@@ -57,34 +45,30 @@ export default function MisDatos({ config }) {
                 return (
                   <li key={r.id}>
                     <code>"{r.id}"</code> {r.nombre || r.id}
-                    <span className="tenue"> — GPIO {r.pin}, activo en {r.nivel_activo}{r.conexion ? `, ${r.conexion}` : ''}</span>
-                    {g && <div className="detalle">Automático: {textoRegla(g)} {g.activa ? <Etiqueta>activa</Etiqueta> : <Etiqueta tenue>inactiva</Etiqueta>}</div>}
+                    <span className="tenue">
+                      {' '}— GPIO {r.pin}, activo en {r.nivel_activo}
+                      {r.pulsador != null ? `, pulsador en GPIO ${r.pulsador}` : ''}
+                      {r.conexion ? `, ${r.conexion}` : ''}
+                    </span>
+                    {g && <div className="detalle">Regla: {textoRegla(g)}</div>}
                   </li>
                 )
               })}
+              {pulsadorModo != null && <li>Pulsador de modo automático en GPIO {pulsadorModo}</li>}
             </ul>
           )}
       </Bloque>
 
       <Bloque
-        titulo="Kodular: leer datos"
-        ayuda={'Pegala en Web.Url y usá Web.Get. No lleva headers. Devuelve ' +
-               (ids.length ? ids.join(', ') + ', ' : '') +
-               'detectados, faltan, pendientes, reglas, edad, avisos y ultimo_error.'}
-        texto={urlKodularLeer(clave)} />
-
-      <Bloque
-        titulo="Kodular: prender una salida"
-        ayuda={'Con Web.PostText. Lleva un header. La salida cambia cuando tu placa recoge el ' +
-               'comando, en unos 5 segundos: mientras el comando siga apareciendo en "pendientes" ' +
-               'al leer datos, mostrá algo como "enviando…" para que no parezca que el botón no anduvo.'}
-        texto={comando} />
-
-      <Bloque titulo="Kodular: modo automático" ayuda="Para prender, apagar o mover el umbral de una regla desde la app." texto={automatico} />
+        titulo="Tu app de Kodular"
+        ayuda={'Importá el proyecto NexusIoT_curso.aia que te pasó el docente. Al abrir la app, ' +
+               'escribís tu usuario y tu contraseña. Para probarla tenés que compilar el APK: el ' +
+               'Companion no funciona con Firebase. Si armás tus propios bloques, estas son las rutas:'}
+        texto={rutas} />
 
       <Bloque
         titulo="Tu sketch del ESP32"
-        ayuda="Reemplazá estas tres líneas en la sección de configuración."
+        ayuda="Si ya tenés el sketch, estas son las líneas de la configuración. La contraseña completala vos en el código."
         texto={sketch} />
 
       {!prompt ? (
@@ -101,8 +85,9 @@ export default function MisDatos({ config }) {
             <Copiar texto={prompt}>copiar prompt</Copiar>
           </div>
           <p className="ayuda">
-            Ya viene con tu clave y tu hardware. Copialo, pegalo en la IA que uses,
-            y te devuelve el sketch listo. Si cambiás tu hardware, volvé a copiarlo.
+            Ya viene con tu usuario y tu hardware, pero NO con tu contraseña: esa la
+            escribís vos en el código que te devuelva la IA. Si cambiás tu hardware,
+            volvé a copiarlo.
           </p>
           <pre className="prompt">{prompt}</pre>
         </div>

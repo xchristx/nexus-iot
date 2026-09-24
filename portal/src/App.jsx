@@ -1,92 +1,105 @@
 import { useState, useEffect, useCallback } from 'react'
-import { configurado, leerConfig } from './api.js'
+import {
+  configurado, escucharSesion, salir, usuarioDeCorreo, esDocente,
+  escucharAlta, escucharPlaca, mensajeError,
+} from './firebase.js'
 import Entrar from './pantallas/Entrar.jsx'
 import MiPlaca from './pantallas/MiPlaca.jsx'
 import Configurar from './pantallas/Configurar.jsx'
 import MisDatos from './pantallas/MisDatos.jsx'
+import Clase from './pantallas/Clase.jsx'
 
-// En localStorage quedan las dos claves: la de la placa y la del portal. El
-// PIN no se guarda nunca.
-const SESION = 'nexus.sesion'
-
-function leerSesion() {
-  try {
-    localStorage.removeItem('nexus.clave')   // de la versión anterior del portal
-    return JSON.parse(localStorage.getItem(SESION))
-  } catch {
-    return null
-  }
-}
-
-function guardarSesion(s) {
-  try {
-    if (s) localStorage.setItem(SESION, JSON.stringify(s))
-    else localStorage.removeItem(SESION)
-  } catch { /* modo privado: la sesión dura lo que dure la pestaña */ }
-}
+// La sesión la guarda Firebase Auth en el navegador: al volver a abrir el
+// portal se entra solo. La contraseña no se guarda nunca.
 
 export default function App() {
-  const [sesion, setSesion] = useState(leerSesion)
-  const [config, setConfig] = useState(null)
-  const [falloRed, setFalloRed] = useState(null)
-  const [avisoSesion, setAvisoSesion] = useState(null)
-  const [tab, setTab] = useState('placa')
-  const [precarga, setPrecarga] = useState(null)
+  const [sesion, setSesion] = useState(undefined)     // undefined = todavía no se sabe
+  const [rol, setRol] = useState(null)                // 'alumno' | 'docente' | 'ninguno'
+  const [entrando, setEntrando] = useState(false)     // un alta a mitad de camino
+  const [primeraVez, setPrimeraVez] = useState(false)
 
-  const salir = useCallback((motivo) => {
-    guardarSesion(null)
-    setSesion(null)
-    setConfig(null)
-    setAvisoSesion(motivo || null)
+  useEffect(() => {
+    if (!configurado) return
+    return escucharSesion(async (u) => {
+      setRol(null)
+      setSesion(u)
+      if (!u) return
+      if (usuarioDeCorreo(u.email)) setRol('alumno')
+      else setRol((await esDocente(u.uid)) ? 'docente' : 'ninguno')
+    })
   }, [])
-
-  const recargar = useCallback(async () => {
-    if (!sesion) return
-    const r = await leerConfig(sesion.admin)
-    if (r.ok) { setConfig(r); setFalloRed(null); return }
-    // Un corte de internet no cierra la sesión; una clave inválida sí (por
-    // ejemplo, el docente reseteó el PIN y rotó la clave del portal).
-    if (r.red) setFalloRed(r.error)
-    else salir(r.error)
-  }, [sesion, salir])
-
-  useEffect(() => { recargar() }, [recargar])
-
-  const usarPrecarga = useCallback(() => setPrecarga(null), [])
-
-  function iniciar(s) {
-    const nueva = { clave: s.clave, admin: s.admin }
-    guardarSesion(nueva)
-    setAvisoSesion(null)
-    // Alguien recién registrado va primero a ver el hardware que le tocó.
-    setTab(s.nuevo ? 'configurar' : 'placa')
-    setSesion(nueva)
-  }
-
-  function agregarDetectado(inicial) {
-    setPrecarga(inicial)
-    setTab('configurar')
-  }
 
   if (!configurado) {
     return (
       <main>
         <div className="tarjeta">
           <p className="error">
-            Faltan VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY. Cargalas en las
-            variables de entorno de Netlify y volvé a desplegar.
+            Faltan las variables VITE_FIREBASE_… (ver portal/.env.example). Cargalas en
+            las variables de entorno de Netlify y volvé a desplegar.
           </p>
         </div>
       </main>
     )
   }
 
-  if (!sesion) {
+  if (sesion === undefined || (sesion && !rol && !entrando)) {
+    return <main><div className="tarjeta"><p className="ayuda">Cargando…</p></div></main>
+  }
+
+  if (!sesion || entrando) {
     return (
       <main>
         <header><h1>Nexus IoT</h1></header>
-        {avisoSesion && <div className="tarjeta"><p className="error">{avisoSesion}</p></div>}
-        <Entrar onSesion={iniciar} />
+        <Entrar onInicio={() => setEntrando(true)}
+                onFin={(r) => { setPrimeraVez(Boolean(r?.nuevo)); setEntrando(false) }} />
+      </main>
+    )
+  }
+
+  if (rol === 'docente') return <Clase onSalir={salir} />
+
+  if (rol === 'ninguno') {
+    return (
+      <main>
+        <div className="tarjeta">
+          <p className="error">Esta cuenta no es de un alumno ni de un docente.</p>
+          <button onClick={salir}>Salir</button>
+        </div>
+      </main>
+    )
+  }
+
+  return <Alumno usuario={usuarioDeCorreo(sesion.email)} primeraVez={primeraVez} />
+}
+
+function Alumno({ usuario, primeraVez }) {
+  const [alta, setAlta] = useState(undefined)
+  const [placa, setPlaca] = useState(null)
+  const [fallo, setFallo] = useState(null)
+  // Alguien recién registrado va primero a ver el hardware que le tocó.
+  const [tab, setTab] = useState(primeraVez ? 'configurar' : 'placa')
+  const [precarga, setPrecarga] = useState(null)
+
+  useEffect(() => escucharAlta(usuario, setAlta, (e) => setFallo(mensajeError(e))), [usuario])
+  useEffect(() => escucharPlaca(usuario, (p) => { setPlaca(p); setFallo(null) }, (e) => setFallo(mensajeError(e))), [usuario])
+
+  const usarPrecarga = useCallback(() => setPrecarga(null), [])
+
+  function agregarDetectado(inicial) {
+    setPrecarga(inicial)
+    setTab('configurar')
+  }
+
+  if (alta === null) {
+    return (
+      <main>
+        <div className="tarjeta">
+          <p className="error">
+            Tu cuenta existe pero no terminó el alta. Salí y tocá "Es mi primera vez"
+            con los mismos datos.
+          </p>
+          <button onClick={salir}>Salir</button>
+        </div>
       </main>
     )
   }
@@ -96,20 +109,15 @@ export default function App() {
       <header>
         <div>
           <h1>Nexus IoT</h1>
-          {config && <span className="tenue subtitulo">{config.alumno} · {config.curso}</span>}
+          {alta && <span className="tenue subtitulo">{alta.nombre} · {alta.curso}</span>}
         </div>
-        <button className="salir" onClick={() => salir()}>salir</button>
+        <button className="salir" onClick={salir}>salir</button>
       </header>
 
-      {falloRed && (
-        <div className="tarjeta">
-          <p className="error">{falloRed}</p>
-          <button onClick={recargar}>Reintentar</button>
-        </div>
-      )}
+      {fallo && <div className="tarjeta"><p className="error">{fallo}</p></div>}
 
-      {!config
-        ? !falloRed && <div className="tarjeta"><p className="ayuda">Cargando…</p></div>
+      {!placa || !alta
+        ? !fallo && <div className="tarjeta"><p className="ayuda">Cargando…</p></div>
         : (
           <>
             <nav>
@@ -119,14 +127,14 @@ export default function App() {
             </nav>
 
             {tab === 'placa' && (
-              <MiPlaca clave={sesion.clave} canales={config.canales}
+              <MiPlaca usuario={usuario} placa={placa}
                        onAgregar={agregarDetectado} onConfigurar={() => setTab('configurar')} />
             )}
             {tab === 'configurar' && (
-              <Configurar admin={sesion.admin} config={config} recargar={recargar}
+              <Configurar usuario={usuario} placa={placa}
                           precarga={precarga} onPrecargaUsada={usarPrecarga} />
             )}
-            {tab === 'datos' && <MisDatos config={config} />}
+            {tab === 'datos' && <MisDatos usuario={usuario} placa={placa} />}
           </>
         )}
     </main>

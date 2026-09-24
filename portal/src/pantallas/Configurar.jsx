@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { guardarCanal, borrarCanal, guardarRegla, borrarRegla } from '../api.js'
-import { Etiqueta, textoRegla } from '../componentes/comunes.jsx'
+import { guardarCanal, borrarCanal, guardarRegla, borrarRegla, guardarPulsadorModo, mensajeError } from '../firebase.js'
+import { MAX, errorCanal, errorRegla, errorPulsadorModo } from '../validar.js'
+import { textoRegla } from '../componentes/comunes.jsx'
 
-const MAX = 10
+const numeroONull = (v) => (v === '' || v == null ? null : Number(v))
 
 // ===================================================================
 //  Formulario de entrada o salida
 // ===================================================================
 
-function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
+function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
   const [f, setF] = useState({
     tipo: inicial.tipo || 'entrada',
     id: inicial.id || '',
@@ -16,6 +17,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
     unidad: inicial.unidad || '',
     pin: inicial.pin ?? '',
     nivel_activo: inicial.nivel_activo || 'LOW',
+    pulsador: inicial.pulsador ?? '',
     conexion: inicial.conexion || '',
     libreria: inicial.libreria || '',
   })
@@ -24,8 +26,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
   const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
   const esSalida = f.tipo === 'salida'
 
-  // Solo se mandan los campos con algo escrito: el backend valida el resto y
-  // devuelve el mensaje que se muestra tal cual.
+  // Solo se guardan los campos con algo escrito.
   function armar() {
     const c = { id: f.id.trim(), tipo: f.tipo }
     if (f.nombre.trim()) c.nombre = f.nombre.trim()
@@ -33,6 +34,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
     if (f.pin !== '') c.pin = Number(f.pin)
     if (esSalida) {
       c.nivel_activo = f.nivel_activo
+      if (f.pulsador !== '') c.pulsador = Number(f.pulsador)
     } else {
       if (f.unidad.trim()) c.unidad = f.unidad.trim()
       if (f.libreria.trim()) c.libreria = f.libreria.trim()
@@ -42,13 +44,20 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
 
   async function enviar(ev) {
     ev.preventDefault()
+    const c = armar()
+    const e = errorCanal(c, { canales: placa.canales, pulsadorModo: placa.pulsadorModo, nuevo })
+    if (e) { setError(e); return }
+    const orden = nuevo
+      ? Math.max(-1, ...placa.canales.map(x => x.orden ?? 0)) + 1
+      : (inicial.orden ?? 0)
     setYendo(true)
-    const r = await guardarCanal(admin, armar())
-    setYendo(false)
-    if (!r.ok) { setError(r.error); return }
-    onListo(r.reglas_borradas > 0
-      ? `Guardado. Se borraron ${r.reglas_borradas} regla(s) que ya no tenían sentido.`
-      : null)
+    try {
+      await guardarCanal(usuario, c, orden)
+      onListo(null)
+    } catch (err) {
+      setError(mensajeError(err))
+      setYendo(false)
+    }
   }
 
   return (
@@ -71,7 +80,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
                placeholder={esSalida ? 'riego' : 'suelo'} autoCapitalize="none" required />
         <span className="ayuda-campo">
           {nuevo
-            ? 'El nombre que viaja en el JSON: minúsculas, números y _, hasta 15 caracteres. Tiene que ser igual en tu sketch y en tu app.'
+            ? 'El nombre que usan tu sketch y tu app: minúsculas, números y _, hasta 15 caracteres. Tiene que ser igual en los tres lados.'
             : 'El id no se puede cambiar, porque es el nombre que usan tu sketch y tu app. Para renombrarlo, borralo y crealo de nuevo.'}
         </span>
       </label>
@@ -85,8 +94,8 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
       <div className="dos-columnas">
         <label>
           GPIO {esSalida ? '' : '(opcional)'}
-          <input value={f.pin} onChange={campo('pin')} type="number" min={0} max={39}
-                 placeholder={esSalida ? '25' : '34'} required={esSalida} />
+          <input value={f.pin} onChange={campo('pin')} type="number" min={0}
+                 placeholder={esSalida ? '26' : '34'} required={esSalida} />
         </label>
 
         {esSalida ? (
@@ -104,6 +113,18 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
           </label>
         )}
       </div>
+
+      {esSalida && (
+        <label>
+          Pulsador (GPIO, opcional)
+          <input value={f.pulsador} onChange={campo('pulsador')} type="number" min={0} placeholder="32" />
+          <span className="ayuda-campo">
+            Un pulsador entre ese GPIO y GND prende o apaga esta salida desde la placa. No
+            hace falta resistencia: se usa la interna. Si la salida tiene regla y el modo
+            automático está activado, el pulsador no hace nada.
+          </span>
+        </label>
+      )}
 
       <label>
         Conexión (opcional)
@@ -134,36 +155,37 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
 //  Formulario de regla
 // ===================================================================
 
-function FormRegla({ admin, salida, entradas, inicial, onListo, onCancelar }) {
+function FormRegla({ usuario, salida, entradas, inicial, onListo, onCancelar }) {
   const [f, setF] = useState({
     entrada: inicial?.entrada || entradas[0]?.id || '',
     condicion: inicial?.condicion || '>',
     umbral: inicial?.umbral ?? '',
     hist: inicial?.hist ?? 1,
-    activa: inicial?.activa ?? false,
   })
   const [error, setError] = useState(null)
   const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
 
   async function enviar(ev) {
     ev.preventDefault()
-    const r = await guardarRegla(admin, {
-      salida,
-      entrada: f.entrada,
-      condicion: f.condicion,
-      umbral: f.umbral === '' ? null : Number(f.umbral),
-      hist: f.hist === '' ? null : Number(f.hist),
-      activa: f.activa,
-    })
-    if (!r.ok) { setError(r.error); return }
-    onListo(null)
+    const g = { salida, entrada: f.entrada, condicion: f.condicion, umbral: numeroONull(f.umbral), hist: numeroONull(f.hist) }
+    const e = errorRegla(g)
+    if (e) { setError(e); return }
+    try {
+      await guardarRegla(usuario, g)
+      onListo(null)
+    } catch (err) {
+      setError(mensajeError(err))
+    }
   }
 
   async function borrar() {
     if (!window.confirm(`¿Borrar la regla de "${salida}"?`)) return
-    const r = await borrarRegla(admin, salida)
-    if (!r.ok) { setError(r.error); return }
-    onListo(null)
+    try {
+      await borrarRegla(usuario, salida)
+      onListo(null)
+    } catch (err) {
+      setError(mensajeError(err))
+    }
   }
 
   if (entradas.length === 0) {
@@ -184,8 +206,8 @@ function FormRegla({ admin, salida, entradas, inicial, onListo, onCancelar }) {
     <form className="tarjeta" onSubmit={enviar}>
       <h2>Regla de "{salida}"</h2>
       <p className="ayuda">
-        La evalúa tu placa, así sigue funcionando aunque se corte internet. Una
-        salida tiene una sola regla.
+        La evalúa tu placa cuando está en modo automático, así sigue funcionando
+        aunque se corte internet. Una salida tiene una sola regla.
       </p>
 
       <div className="dos-columnas">
@@ -223,11 +245,6 @@ function FormRegla({ admin, salida, entradas, inicial, onListo, onCancelar }) {
         </p>
       )}
 
-      <label className="casilla">
-        <input type="checkbox" checked={f.activa} onChange={ev => setF({ ...f, activa: ev.target.checked })} />
-        Activa
-      </label>
-
       {error && <p className="error">{error}</p>}
 
       <div className="acciones">
@@ -240,10 +257,50 @@ function FormRegla({ admin, salida, entradas, inicial, onListo, onCancelar }) {
 }
 
 // ===================================================================
+//  Pulsador de modo
+// ===================================================================
+
+function PulsadorModo({ usuario, placa }) {
+  const [pin, setPin] = useState(placa.pulsadorModo ?? '')
+  const [mensaje, setMensaje] = useState(null)
+
+  async function guardar(ev) {
+    ev.preventDefault()
+    const valor = numeroONull(pin)
+    const e = errorPulsadorModo(valor, placa.canales)
+    if (e) { setMensaje({ error: e }); return }
+    try {
+      await guardarPulsadorModo(usuario, valor)
+      setMensaje({ ok: 'Guardado.' })
+    } catch (err) {
+      setMensaje({ error: mensajeError(err) })
+    }
+  }
+
+  return (
+    <form className="tarjeta" onSubmit={guardar}>
+      <h3>Pulsador de modo automático</h3>
+      <p className="ayuda">
+        Opcional. Un pulsador entre ese GPIO y GND activa y desactiva el modo
+        automático desde la placa, igual que el botón de la app. Dejalo vacío si
+        no usás uno.
+      </p>
+      <div className="fila-guardar">
+        <input value={pin} onChange={ev => { setPin(ev.target.value); setMensaje(null) }}
+               type="number" min={0} placeholder="25" aria-label="GPIO del pulsador de modo" />
+        <button>Guardar</button>
+      </div>
+      {mensaje?.error && <p className="error">{mensaje.error}</p>}
+      {mensaje?.ok && <p className="ayuda">{mensaje.ok}</p>}
+    </form>
+  )
+}
+
+// ===================================================================
 //  Pantalla
 // ===================================================================
 
-export default function Configurar({ admin, config, recargar, precarga, onPrecargaUsada }) {
+export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }) {
   const [editando, setEditando] = useState(null)   // {clase:'canal', inicial, nuevo} | {clase:'regla', salida}
   const [mensaje, setMensaje] = useState(null)
 
@@ -255,32 +312,35 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
     }
   }, [precarga, onPrecargaUsada])
 
-  const entradas = config.canales.filter(c => c.tipo === 'entrada')
-  const salidas = config.canales.filter(c => c.tipo === 'salida')
-  const reglaDe = Object.fromEntries(config.reglas.map(g => [g.salida, g]))
+  const { canales, reglas } = placa
+  const entradas = canales.filter(c => c.tipo === 'entrada')
+  const salidas = canales.filter(c => c.tipo === 'salida')
+  const reglaDe = Object.fromEntries(reglas.map(g => [g.salida, g]))
 
-  async function listo(texto) {
+  function listo(texto) {
     setEditando(null)
     setMensaje(texto)
-    await recargar()
   }
 
   async function borrar(c) {
-    const afectadas = config.reglas.filter(g => g.salida === c.id || g.entrada === c.id).length
+    const afectadas = reglas.filter(g => g.salida === c.id || g.entrada === c.id).length
     const extra = afectadas ? ` También se borra${afectadas > 1 ? 'n' : ''} ${afectadas} regla${afectadas > 1 ? 's' : ''}.` : ''
     if (!window.confirm(`¿Borrar "${c.id}"?${extra}`)) return
-    const r = await borrarCanal(admin, c.id)
-    setMensaje(r.ok ? null : r.error)
-    if (r.ok) await recargar()
+    try {
+      await borrarCanal(usuario, c, reglas)
+      setMensaje(null)
+    } catch (err) {
+      setMensaje(mensajeError(err))
+    }
   }
 
   if (editando?.clase === 'canal') {
-    return <FormCanal admin={admin} inicial={editando.inicial} nuevo={editando.nuevo}
+    return <FormCanal usuario={usuario} placa={placa} inicial={editando.inicial} nuevo={editando.nuevo}
                       onListo={listo} onCancelar={() => setEditando(null)} />
   }
 
   if (editando?.clase === 'regla') {
-    return <FormRegla admin={admin} salida={editando.salida} entradas={entradas}
+    return <FormRegla usuario={usuario} salida={editando.salida} entradas={entradas}
                       inicial={reglaDe[editando.salida]} onListo={listo} onCancelar={() => setEditando(null)} />
   }
 
@@ -336,12 +396,12 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
               <div>
                 <code>{r.id}</code> {r.nombre || ''}
                 <div className="tenue detalle">
-                  GPIO {r.pin} · {r.nivel_activo}{r.conexion ? ` · ${r.conexion}` : ''}
+                  GPIO {r.pin} · {r.nivel_activo}
+                  {r.pulsador != null ? ` · pulsador en GPIO ${r.pulsador}` : ''}
+                  {r.conexion ? ` · ${r.conexion}` : ''}
                 </div>
                 <div className="detalle">
-                  {g
-                    ? <>Automático: {textoRegla(g)} {g.activa ? <Etiqueta>activa</Etiqueta> : <Etiqueta tenue>inactiva</Etiqueta>}</>
-                    : <span className="tenue">Sin regla automática</span>}
+                  {g ? <>Regla: {textoRegla(g)}</> : <span className="tenue">Sin regla automática</span>}
                 </div>
               </div>
               <div className="acciones-fila">
@@ -353,6 +413,8 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
           )
         })}
       </div>
+
+      {salidas.length > 0 && <PulsadorModo key={placa.pulsadorModo ?? 'ninguno'} usuario={usuario} placa={placa} />}
     </>
   )
 }

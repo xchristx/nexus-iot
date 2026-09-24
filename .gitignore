@@ -10,14 +10,19 @@ portal/dist
 portal/.env
 portal/.env.local
 
-# El sketch versionado lleva solo marcadores (WIFI_PASS vacio,
-# "PEGA_ACA_TU_CLAVE"). Si alguna vez guardas una copia con tus datos
+# El sketch versionado lleva solo marcadores (WIFI_PASS y CONTRASENA vacios,
+# "PEGA_ACA_TU_USUARIO"). Si alguna vez guardas una copia con tus datos
 # reales para no reescribirlos, llamala asi y no se sube.
 src/main.local.cpp
 
-# Proyecto Kodular con la URL y la publishable key del curso, generado desde
-# portal/.env. El versionado es kodular/NexusIoT.aia, con marcadores.
+# La app Android del proyecto Firebase, y el proyecto Kodular del curso que se
+# genera con ella. El versionado es kodular/NexusIoT.aia, sin ese archivo.
+kodular/google-services.json
 kodular/NexusIoT_curso.aia
+
+# Firebase: dependencias de las pruebas y logs de los emuladores
+firebase/node_modules
+firebase/*-debug.log
 
 # Varios
 .DS_Store

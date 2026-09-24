@@ -1,5 +1,5 @@
-NEXUS IoT - ESP32 + backend propio  (version Arduino IDE)
-=========================================================
+NEXUS IoT - ESP32 + Firebase, en tiempo real  (version Arduino IDE)
+===================================================================
 
 QUE ES ESTO
   El mismo programa que corre en PlatformIO, empaquetado como sketch de
@@ -20,44 +20,49 @@ PASO 1 - SOPORTE PARA ESP32  (una sola vez)
     Busca "esp32" (de Espressif Systems) y dale Instalar.
     Son ~200 MB, tarda un rato.
 
-PASO 2 - LIBRERIA  (una sola vez)
+PASO 2 - LIBRERIAS  (una sola vez)
   Programa > Incluir libreria > Administrar bibliotecas
-    Instala:  ArduinoJson   (de Benoit Blanchon, version 7 o mayor)
+    Instala:  FirebaseClient  (de Mobizt, version 2.2 o mayor)
+              Cuando pregunte por ESP_SSLClient, elegi "Install all".
+    Instala:  ArduinoJson     (de Benoit Blanchon, version 7 o mayor)
 
   Solo si vas a conectar el DHT22 de verdad, instala ademas:
     DHT sensor library        (de Adafruit)
     Adafruit Unified Sensor   (de Adafruit)
   y en el codigo cambia  #define USAR_DHT 0  por  1.
 
-  WiFi, WiFiClientSecure, HTTPClient y Preferences NO se instalan: ya vienen
-  con el paquete ESP32.
+  WiFi, WiFiClientSecure y Preferences NO se instalan: ya vienen con el
+  paquete ESP32.
 
 PASO 3 - CONFIGURAR
   Arriba del todo en el sketch, en la seccion "1. CONFIGURACION":
     WIFI_SSID / WIFI_PASS   tu red de 2.4 GHz (el ESP32 no ve las de 5 GHz)
-    SUPABASE_URL            la URL del backend
-    PUBLISHABLE_KEY         la clave publica del backend (sb_publishable_...)
-    CLAVE                   la clave de TU placa
+    API_KEY                 la del proyecto (empieza con AIza)
+    DATABASE_URL            la de la base (https://...firebaseio.com)
+    USUARIO                 tu usuario, por ejemplo iot2026-ana_perez
+    CONTRASENA              la misma con la que entras al portal
 
-  Los ultimos tres los sacas del portal, en "Mis datos".
+  Los primeros tres los sacas del portal, en "Mis datos".
 
 PASO 4 - QUE TU SKETCH COINCIDA CON TU PORTAL
   El sketch trae un kit de EJEMPLO: entradas "t" y "h" (un DHT22), salidas
-  "bomba", "vent" y "luz". Cambialo por lo que declaraste en el portal
-  (Configurar):
+  "bomba", "vent" y "luz", pulsadores en GPIO 32 y 33 y el de modo en 25.
+  Cambialo por lo que declaraste en el portal (Configurar):
 
     Una entrada -> lo que la placa mide o lee (un sensor, un boton...).
                    Seccion "2. Entradas": una funcion de lectura y una fila
                    en la tabla entradas[], con el mismo id del portal.
     Una salida  -> lo que se prende y se apaga (un rele, un LED...).
-                   Seccion "3. Salidas": una fila en la tabla salidas[], con
-                   el mismo id, pin y nivel (LOW o HIGH) del portal.
+                   Seccion "4. Salidas": una fila en la tabla salidas[], con
+                   el mismo id, pin, nivel (LOW o HIGH) y pulsador del portal
+                   (-1 si no tiene pulsador).
+    El pulsador de modo -> PIN_PULSADOR_MODO en la configuracion (-1 si no hay).
 
   Las reglas del modo automatico NO se escriben aca: se arman en el portal y
   le llegan solas a la placa.
 
   Si te olvidas de algo, no pasa nada grave: el portal te avisa en "Mi placa"
-  que nombres no coinciden.
+  si declaraste algo que tu placa no manda, o si manda algo que no declaraste.
 
 PASO 5 - SUBIR
   Herramientas > Placa > esp32 > ESP32 Dev Module
@@ -68,30 +73,43 @@ PASO 5 - SUBIR
 
   Si al subir dice que no entra en la memoria, en
   Herramientas > Partition Scheme elegi "Huge APP (3MB No OTA)".
-  El sketch usa ~71% de la flash porque TLS ocupa bastante.
+  El sketch usa ~73% de la flash porque TLS ocupa bastante.
 
 CONEXIONES DEL KIT DE EJEMPLO
   GPIO 26 -> IN1 del modulo de reles  (salida "bomba")
   GPIO 27 -> IN2 del modulo de reles  (salida "vent")
   GPIO 2  -> LED de la placa          (salida "luz")
+  GPIO 32 -> pulsador a GND           (prende/apaga "bomba")
+  GPIO 33 -> pulsador a GND           (prende/apaga "vent")
+  GPIO 25 -> pulsador a GND           (activa/desactiva el modo automatico)
   GPIO 4  -> DHT22, solo si USAR_DHT esta en 1  (entradas "t" y "h")
 
-SI ALGO FALLA
-  Lo primero: abri el portal y mira "Mi placa". Si tu ESP32 esta mandando algo
-  mal, ahi te dice exactamente que. No hace falta el monitor serie para eso.
+  Los pulsadores van entre el GPIO y GND, sin resistencia: se usa la
+  interna. No sirven los GPIO 34 a 39 (no tienen resistencia interna).
 
-  "EL SERVIDOR RECHAZO EL SYNC"  -> leelo completo, el mensaje dice que
-                                    arreglar. Si generaste el codigo con una
-                                    IA, pegaselo y lo corrige.
-  "[aviso] ..."                  -> un nombre no coincide con lo que
-                                    declaraste en el portal. No frena nada,
-                                    pero casi siempre es un error de tipeo.
-  "Clave invalida"               -> la constante CLAVE esta mal copiada
-  "Demasiado rapido"             -> hay que esperar al menos 3 segundos entre
-                                    un sync y otro
+EL MODO AUTOMATICO
+  Activado: las salidas que tienen regla las maneja la placa. Los botones de
+  la app, del portal y los pulsadores NO las cambian (la placa avisa en el
+  portal que lo ignoro). Las salidas sin regla se siguen manejando a mano.
+  Desactivado: todo se maneja a mano.
+  Se cambia desde la app, desde el portal o con el pulsador de modo.
+
+SI ALGO FALLA
+  Lo primero: abri el portal y mira "Mi placa". Ahi ves si la placa esta
+  conectada, los valores y los avisos.
+
+  "[firebase] entrar: ..."       -> no pudo entrar: USUARIO o CONTRASENA
+                                    mal copiados. Son los mismos del portal.
+  "permission denied" al         -> es normal: todavia no termino de entrar.
+  arrancar                          Si sigue, el USUARIO no es el tuyo.
+  "[aviso] ..."                  -> algo se ignoro (por ejemplo, un comando
+                                    en modo automatico). Tambien sale en el
+                                    portal.
   "sin conexion"                 -> no hay WiFi o la red es de 5 GHz. Las
-                                    reglas guardadas siguen funcionando igual.
+                                    reglas y los pulsadores siguen andando.
   No aparece el puerto COM       -> falta el driver USB de la placa
                                     (CP2102 o CH340)
   Una salida queda al reves      -> en la tabla salidas[], cambia LOW por HIGH
                                     (y tambien en el portal)
+  Un pulsador prende y apaga     -> revisa que vaya a GND y no a 3.3V
+  solo

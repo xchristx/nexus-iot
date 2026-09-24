@@ -1,0 +1,15 @@
+{
+  "name": "nexus-iot-firebase",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "emuladores": "firebase emulators:start --project demo-nexus",
+    "test": "firebase emulators:exec --project demo-nexus --only auth,database \"node --test pruebas/\"",
+    "simular-placa": "node pruebas/simular-placa.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^14.0.0"
+  }
+}

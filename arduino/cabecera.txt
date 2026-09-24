@@ -10,17 +10,21 @@
  *     Despues: Herramientas > Placa > Gestor de tarjetas > buscar "esp32"
  *     (de Espressif Systems) > Instalar.
  *
- *  2) Libreria
+ *  2) Librerias
  *     Programa > Incluir libreria > Administrar bibliotecas...
+ *       - "FirebaseClient" de Mobizt  (version 2.2 o mayor). Cuando pregunte
+ *         si instala tambien ESP_SSLClient, elegi "Install all".
  *       - "ArduinoJson" de Benoit Blanchon  (version 7 o mayor)
  *     Solo si vas a usar el DHT22 de verdad (USAR_DHT 1), instala tambien:
  *       - "DHT sensor library" de Adafruit
  *       - "Adafruit Unified Sensor" de Adafruit
- *     WiFi, WiFiClientSecure, HTTPClient y Preferences ya vienen con el
- *     paquete ESP32: no se instalan.
+ *     WiFi, WiFiClientSecure y Preferences ya vienen con el paquete ESP32:
+ *     no se instalan.
  *
  *  3) Al compilar
  *     Herramientas > Placa > esp32 > "ESP32 Dev Module"
+ *     Herramientas > Partition Scheme > "Huge APP (3MB No OTA)" si dice
+ *     que no entra en la memoria
  *     Herramientas > Puerto > el COM que aparezca al enchufar la placa
  *     Monitor Serie a 115200 baudios
  *

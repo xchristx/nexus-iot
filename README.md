@@ -1,25 +1,27 @@
 # Nexus IoT
 
-Backend, portal y firmware para que una clase de ~20 alumnos practique **Kodular**
-contra un servidor real, con un ESP32 cada uno. Cada alumno declara su propio
-hardware (entradas, salidas y las reglas de su modo automático) desde un portal, saca
-de ahí la clave de su placa y el prompt para generar su sketch, y arma su app.
+Portal, firmware y app para que una clase de ~20 alumnos practique **Kodular**
+contra un backend real, con un ESP32 cada uno, **en tiempo real** y con control
+local (pulsadores en la placa y un modo automático). Cada alumno declara su propio
+hardware (entradas, salidas, pulsadores y reglas) desde un portal, saca de ahí el
+prompt para generar su sketch, y arma su app.
 
-Corre entero sobre el plan gratuito de Supabase y Netlify.
+Corre entero sobre el plan gratuito de Firebase y Netlify.
 
 ## Por dónde empezar
 
 | Si querés… | Leé |
 |---|---|
-| entender el proyecto, la API y las decisiones | [LEEME.md](LEEME.md) |
-| montarlo en tu propio Supabase | [backend/LEEME.md](backend/LEEME.md) |
+| entender el proyecto y las decisiones | [LEEME.md](LEEME.md) |
+| montarlo en tu propio Firebase | [firebase/LEEME.md](firebase/LEEME.md) |
 | ver el prompt que genera el firmware | [PROMPT.md](PROMPT.md) |
 | armar la app en Kodular | [kodular/GUIA.md](kodular/GUIA.md) |
 | cargar el sketch desde el Arduino IDE | [arduino/LEEME.txt](arduino/LEEME.txt) |
 
 ## Las piezas
 
-- `backend/` — esquema y funciones RPC de Supabase (SQL para pegar en el editor).
+- `firebase/` — reglas de Realtime Database, curso y kit de ejemplo, pruebas y una
+  placa simulada.
 - `portal/` — portal React + Vite que se publica en Netlify.
 - `src/`, `arduino/` — firmware de referencia del ESP32 (PlatformIO y Arduino IDE).
 - `kodular/` — proyecto `.aia` con los bloques para leer y comandar, y su guía.
@@ -27,13 +29,15 @@ Corre entero sobre el plan gratuito de Supabase y Netlify.
 ## Claves
 
 Nada de lo que está acá tiene credenciales adentro: el firmware y el `.aia`
-versionados llevan marcadores (`PEGA_ACA_TU_CLAVE`, `TUPROYECTO.supabase.co`) que
-cada uno reemplaza por lo suyo. El portal toma las suyas de `portal/.env`, que no
-se sube; está [portal/.env.example](portal/.env.example) como molde.
+versionados llevan marcadores (`PEGA_ACA_LA_API_KEY`, `TUPROYECTO`) y la contraseña
+vacía. El portal toma su configuración de `portal/.env`, y el `.aia` del curso, de
+`kodular/google-services.json`; ninguno de los dos se sube. Está
+[portal/.env.example](portal/.env.example) como molde.
 
-La *publishable key* de Supabase sí es pública por diseño y termina dentro del
-bundle del portal y de la app: el acceso está cerrado con RLS y todo pasa por las
-funciones RPC. La que nunca va a ningún lado es la *secret key*.
+La configuración de Firebase (API key incluida) es pública por diseño y termina
+dentro del portal y de la app: identifica al proyecto, no da permisos. Lo que
+protege los datos son las reglas de la base
+([firebase/database.rules.json](firebase/database.rules.json)).
 
 ## Licencia
 

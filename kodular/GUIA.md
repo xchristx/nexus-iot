@@ -1,50 +1,53 @@
 # App Kodular de Nexus IoT
 
-Un proyecto de Kodular que ya lee los datos de la placa y le manda comandos. Los
-bloques que hablan con el servidor están hechos y comentados: el alumno solo arma
-su pantalla y usa tres funciones, `valor`, `enviarComando` y `enviando`.
+Un proyecto de Kodular que ya entra con el usuario del alumno, recibe los datos de
+la placa **en tiempo real** y le manda comandos y el modo automático. Los bloques
+que hablan con Firebase están hechos y comentados: el alumno solo arma su pantalla
+y usa cuatro funciones: `valor`, `enviarComando`, `modoAuto` y `autoActivo`.
 
 Hay dos maneras de tenerlo:
 
-1. **Importar el `.aia`** (lo recomendado): en dos minutos está andando.
+1. **Importar el `.aia`** (lo recomendado).
 2. **Armarlo a mano** siguiendo la sección 5. Sirve si la importación falla o si
    la idea es que los alumnos entiendan cada bloque.
 
+> **Importante: el Companion no sirve.** Los componentes de Firebase de Kodular
+> solo andan en un APK compilado (**Export → Android App (.apk)**). Para probar
+> cada cambio hay que compilar e instalar el APK; tarda alrededor de un minuto.
+
 ## 1. Qué archivo usar
 
-| Archivo | Para quién | Qué hay que cambiar |
+| Archivo | Para quién | Qué trae |
 |---|---|---|
-| `NexusIoT_curso.aia` | los alumnos del curso | nada: ya trae la URL y la publishable key del curso |
-| `NexusIoT.aia` | otro docente, con su propio Supabase | `URL_BASE` y `PUBLICABLE`, dos bloques de texto |
+| `NexusIoT_curso.aia` | los alumnos del curso | todo: el `google-services.json` del proyecto y el package que le corresponde |
+| `NexusIoT.aia` | otro docente, con su propio Firebase | los bloques; hay que subirle su `google-services.json` |
 
-`NexusIoT_curso.aia` no se sube al repo: se genera con los datos de
-`portal/.env` (ver sección 6).
+`NexusIoT_curso.aia` no se sube al repo: se genera a partir de
+`kodular/google-services.json` (ver sección 6 y `firebase/LEEME.md`).
 
-Antes de repartirlo, importalo vos y probalo una vez con una placa.
+Antes de repartirlo, importalo vos, compilalo y probalo una vez con una placa.
 
 ## 2. Importar y probar
 
-1. En Kodular Creator, en la lista de proyectos, elegí **Import project** y
-   subí el `.aia`. Si ya tenés un proyecto con ese nombre, poné otro en el
-   diálogo.
-2. Solo con `NexusIoT.aia`: en **Blocks**, cambiá el texto de
-   `initialize global URL_BASE` por `https://<tu-proyecto>.supabase.co/rest/v1/rpc/`
-   (con la barra del final) y el de `PUBLICABLE` por tu `sb_publishable_...`.
-3. Abrilo en el teléfono con Kodular Companion, o generá el APK.
-4. Pegá la clave de la placa (la del portal, en **Mis datos**; no es el PIN) y
-   tocá **Guardar clave**. Queda guardada en el teléfono.
+1. En Kodular Creator, en la lista de proyectos, elegí **Import project** y subí el
+   `.aia`. Si ya tenés un proyecto con ese nombre, poné otro en el diálogo.
+2. Solo con `NexusIoT.aia`:
+   - En **Media**, subí el `google-services.json` de la app Android de tu
+     proyecto Firebase.
+   - En **Project Properties**, poné en **Package Name** el mismo package que
+     registraste en Firebase (`io.nexusiot.app` si seguiste `firebase/LEEME.md`).
+     Si no coinciden, no compila.
+3. Compilá el APK e instalalo en el teléfono.
+4. Escribí tu usuario (el del portal, por ejemplo `iot2026-ana_perez`) y tu
+   contraseña, y tocá **Entrar**. Quedan guardados en el teléfono.
 
 Con la placa andando, la pantalla muestra "Placa conectada", la lista de valores
-(`t: 24.5`, `bomba: 0`, ...) y el estado de la bomba. Los botones la prenden y la
-apagan.
+(`t: 24.5`, `bomba: 0`, ...), el modo automático y el estado de la bomba. Los
+botones la prenden y la apagan, y el cambio se ve en menos de un segundo.
 
 El ejemplo usa una salida con id `bomba`. Como cada alumno arranca sin nada
 configurado, o declara una salida `bomba` en el portal para probar, o cambia
 `"bomba"` por el id de su salida en `mostrarEstado` y en los dos botones.
-
-Si algo está mal, el error aparece arriba, donde dice si la placa está
-conectada. Los mensajes del servidor dicen qué corregir (por ejemplo, "Clave
-inválida. Sacá la tuya del portal.").
 
 ## 3. Cómo se usa desde tus bloques
 
@@ -59,18 +62,19 @@ En el editor de bloques hay dos columnas:
 |---|---|---|
 | `valor(id)` | El último valor de una entrada o salida. Da 0 si todavía no llegó. | `valor("t")`, `valor("bomba")` |
 | `enviarComando(salida, prender)` | Prende (1) o apaga (0) una salida. | `enviarComando("vent", 1)` |
-| `enviando(salida)` | Verdadero mientras la placa todavía no recogió el comando. | mostrar "enviando…" |
-| `mostrarEstado` | **Lo escribís vos.** Se llama solo cada vez que llegan datos nuevos. | poner valores en labels |
+| `modoAuto(activar)` | Activa (`true`) o desactiva (`false`) el modo automático. | `modoAuto(true)` |
+| `autoActivo()` | Verdadero si el modo automático está activado. | cambiar el texto de un botón |
+| `conectada()` | Verdadero si la placa mandó noticias en el último minuto. | |
+| `mostrarEstado` | **Lo escribís vos.** Se llama solo cada vez que llega un dato. | poner valores en labels |
 | `mostrarError(mensaje)` | Muestra un error arriba. | |
-| `valor("edad")` | Segundos desde el último dato de la placa: -1 si nunca se conectó; más de 30, desconectada. | |
 
 Los `id` son los que cada alumno declaró en el portal (**Configurar**): sus
 entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 
 ### Ejemplo: sumar otra salida (un ventilador, `vent`)
 
-1. **Designer:** agregá un Label `LabelVent` y dos botones, `BotonPrenderVent` y
-   `BotonApagarVent`.
+1. **Designer:** adentro de `ArregloPlaca`, agregá un Label `LabelVent` y dos
+   botones, `BotonPrenderVent` y `BotonApagarVent`.
 2. **Blocks:** `when BotonPrenderVent.Click` → `call enviarComando` con
    `salida = "vent"` y `prender = 1`. Lo mismo con 0 para apagar.
 3. En `mostrarEstado`, duplicá el `if` de la bomba (clic derecho → **Duplicate**)
@@ -78,214 +82,112 @@ entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 
 ### Lo que conviene saber
 
-- **La respuesta no vuelve en el mismo bloque.** `pedirEstado` hace el pedido y
-  la respuesta llega después, en `WebEstado.GotText`. Por eso existe
-  `mostrarEstado`: todo lo que dependa de los datos va ahí adentro.
-- **Un comando tarda unos 5 segundos** en llegar a la salida, porque la placa lo
-  recoge en su próximo sync. Mientras tanto, `enviando(salida)` da verdadero:
-  mostrá "enviando…" para que no parezca que el botón no anduvo.
-- **Apretar un botón apaga el modo automático de esa salida**, y solo de esa. Si
-  no, la regla lo revertiría a los pocos segundos. Se vuelve a activar desde el
-  portal.
-- **No bajes el reloj de 5000 ms.** Cada lectura gasta transferencia del plan
-  gratuito, que es una sola para toda la clase. Con la app en segundo plano el
-  reloj se frena solo.
-- **En Kodular no existe `JsonTextDecodeWithDictionaries`.** Los tutoriales de
-  App Inventor lo usan, pero Kodular no lo tiene. Acá la respuesta se decodifica
-  con `JsonTextDecode`, que da una lista de pares, y se lee con
-  `look up in pairs`. Eso es lo que hace `valor`.
-- **La clave de la app no es el PIN.** Con la clave se leen datos y se prenden
-  salidas, pero no se cambia la configuración. Aun así, conviene no compartirla.
+- **No hay que pedir los datos: llegan solos.** Cada vez que la placa cambia algo,
+  se dispara `DBEstado.DataChanged`, que lo guarda y llama a `mostrarEstado`. Por
+  eso todo lo que dependa de los datos va ahí adentro.
+- **En modo automático, una salida con regla no obedece.** La placa ignora el
+  comando (y el pulsador) y deja un aviso, que la app muestra al final de la
+  lista. Para manejarla a mano, primero `modoAuto(false)`.
+- **Los pulsadores de la placa se ven solos:** cuando alguien aprieta uno, la
+  salida cambia y la app se entera igual que con cualquier otro dato.
+- **El reloj `RelojConexion` no usa internet.** Solo vuelve a llamar a
+  `mostrarEstado` cada 5 s para que el cartel pase a "desconectada" si la placa
+  deja de mandar.
+- **Lo que llega se guarda en `TinyDBEstado`**, un TinyDB con su propio
+  Namespace que hace de diccionario: `valor` lo lee con `GetValue`, y
+  `mostrarEstado` recorre todo con `GetTags`. Kodular no tiene los diccionarios de
+  App Inventor.
+- **Usuario y contraseña quedan guardados en el teléfono** (en `TinyDB1`) para no
+  pedirlos cada vez. **Cambiar de usuario** borra la contraseña guardada.
 
 ## 4. Pasar los bloques a otro proyecto
 
-Para sumarle Nexus a un proyecto que ya existe, sin importar el `.aia`:
-
 1. **En el proyecto destino, creá primero los componentes** con estos nombres
-   exactos. Si falta uno, los bloques que lo usan aparecen en rojo.
+   exactos, y subí el `google-services.json` en Media. Si falta uno, los bloques
+   que lo usan aparecen en rojo.
 
-   | Componente | Nombre | Lo usa |
+   | Componente | Nombre | Para qué |
    |---|---|---|
-   | Web | `WebEstado` | `pedirEstado`, `WebEstado.GotText` |
-   | Web | `WebComando` | `enviarComando`, `WebComando.GotText` |
-   | Clock | `RelojEstado` | lee cada 5 s (`TimerInterval` 5000, `TimerAlwaysFires` sin tildar) |
-   | Label | `LabelConexion` | `pedirEstado`, `mostrarError` |
-   | TinyDB | `TinyDB1` | guardar la clave (solo si usás `Screen1.Initialize` y el botón) |
+   | Firebase Authentication | `FirebaseAuth` | entrar con el usuario |
+   | Firebase Realtime Database | `DBEstado` | escuchar lo que manda la placa |
+   | Firebase Realtime Database | `DBControl` | el modo automático |
+   | Firebase Realtime Database | `DBCmd` | los comandos |
+   | TinyDB | `TinyDBEstado` | lo que llega (`Namespace`: `NexusEstado`) |
+   | TinyDB | `TinyDB1` | usuario y contraseña |
+   | Clock | `RelojConexion` | el cartel de conectada (`TimerInterval` 5000) |
+   | Label | `LabelConexion` | mensajes y errores |
+   | VerticalArrangement | `ArregloLogin`, `ArregloPlaca` | mostrar y esconder |
 
 2. **En el proyecto de origen**, clic derecho sobre cada bloque →
    **Download Blocks as PNG**. La imagen lleva los bloques adentro.
 3. **Arrastrá cada PNG** al editor de bloques del proyecto destino y los bloques
    aparecen.
 
-Pasá también las variables globales `URL_BASE`, `PUBLICABLE`, `CLAVE`, `estado` y
+Pasá también las variables globales `DOMINIO`, `USUARIO`, `CONTRASENA`, `AUTO` y
 `SISTEMA`. La **mochila** (Backpack) sirve para lo mismo, pero solo entre tus
-propios proyectos: para pasárselo a otra persona, usá los PNG o el `.aia`.
+propios proyectos.
 
 ## 5. Armarlo a mano
 
 ### Componentes
 
-| Componente | Nombre | Propiedades |
-|---|---|---|
-| TextBox | `TextBoxClave` | Hint: `pegá acá tu clave` |
-| Button | `BotonGuardarClave` | Text: `Guardar clave` |
-| Label | `LabelConexion` | FontBold, FontSize 18 |
-| Label | `LabelDatos` | |
-| Label | `LabelBomba` | |
-| Button | `BotonPrender`, `BotonApagar` | |
-| Web | `WebEstado`, `WebComando` | |
-| Clock | `RelojEstado` | TimerInterval `5000`, TimerAlwaysFires sin tildar |
-| TinyDB | `TinyDB1` | |
+En `Screen1`, en este orden:
+
+- `ArregloLogin` (VerticalArrangement, Width *Fill parent*) con:
+  `LabelLogin`, `TextBoxUsuario` (TextBox), `TextBoxContrasena` (PasswordTextBox)
+  y `BotonEntrar`.
+- `LabelConexion` (Label, negrita, 18).
+- `ArregloPlaca` (VerticalArrangement, Width *Fill parent*, **Visible sin tildar**)
+  con: `LabelDatos`, `LabelModo`, `BotonModo`, `LabelBomba`, `ArregloBomba`
+  (HorizontalArrangement con `BotonPrender` y `BotonApagar`) y `BotonSalir`.
+- No visibles: los de la tabla de la sección 4.
 
 ### Bloques
 
-Los nombres de bloques están como aparecen en Kodular en inglés. Dónde está
-cada uno:
+Globales: `DOMINIO` = `"@nexus-iot.example.com"`, `USUARIO` = `""`,
+`CONTRASENA` = `""`, `AUTO` = `false`, `SISTEMA` = lista `"visto"`, `"aviso"`.
 
-- **Text:** `" "`, `join`, `is empty`, `trim`.
-- **Lists:** `create empty list`, `make a list`, `look up in pairs`,
-  `is in list?`, `select list item`.
-- **Control:** `if` y `for each item in list`. Para agregar `else if` o `else`,
-  tocá el engranaje azul del `if`.
-- **Logic:** `true`, `false`, `not`, `or`.
-- **Math:** los números y el comparador (`=`, `≠`, `<`, `>`).
-- **Variables:** `initialize global`, `initialize local`, `get`, `set`.
-- **Procedures:** `to … do`, y `to … result` para las que devuelven un valor.
-  Los parámetros se agregan con el engranaje azul.
+```text
+procedimiento entrar
+  LabelConexion.Text ← "Entrando…"
+  FirebaseAuth.EmailPasswordLogin(une(USUARIO, DOMINIO), CONTRASENA)
 
-`join` tiene dos lugares: para agregar más, usá el engranaje azul.
+cuando FirebaseAuth.LoginSuccess
+  TinyDBEstado.ClearAll
+  DBEstado.ProjectPath  ← une("placas/", USUARIO, "/estado")
+  DBControl.ProjectPath ← une("placas/", USUARIO, "/control")
+  DBCmd.ProjectPath     ← une("placas/", USUARIO, "/control/cmd")
+  ArregloLogin.Visible ← falso ; ArregloPlaca.Visible ← verdadero
+  DBEstado.GetTagList
+  DBControl.GetValue("auto", falso)
+  mostrarEstado
 
-**Variables globales:**
+cuando FirebaseAuth.LoginFailed
+  mostrarError("No se pudo entrar. Revisá tu usuario y tu contraseña…")
 
-```
-initialize global URL_BASE   to "https://TUPROYECTO.supabase.co/rest/v1/rpc/"
-initialize global PUBLICABLE to "sb_publishable_PEGA_ACA_LA_TUYA"
-initialize global CLAVE      to ""
-initialize global estado     to create empty list
-initialize global SISTEMA    to make a list "ok" "device_id" "alumno" "detectados"
-                                  "faltan" "pendientes" "reglas" "edad" "avisos"
-                                  "ultimo_error" "syncs"
-```
+cuando DBEstado.DataChanged(tag, value)     y también DBEstado.GotValue(tag, value)
+  TinyDBEstado.StoreValue(tag, value) ; mostrarEstado
 
-**Leer el estado:**
+cuando DBEstado.TagList(value)
+  para cada tag en value: DBEstado.GetValue(tag, "")
 
-```
-to pedirEstado
-  if is empty (get global CLAVE)
-    set LabelConexion.Text to "Pegá la clave de tu placa y tocá \"Guardar clave\"."
-  else
-    set WebEstado.Url to join (get global URL_BASE) "leer_estado?apikey="
-                              (get global PUBLICABLE) "&p_clave=" (get global CLAVE)
-    call WebEstado.Get
+cuando DBControl.DataChanged(tag, value)    y también DBControl.GotValue(tag, value)
+  si tag = "auto": AUTO ← value ; mostrarEstado
 
-when RelojEstado.Timer
-  call pedirEstado
-
-when WebEstado.GotText
-  if responseCode ≠ 200
-    call mostrarError join "El servidor respondió " responseCode ": " responseContent
-  else
-    set global estado to call WebEstado.JsonTextDecode jsonText: responseContent
-    if look up in pairs  key "ok"  pairs (get global estado)  notFound false
-      call mostrarEstado
-    else
-      call mostrarError (look up in pairs  key "error"  pairs (get global estado)
-                                           notFound "respuesta inesperada")
-
-to valor (id)  result
-  look up in pairs  key (get id)  pairs (get global estado)  notFound 0
-
-to enviando (salida)  result
-  (is in list? thing join (get salida) "=1"
-               list look up in pairs key "pendientes" pairs (get global estado) notFound create empty list)
-  or
-  (is in list? thing join (get salida) "=0"
-               list look up in pairs key "pendientes" pairs (get global estado) notFound create empty list)
+función valor(id)       = TinyDBEstado.GetValue(id, 0)
+función conectada()     = RelojConexion.SystemTime − valor("visto") < 60000
+función autoActivo()    = está en la lista (minúsculas(une("", AUTO)), ["true", "1"])
+procedimiento enviarComando(salida, prender) = DBCmd.StoreValue(salida, prender)
+procedimiento modoAuto(activar)              = DBControl.StoreValue("auto", activar)
 ```
 
-**Mandar comandos.** El texto del `PostText` se arma con un `join` de 7 partes.
-Las comillas van adentro de los bloques de texto:
+Los botones: `BotonEntrar` guarda `minúsculas(recortar(TextBoxUsuario.Text))` en
+`USUARIO` y la contraseña en `CONTRASENA`, los guarda en `TinyDB1` y llama a
+`entrar`. `Screen1.Initialize` los lee de `TinyDB1` y, si hay contraseña, llama a
+`entrar`. `BotonModo` hace `modoAuto(no autoActivo())`.
 
-```
-to enviarComando (salida, prender)
-  set WebComando.Url to join (get global URL_BASE) "enviar_comando?apikey=" (get global PUBLICABLE)
-  set WebComando.RequestHeaders to make a list (make a list "Content-Type" "application/json")
-  call WebComando.PostText text: join  {"p_clave":"   (get global CLAVE)   ","p_cmd":"
-                                       (get salida)   =   (get prender)   "}
-
-when WebComando.GotText
-  if responseCode ≠ 200
-    call mostrarError join "El servidor respondió " responseCode ": " responseContent
-  else
-    initialize local respuesta to call WebComando.JsonTextDecode jsonText: responseContent
-    in
-      if look up in pairs  key "ok"  pairs (get respuesta)  notFound false
-        call pedirEstado
-      else
-        call mostrarError (look up in pairs key "error" pairs (get respuesta)
-                                            notFound "respuesta inesperada")
-```
-
-**Errores:**
-
-```
-to mostrarError (mensaje)
-  set LabelConexion.Text to join "Error: " (get mensaje)
-
-when Screen1.ErrorOccurred
-  call mostrarError join functionName ": " message
-```
-
-Sin `Screen1.ErrorOccurred`, un corte de internet abre un cartel cada 5 segundos.
-
-**La app de ejemplo:**
-
-```
-when Screen1.Initialize
-  set global CLAVE to call TinyDB1.GetValue tag "clave" valueIfTagNotThere (get global CLAVE)
-  set TextBoxClave.Text to get global CLAVE
-  call pedirEstado
-
-when BotonGuardarClave.Click
-  set global CLAVE to trim TextBoxClave.Text
-  call TinyDB1.StoreValue tag "clave" valueToStore (get global CLAVE)
-  call TextBoxClave.HideKeyboard
-  call pedirEstado
-
-to mostrarEstado
-  if valor("edad") < 0
-    set LabelConexion.Text to "La placa todavía no se conectó nunca."
-  else if valor("edad") > 30
-    set LabelConexion.Text to join "Placa desconectada: el último dato es de hace "
-                                   valor("edad") " segundos."
-  else
-    set LabelConexion.Text to "Placa conectada"
-
-  set LabelDatos.Text to ""
-  for each par in list (get global estado)
-    if not (is in list? thing (select list item list (get par) index 1)
-                        list (get global SISTEMA))
-      set LabelDatos.Text to join LabelDatos.Text
-                                  (select list item list (get par) index 1) ": "
-                                  (select list item list (get par) index 2) "\n"
-
-  if enviando("bomba")
-    set LabelBomba.Text to "Bomba: enviando…"
-  else if valor("bomba") = 1
-    set LabelBomba.Text to "Bomba: prendida"
-  else
-    set LabelBomba.Text to "Bomba: apagada"
-
-when BotonPrender.Click
-  call enviarComando salida "bomba" prender 1
-
-when BotonApagar.Click
-  call enviarComando salida "bomba" prender 0
-```
-
-En `for each item in list`, cambiá `item` por `par`. El `"\n"` es una barra
-invertida y una n, escritas en el bloque de texto: Kodular lo convierte en un
-salto de línea.
+En `mostrarEstado`, el `"\n"` es una barra invertida y una n, escritas en el
+bloque de texto: Kodular lo convierte en un salto de línea.
 
 ## 6. Regenerar el `.aia`
 
@@ -295,18 +197,20 @@ El `.aia` no se edita a mano: lo arma `kodular/generar-aia.mjs`, sin dependencia
 node kodular/generar-aia.mjs
 ```
 
-Escribe `kodular/NexusIoT.aia` con marcadores. Si `portal/.env` tiene
-`VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`, escribe también
-`kodular/NexusIoT_curso.aia` con esos valores (está en `.gitignore`). Dos
-corridas sin cambios dan el mismo archivo.
+Escribe `kodular/NexusIoT.aia` sin `google-services.json` y con el package
+`io.nexusiot.app`. Si existe `kodular/google-services.json`, escribe también
+`kodular/NexusIoT_curso.aia` con ese archivo adentro y el package que dice (está en
+`.gitignore`). Dos corridas sin cambios dan el mismo archivo.
 
-El formato está copiado de proyectos exportados por Kodular Creator
-(`YaVersion` 242, con las versiones de componentes de Kodular, que no son las de
-App Inventor). Hay dos cosas que el generador evita a propósito:
+El formato está copiado de proyectos exportados por Kodular Creator (`YaVersion`
+247, julio de 2026, con las versiones de componentes de Kodular, que no son las de
+App Inventor). Lo que el generador evita a propósito:
 
-- `JsonTextDecodeWithDictionaries`, que Kodular no tiene.
-- El bloque `is number?`, que en Kodular no tiene el desplegable de App Inventor.
+- El componente viejo `FirebaseDB`: desde Kodular 2026.05 no compila.
+- Los diccionarios y `JsonTextDecodeWithDictionaries`, que Kodular no tiene.
+- Los parámetros de `LoginSuccess` (el uid, por ejemplo): la ruta de la placa se
+  arma con el usuario que escribió el alumno, que es la clave de su rama.
 
-**Si `leer_estado` suma una clave del sistema** (en `util.reservados()` de
-`backend/02-funciones.sql`), agregala a `SISTEMA` en el generador y en esta guía.
-Si no, `mostrarEstado` la muestra como si fuera una entrada.
+**Si la placa suma una clave a `estado` que no es una entrada ni una salida**
+(hoy `visto` y `aviso`), agregala a `SISTEMA` en el generador y en esta guía. Si
+no, `mostrarEstado` la muestra como si fuera una entrada.

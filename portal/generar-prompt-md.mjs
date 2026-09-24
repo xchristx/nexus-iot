@@ -9,13 +9,14 @@
 
 import { writeFileSync } from 'node:fs'
 import { generarPrompt } from './src/prompt.js'
-import { canalesEjemplo } from './src/plantilla-ejemplo.js'
+import { canalesEjemplo, plantillaEjemplo } from './src/plantilla-ejemplo.js'
 
 const cuerpo = generarPrompt({
-  url:        'https://TUPROYECTO.supabase.co',
-  publicable: 'TU_PUBLISHABLE_KEY',
-  clave:      'TU_CLAVE',
-  canales:    canalesEjemplo,
+  apiKey:       'TU_API_KEY',
+  databaseURL:  'https://TUPROYECTO-default-rtdb.firebaseio.com',
+  usuario:      'iot2026-tu_nombre',
+  canales:      canalesEjemplo,
+  pulsadorModo: plantillaEjemplo.pulsador_modo,
 })
 
 const encabezado = `<!-- GENERADO AUTOMATICAMENTE — no editar a mano.
@@ -25,14 +26,15 @@ const encabezado = `<!-- GENERADO AUTOMATICAMENTE — no editar a mano.
 
 Este es el prompt que cada alumno le pega a una IA para que le genere su sketch.
 
-**El portal lo arma con la clave y el hardware que declaró cada alumno**, en la
+**El portal lo arma con el usuario y el hardware que declaró cada alumno**, en la
 pantalla "Mis datos", con un botón de copiar. Si el alumno agrega una entrada o una
-salida en Configurar, su prompt la incluye sola.
+salida en Configurar, su prompt la incluye sola. La contraseña nunca va en el
+prompt: el alumno la escribe después en el código.
 
 Esta copia usa un kit de ejemplo (un DHT22 como entradas; bomba, ventilador y
-LED como salidas) y está acá para poder versionarla, revisarla en un diff y probarla sin
-levantar el portal. Los marcadores \`TUPROYECTO\`, \`TU_PUBLISHABLE_KEY\` y
-\`TU_CLAVE\` los reemplaza el portal.
+LED como salidas, con pulsadores) y está acá para poder versionarla, revisarla en
+un diff y probarla sin levantar el portal. Los marcadores \`TU_API_KEY\`,
+\`TUPROYECTO\` e \`iot2026-tu_nombre\` los reemplaza el portal.
 
 ---
 

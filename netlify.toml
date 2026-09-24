@@ -1,6 +1,7 @@
 # Netlify: sitio estatico puro, sin funciones serverless.
-# Las dos variables VITE_* se cargan en el panel de Netlify:
-#   Site settings > Environment variables
+# Las cinco variables VITE_FIREBASE_* se cargan en el panel de Netlify:
+#   Site configuration > Environment variables
+# Vite las mete en el bundle al compilar: si cambian, hay que volver a desplegar.
 [build]
   base    = "portal"
   command = "npm run build"

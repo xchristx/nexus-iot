@@ -310,3 +310,38 @@ pre {
   word-break: normal;
   color: var(--tenue);
 }
+
+/* --- v4: entrar, modo automático y docente --------------------------- */
+
+.secundario {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+}
+
+.enlace {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--tenue);
+  text-decoration: underline;
+  font-size: 13px;
+}
+
+.sin-margen { margin: 4px 0 0; }
+
+.fila-guardar { display: flex; gap: 8px; align-items: stretch; }
+.fila-guardar input { margin-top: 0; }
+.fila-guardar button { flex: none; }
+
+/* El modo automático cambia qué se puede tocar: tiene que verse de lejos. */
+.modo.encendido { border-color: var(--acento); }
+
+/* Valores de una placa desconectada: son los últimos que mandó, no los de ahora. */
+.datos.viejos { opacity: .55; }
+
+main.ancho { max-width: 900px; }
+
+.alumno .punto { display: inline-block; vertical-align: middle; margin-right: 4px; }
+.alumno.viva .punto { background: var(--acento); }
+.detalle.aviso { color: var(--ambar); }
