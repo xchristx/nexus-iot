@@ -1,75 +1,76 @@
 // El prompt que el alumno le pega a una IA para que le genere su firmware.
 //
-// Se arma con el hardware que el alumno declaró en el portal: si agrega un
-// sensor, su prompt lo incluye solo.
+// Se arma con el hardware que el alumno declaró en el portal: si agrega una
+// entrada, su prompt la incluye sola.
 //
 // PROMPT.md (en la raíz del repo) se genera desde acá con `npm run prompt`,
-// usando la plantilla de ejemplo. Si cambia el contrato de la API, se cambia
-// este archivo y se regenera aquel.
+// usando el kit de ejemplo. Si cambia el contrato de la API, se cambia este
+// archivo y se regenera aquel.
 
 const numeroEjemplo = [24.5, 61.2]
 
-function lineaSensor(s) {
-  const unidad = s.unidad ? `, en ${s.unidad}` : ''
-  const pin = s.pin != null ? ` GPIO ${s.pin}.` : ''
-  const conexion = s.conexion ? ` Conexión: ${s.conexion}.` : ''
-  return `- "${s.id}": ${s.nombre || s.id}${unidad}.${pin}${conexion}`
+function lineaEntrada(e) {
+  const unidad = e.unidad ? `, en ${e.unidad}` : ''
+  const pin = e.pin != null ? ` GPIO ${e.pin}.` : ''
+  const conexion = e.conexion ? ` Conexión: ${e.conexion}.` : ''
+  return `- "${e.id}": ${e.nombre || e.id}${unidad}.${pin}${conexion}`
 }
 
-function lineaRele(r) {
-  const conexion = r.conexion ? ` ${r.conexion}.` : ''
-  return `- "${r.id}": ${r.nombre || r.id}. GPIO ${r.pin}, se activa con nivel ${r.nivel_activo}.${conexion}`
+function lineaSalida(s) {
+  const conexion = s.conexion ? ` ${s.conexion}.` : ''
+  return `- "${s.id}": ${s.nombre || s.id}. GPIO ${s.pin}, se activa con nivel ${s.nivel_activo}.${conexion}`
 }
 
 const lista = (items) => items.map((x) => `"${x.id}"`).join(', ')
 
-function cuerpoEjemplo(sensores, reles) {
+function cuerpoEjemplo(entradas, salidas) {
   const estado = {}
-  sensores.forEach((s, i) => { estado[s.id] = numeroEjemplo[i] ?? 10.5 })
-  reles.forEach((r) => { estado[r.id] = 0 })
+  entradas.forEach((e, i) => { estado[e.id] = numeroEjemplo[i] ?? 10.5 })
+  salidas.forEach((s) => { estado[s.id] = 0 })
   return JSON.stringify(estado).replace(/,/g, ', ').replace(/:/g, ': ')
 }
 
 export function generarPrompt({ url, publicable, clave, canales }) {
-  const sensores = canales.filter((c) => c.tipo === 'sensor')
-  const reles = canales.filter((c) => c.tipo === 'rele')
-  const librerias = [...new Set(sensores.map((s) => s.libreria).filter(Boolean))]
+  const entradas = canales.filter((c) => c.tipo === 'entrada')
+  const salidas = canales.filter((c) => c.tipo === 'salida')
+  const librerias = [...new Set(entradas.map((e) => e.libreria).filter(Boolean))]
 
-  const releEj = reles[0]?.id ?? 'vent'
-  const sensorEj = sensores[0]?.id ?? 't'
+  const salidaEj = salidas[0]?.id ?? 'vent'
+  const entradaEj = entradas[0]?.id ?? 't'
 
   const s = []
 
-  s.push(`Necesito el código completo para un ESP32 (Arduino / C++) que lea sensores,
-controle relés y se comunique con un backend por HTTPS.`)
+  s.push(`Necesito el código completo para un ESP32 (Arduino / C++) que lea entradas
+(sensores, botones), maneje salidas (relés, LEDs) y se comunique con un backend
+por HTTPS.`)
 
   s.push(`## Hardware
 
 Placa ESP32 DevKit v1.
 
-Sensores:
-${sensores.map(lineaSensor).join('\n') || '(ninguno por ahora)'}
+Entradas (lo que la placa mide o lee y manda como número):
+${entradas.map(lineaEntrada).join('\n') || '(ninguna por ahora)'}
 
-Relés:
-${reles.map(lineaRele).join('\n') || '(ninguno por ahora)'}
+Salidas (lo que se prende y se apaga):
+${salidas.map(lineaSalida).join('\n') || '(ninguna por ahora)'}
 
-Definí los sensores y los relés como **tablas**, para que agregar uno sea
+Definí las entradas y las salidas como **tablas**, para que agregar una sea
 agregar una fila:
 
-- sensores: un arreglo de structs {id, función de lectura, último valor}. Si
+- entradas: un arreglo de structs {id, función de lectura, último valor}. Si
   una lectura falla (NaN), se conserva el valor anterior.
-- relés: un arreglo de structs {id, pin, nivel activo, encendido, momento del
-  último cambio}. Cada relé tiene su propia polaridad (LOW o HIGH): resolvela
-  por relé, no con una constante global.
+- salidas: un arreglo de structs {id, pin, nivel activo, encendida, momento del
+  último cambio}. Cada salida tiene su propia polaridad (LOW o HIGH): resolvela
+  por salida, no con una constante global.
 
-No uses GPIO 0, 12, 14 ni 15 para relés: emiten pulsos durante el arranque y el
-relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna y GPIO
-34 a 39 son solo entrada.`)
+No uses GPIO 0, 12, 14 ni 15 para salidas: emiten pulsos durante el arranque y
+un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna y
+GPIO 34 a 39 solo sirven para entradas.`)
 
   s.push(`## Librerías a usar
 
 WiFi.h, WiFiClientSecure.h, HTTPClient.h, ArduinoJson.h (versión 7) y
-Preferences.h.${librerias.length ? `\nPara los sensores: ${librerias.join('; ')}.` : ''}
+Preferences.h.${librerias.length ? `\nPara las entradas: ${librerias.join('; ')}.` : ''}
 No uses ninguna otra.`)
 
   s.push(`## Comunicación con el backend
@@ -88,15 +89,15 @@ Cuerpo:
 \`\`\`json
 {
   "p_clave": "${clave}",
-  "p_estado": ${cuerpoEjemplo(sensores, reles)}
+  "p_estado": ${cuerpoEjemplo(entradas, salidas)}
 }
 \`\`\`
 
 ${[
-    sensores.length ? `Los sensores (${lista(sensores)}) van como números decimales.` : '',
-    reles.length ? `Los relés (${lista(reles)}) van como 1 (encendido) o 0 (apagado).` : '',
+    entradas.length ? `Las entradas (${lista(entradas)}) van como números decimales.` : '',
+    salidas.length ? `Las salidas (${lista(salidas)}) van como 1 (encendida) o 0 (apagada).` : '',
   ].filter(Boolean).join(' ')} Los nombres son exactamente esos, sin
-traducirlos ni cambiar mayúsculas. Si un sensor todavía no tiene ninguna
+traducirlos ni cambiar mayúsculas. Si una entrada todavía no tiene ninguna
 lectura buena, su valor NaN se manda como null (ArduinoJson ya lo hace solo) y
 el servidor lo acepta.
 
@@ -110,15 +111,16 @@ Cuando sale bien:
 
 \`\`\`json
 {"ok": true,
- "cmd": ["${releEj}=1"],
- "reglas": [{"rele": "${releEj}", "sensor": "${sensorEj}", "condicion": ">", "umbral": 28, "hist": 1.5}],
+ "cmd": ["${salidaEj}=1"],
+ "reglas": [{"salida": "${salidaEj}", "entrada": "${entradaEj}", "condicion": ">", "umbral": 28, "hist": 1.5}],
  "avisos": []}
 \`\`\`
 
 Procesala en este orden:
 
-1. **"cmd"**: lista de comandos "rele=valor" (valor 1 o 0). Aplicá cada uno a
-   su relé. Si llega un relé que la placa no tiene, ignoralo e imprimí un aviso.
+1. **"cmd"**: lista de comandos "salida=valor" (valor 1 o 0). Aplicá cada uno a
+   su salida. Si llega una salida que la placa no tiene, ignoralo e imprimí un
+   aviso.
 2. **"reglas"**: ver "Modo automático" más abajo.
 3. **"avisos"**: textos que avisan que un nombre no coincide con lo declarado
    (casi siempre un error de tipeo). Imprimilos por serie, pero solo cuando
@@ -138,43 +140,43 @@ placa las evalúa ella misma, así sigue regulando aunque se corte internet.
 Cada regla es:
 
 \`\`\`json
-{"rele": "${releEj}", "sensor": "${sensorEj}", "condicion": ">", "umbral": 28, "hist": 1.5}
+{"salida": "${salidaEj}", "entrada": "${entradaEj}", "condicion": ">", "umbral": 28, "hist": 1.5}
 \`\`\`
 
 Qué significa, sin excepciones:
 
-| condicion | se PRENDE si       | se APAGA si               |
-|-----------|--------------------|---------------------------|
-| ">"       | sensor > umbral    | sensor < umbral - hist    |
-| "<"       | sensor < umbral    | sensor > umbral + hist    |
+| condicion | la salida se PRENDE si | la salida se APAGA si      |
+|-----------|------------------------|----------------------------|
+| ">"       | entrada > umbral       | entrada < umbral - hist    |
+| "<"       | entrada < umbral       | entrada > umbral + hist    |
 
-Si no se cumple ninguna de las dos, el relé queda como está. Esa franja del
+Si no se cumple ninguna de las dos, la salida queda como está. Esa franja del
 medio es la histéresis, y es obligatoria: sin ella, con el valor oscilando
-alrededor del umbral, el relé conmuta en cada lectura y se quema.
+alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
 
 Reglas de implementación, todas obligatorias:
 
-- Llegan **solo las reglas activas**, como mucho una por relé. No hay que
+- Llegan **solo las reglas activas**, como mucho una por salida. No hay que
   chequear ningún campo "activa".
 - La lista **reemplaza completa** a la anterior. Si llega vacía ([]), no hay
   ninguna regla.
-- Guardá hasta 10 reglas en un arreglo de structs {rele, sensor, condicion,
+- Guardá hasta 10 reglas en un arreglo de structs {salida, entrada, condicion,
   umbral, hist}.
-- Si una regla nombra un sensor o un relé que la placa no tiene, o el sensor
-  todavía no tiene ninguna lectura buena, ignorala.
-- Un mismo relé no puede cambiar de estado por una regla más de una vez cada
+- Si una regla nombra una entrada o una salida que la placa no tiene, o la
+  entrada todavía no tiene ninguna lectura buena, ignorala.
+- Una misma salida no puede cambiar de estado por una regla más de una vez cada
   30 segundos.
 - Guardá la lista en Preferences como el texto JSON recibido, **solo si cambió**
   respecto de la guardada, y cargala al arrancar. Así la placa regula aunque
   arranque sin internet.
-- En cada ciclo de 5 segundos, el orden es: leer sensores → evaluar reglas →
+- En cada ciclo de 5 segundos, el orden es: leer entradas → evaluar reglas →
   sincronizar con el backend.`)
 
   s.push(`## Robustez
 
 - **El WiFi no puede bloquear el loop.** Al arrancar, esperá la conexión como
   mucho 15 segundos y seguí. Si se cae, reintentá con WiFi.reconnect() cada 10
-  segundos, sin esperar. Mientras no hay WiFi, se siguen leyendo sensores y
+  segundos, sin esperar. Mientras no hay WiFi, se siguen leyendo entradas y
   evaluando reglas; solo se saltea la sincronización.
 - El servidor rechaza los envíos a menos de 3 segundos del anterior, aunque el
   anterior haya sido rechazado. Usá millis() para espaciarlos cada 5 segundos;
@@ -182,9 +184,9 @@ Reglas de implementación, todas obligatorias:
 - Para que el handshake TLS no se repita en cada llamada, usá una sola
   instancia global de WiFiClientSecure con setInsecure(), y HTTPClient con
   setReuse(true).
-- Guardá en Preferences el estado de cada relé (una clave por id) y
-  restauralo al arrancar, así un corte de luz no los deja en cualquier
-  posición. Usá espacios de nombres separados para los relés y las reglas.`)
+- Guardá en Preferences el estado de cada salida (una clave por id) y
+  restauralo al arrancar, así un corte de luz no las deja en cualquier
+  posición. Usá espacios de nombres separados para las salidas y las reglas.`)
 
   s.push(`## Configuración
 
@@ -199,7 +201,7 @@ const char *CLAVE           = "${clave}";
 \`\`\`
 
 Agregá un modo de prueba (una constante #define) que, cuando está activo,
-invente los valores de los sensores con funciones seno en vez de leerlos, así
+invente los valores de las entradas con funciones seno en vez de leerlos, así
 puedo probar sin cablear nada.`)
 
   s.push(`## Qué quiero de vos

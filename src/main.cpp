@@ -7,13 +7,17 @@
  *   POST /rest/v1/rpc/sync?apikey=...
  *     ->  {"p_clave":"...","p_estado":{"t":24.5,"h":61.2,"bomba":0,"vent":1}}
  *     <-  {"ok":true,"cmd":["bomba=1"],
- *          "reglas":[{"rele":"vent","sensor":"t","condicion":">","umbral":28,"hist":1.5}],
+ *          "reglas":[{"salida":"vent","entrada":"t","condicion":">","umbral":28,"hist":1.5}],
  *          "avisos":[]}
  *
- * Todo es de tablas: agregar un sensor o un relé es agregar una fila. Los ids
- * tienen que coincidir con los que declaraste en el portal; si mandás algo que
- * no declaraste, el backend lo acepta igual y te avisa en el portal para que lo
+ * Todo es de tablas: agregar una entrada (algo que la placa mide o lee) o una
+ * salida (algo que prende y apaga) es agregar una fila. Los ids tienen que
+ * coincidir con los que declaraste en el portal; si mandás algo que no
+ * declaraste, el backend lo acepta igual y te avisa en el portal para que lo
  * agregues.
+ *
+ * Las filas de abajo son un EJEMPLO (DHT22 + bomba, ventilador y LED):
+ * cambialas por tu hardware.
  *
  * Las reglas corren ACÁ y no en el servidor, a propósito: así la placa sigue
  * regulando con la app cerrada, el celular apagado y sin internet.
@@ -29,47 +33,49 @@
 //  1. CONFIGURACIÓN
 // ===================================================================
 
-const char *WIFI_SSID = "";           // tu red de 2.4 GHz (el ESP32 no ve las de 5 GHz)
-const char *WIFI_PASS = "";
+const char *WIFI_SSID = "HS";           // tu red de 2.4 GHz (el ESP32 no ve las de 5 GHz)
+const char *WIFI_PASS = "hannita1610";
 
 // Estos tres los sacás del portal, en "Mis datos".
 //
 // PUBLISHABLE_KEY es la clave pública del proyecto, la que empieza con
 // "sb_publishable_". Es la misma para toda la clase y no es secreta.
-// CLAVE es la de tu placa y no se comparte: con ella se controlan tus relés.
+// CLAVE es la de tu placa y no se comparte: con ella se controlan tus salidas.
 const char *SUPABASE_URL    = "https://TUPROYECTO.supabase.co";
 const char *PUBLISHABLE_KEY = "sb_publishable_PEGA_ACA_LA_TUYA";
 const char *CLAVE           = "PEGA_ACA_TU_CLAVE";
 
-// 0 = inventa los valores de los sensores, para probar sin cablear nada
-#define USAR_SENSOR 1
+// 0 = inventa los valores del DHT22, para probar sin cablear nada
+#define USAR_DHT 1
 #define PIN_DHT 4
 
 // El servidor rechaza los syncs que llegan a menos de 3 s del anterior, así
 // que 5000 deja margen. No lo bajes de 3000.
 const unsigned long INTERVALO_SYNC = 5000;
 
-// Un relé no puede conmutar por una regla más seguido que esto. Junto con la
-// histéresis, es lo que evita que quede haciendo clic-clic y se queme.
+// Una salida no puede conmutar por una regla más seguido que esto. Junto con
+// la histéresis, es lo que evita que un relé quede haciendo clic-clic y se queme.
 const unsigned long MIN_ENTRE_CAMBIOS = 30000;   // 30 s
 
-#if USAR_SENSOR
+#if USAR_DHT
   #include <DHT.h>
   DHT dht(PIN_DHT, DHT22);
 #endif
 
 // ===================================================================
-//  2. Sensores — una fila por sensor
+//  2. Entradas — una fila por entrada
 // ===================================================================
 //
-// Cada sensor es un id y una función que devuelve su valor. Si la lectura
-// falla, la función devuelve NAN y se conserva el valor anterior.
+// Una entrada es cualquier cosa que la placa mide o lee y manda como número:
+// un sensor, un LDR, un botón (1/0). Cada una es un id y una función que
+// devuelve su valor. Si la lectura falla, la función devuelve NAN y se
+// conserva el valor anterior.
 //
 // Para agregar uno: escribí su función de lectura y sumá la fila, con el
 // mismo id que le pusiste en el portal.
 
 float leerTemperatura() {
-#if USAR_SENSOR
+#if USAR_DHT
   return dht.readTemperature();
 #else
   return 22.0 + 4.0 * sin(millis() / 60000.0);
@@ -77,39 +83,42 @@ float leerTemperatura() {
 }
 
 float leerHumedad() {
-#if USAR_SENSOR
+#if USAR_DHT
   return dht.readHumidity();
 #else
   return 55.0 + 10.0 * cos(millis() / 60000.0 * 0.7);
 #endif
 }
 
-struct Sensor {
+struct Entrada {
   const char *id;
   float     (*leer)();
   float       valor;       // NAN hasta la primera lectura buena
 };
 
-Sensor sensores[] = {
+Entrada entradas[] = {
   { "t", leerTemperatura, NAN },
   { "h", leerHumedad,     NAN },
 };
 
-const int N_SENSORES = sizeof(sensores) / sizeof(sensores[0]);
+const int N_ENTRADAS = sizeof(entradas) / sizeof(entradas[0]);
 
 // ===================================================================
-//  3. Relés — una fila por relé
+//  3. Salidas — una fila por salida
 // ===================================================================
+//
+// Una salida es cualquier cosa que se prende y se apaga: un relé, un LED, un
+// buzzer. Viaja como 1 o 0.
 //
 // GPIO 26, 27 y 25 son salidas "limpias": no hacen nada raro durante el
-// arranque. Evitá 0, 12, 14 y 15 para relés: emiten pulsos al encender la
-// placa y el relé haría un clic en cada reinicio. 6 a 11 son de la flash
-// interna y 34 a 39 son solo entrada.
+// arranque. Evitá 0, 12, 14 y 15: emiten pulsos al encender la placa y un
+// relé haría un clic en cada reinicio. 6 a 11 son de la flash interna y 34 a
+// 39 solo sirven para entradas.
 //
-// La mayoría de los módulos de relé se activan con LOW; el LED de la placa,
-// con HIGH. Por eso el nivel va por fila y no es una constante global.
+// La mayoría de los módulos de relé se activan con LOW; un LED, con HIGH.
+// Por eso el nivel va por fila y no es una constante global.
 
-struct Rele {
+struct Salida {
   const char   *id;
   int           pin;
   int           nivelActivo;     // LOW o HIGH: el nivel que lo prende
@@ -117,30 +126,30 @@ struct Rele {
   unsigned long ultimoCambio;    // para el tiempo mínimo entre conmutaciones
 };
 
-Rele reles[] = {
+Salida salidas[] = {
   { "bomba", 26, LOW,  false, 0 },   // IN1 del módulo de relés
   { "vent",  27, LOW,  false, 0 },   // IN2 del módulo de relés
-  { "luz",    2, HIGH, false, 0 },   // LED integrado, hasta tener un tercer relé
+  { "luz",    2, HIGH, false, 0 },   // LED integrado de la placa
 };
 
-const int N_RELES = sizeof(reles) / sizeof(reles[0]);
+const int N_SALIDAS = sizeof(salidas) / sizeof(salidas[0]);
 
 // ===================================================================
 //  4. Reglas del modo automático
 // ===================================================================
 //
-// Llegan del servidor en cada sync: SOLO las activas, una por relé como
+// Llegan del servidor en cada sync: SOLO las activas, una por salida como
 // mucho. La lista reemplaza completa a la anterior; si llega vacía, no hay
 // ninguna regla. Se guardan en la flash para seguir regulando sin red.
 //
-//   condicion ">"  prende si sensor > umbral,  apaga si sensor < umbral - hist
-//   condicion "<"  prende si sensor < umbral,  apaga si sensor > umbral + hist
+//   condicion ">"  prende si entrada > umbral,  apaga si entrada < umbral - hist
+//   condicion "<"  prende si entrada < umbral,  apaga si entrada > umbral + hist
 
 const int MAX_REGLAS = 10;
 
 struct Regla {
-  char  rele[16];
-  char  sensor[16];
+  char  salida[16];
+  char  entrada[16];
   char  condicion;               // '>' o '<'
   float umbral;
   float hist;
@@ -165,43 +174,43 @@ String ultimosAvisos   = "[]";   // para no repetir los mismos avisos cada 5 seg
 //  6. Buscar por id
 // ===================================================================
 
-Sensor *buscarSensor(const char *id) {
-  for (int i = 0; i < N_SENSORES; i++)
-    if (strcmp(sensores[i].id, id) == 0) return &sensores[i];
+Entrada *buscarEntrada(const char *id) {
+  for (int i = 0; i < N_ENTRADAS; i++)
+    if (strcmp(entradas[i].id, id) == 0) return &entradas[i];
   return nullptr;
 }
 
-Rele *buscarRele(const char *id) {
-  for (int i = 0; i < N_RELES; i++)
-    if (strcmp(reles[i].id, id) == 0) return &reles[i];
+Salida *buscarSalida(const char *id) {
+  for (int i = 0; i < N_SALIDAS; i++)
+    if (strcmp(salidas[i].id, id) == 0) return &salidas[i];
   return nullptr;
 }
 
 // ===================================================================
-//  7. Relés: escribir, guardar y aplicar
+//  7. Salidas: escribir, guardar y aplicar
 // ===================================================================
 
-void escribirPin(const Rele &r) {
+void escribirPin(const Salida &r) {
   digitalWrite(r.pin, r.encendido ? r.nivelActivo : !r.nivelActivo);
 }
 
-// Sobrevive a un corte de luz: al arrancar se restaura cómo estaba cada relé.
-void guardarReles() {
-  memoria.begin("reles", false);
-  for (int i = 0; i < N_RELES; i++)
-    memoria.putBool(reles[i].id, reles[i].encendido);
+// Sobrevive a un corte de luz: al arrancar se restaura cómo estaba cada salida.
+void guardarSalidas() {
+  memoria.begin("salidas", false);
+  for (int i = 0; i < N_SALIDAS; i++)
+    memoria.putBool(salidas[i].id, salidas[i].encendido);
   memoria.end();
 }
 
-void aplicarRele(Rele &r, bool encender) {
+void aplicarSalida(Salida &r, bool encender) {
   r.encendido    = encender;
   r.ultimoCambio = millis();
   escribirPin(r);
-  Serial.printf("[rele] %s = %s\n", r.id, encender ? "ON" : "OFF");
-  guardarReles();
+  Serial.printf("[salida] %s = %s\n", r.id, encender ? "ON" : "OFF");
+  guardarSalidas();
 }
 
-// Formato "rele=valor", el mismo que usa la app. No hace falta apagar ninguna
+// Formato "salida=valor", el mismo que usa la app. No hace falta apagar ninguna
 // regla acá: el servidor ya la apagó, y en esta misma respuesta llegan las
 // reglas activas sin ella.
 void aplicarComando(String cmd) {
@@ -213,10 +222,10 @@ void aplicarComando(String cmd) {
   String v  = cmd.substring(corte + 1);
   id.trim(); v.trim();
 
-  Rele *r = buscarRele(id.c_str());
-  if (!r) { Serial.printf("[cmd] esta placa no tiene el rele '%s'\n", id.c_str()); return; }
+  Salida *r = buscarSalida(id.c_str());
+  if (!r) { Serial.printf("[cmd] esta placa no tiene la salida '%s'\n", id.c_str()); return; }
 
-  aplicarRele(*r, v == "1" || v.equalsIgnoreCase("ON"));
+  aplicarSalida(*r, v == "1" || v.equalsIgnoreCase("ON"));
 }
 
 // ===================================================================
@@ -228,41 +237,41 @@ void cargarReglas(JsonArrayConst lista) {
   for (JsonObjectConst r : lista) {
     if (nReglas >= MAX_REGLAS) break;
 
-    const char *rele      = r["rele"]      | "";
-    const char *sensor    = r["sensor"]    | "";
+    const char *salida    = r["salida"]    | "";
+    const char *entrada   = r["entrada"]   | "";
     const char *condicion = r["condicion"] | "";
-    if (!*rele || !*sensor || (condicion[0] != '>' && condicion[0] != '<')) continue;
+    if (!*salida || !*entrada || (condicion[0] != '>' && condicion[0] != '<')) continue;
 
     Regla &g = reglas[nReglas++];
-    strlcpy(g.rele,   rele,   sizeof(g.rele));
-    strlcpy(g.sensor, sensor, sizeof(g.sensor));
+    strlcpy(g.salida,  salida,  sizeof(g.salida));
+    strlcpy(g.entrada, entrada, sizeof(g.entrada));
     g.condicion = condicion[0];
     g.umbral    = r["umbral"] | 0.0f;
     g.hist      = r["hist"]   | 1.0f;
   }
 }
 
-void conmutarPorRegla(Rele &r, bool encender) {
+void conmutarPorRegla(Salida &r, bool encender) {
   // El tiempo mínimo corta el ciclado rápido que la histéresis no alcance a
   // filtrar. ultimoCambio en 0 significa que todavía no conmutó nunca.
   if (r.ultimoCambio != 0 && millis() - r.ultimoCambio < MIN_ENTRE_CAMBIOS) return;
   Serial.printf("[regla] %s -> %s\n", r.id, encender ? "ON" : "OFF");
-  aplicarRele(r, encender);
+  aplicarSalida(r, encender);
 }
 
 void evaluarReglas() {
   for (int i = 0; i < nReglas; i++) {
     const Regla &g = reglas[i];
-    Sensor *s = buscarSensor(g.sensor);
-    Rele   *r = buscarRele(g.rele);
+    Entrada *s = buscarEntrada(g.entrada);
+    Salida   *r = buscarSalida(g.salida);
 
-    // La placa no tiene ese sensor o ese relé, o el sensor todavía no leyó
-    // nada: la regla no se aplica.
+    // La placa no tiene esa entrada o esa salida, o la entrada todavía no
+    // leyó nada: la regla no se aplica.
     if (!s || !r || isnan(s->valor)) continue;
 
     // La histéresis evita el chattering: se prende al cruzar el umbral, pero
     // para apagar hay que volver "hist" más atrás. Sin esto, con el valor
-    // oscilando justo en el umbral, el relé conmuta en cada lectura.
+    // oscilando justo en el umbral, la salida conmuta en cada lectura.
     bool prender, apagar;
     if (g.condicion == '>') {
       prender = s->valor > g.umbral;
@@ -278,14 +287,14 @@ void evaluarReglas() {
 }
 
 // ===================================================================
-//  9. Sensores
+//  9. Entradas
 // ===================================================================
 
-void leerSensores() {
-  for (int i = 0; i < N_SENSORES; i++) {
-    float v = sensores[i].leer();
-    if (isnan(v)) Serial.printf("[sensor] %s: lectura invalida, se conserva la anterior\n", sensores[i].id);
-    else          sensores[i].valor = v;
+void leerEntradas() {
+  for (int i = 0; i < N_ENTRADAS; i++) {
+    float v = entradas[i].leer();
+    if (isnan(v)) Serial.printf("[entrada] %s: lectura invalida, se conserva la anterior\n", entradas[i].id);
+    else          entradas[i].valor = v;
   }
 }
 
@@ -305,15 +314,15 @@ void sincronizar() {
   // llegar a sync(): no pasa por los mensajes de error útiles y el portal no
   // lo muestra.
   //
-  // Un sensor que todavía no leyó nada vale NAN, y ArduinoJson lo manda como
+  // Una entrada que todavía no leyó nada vale NAN, y ArduinoJson lo manda como
   // null: el backend lo toma como "no llegó valor" y avisa, sin rechazar.
   JsonDocument pedido;
   pedido["p_clave"] = CLAVE;
   JsonObject estado = pedido["p_estado"].to<JsonObject>();
-  for (int i = 0; i < N_SENSORES; i++)
-    estado[sensores[i].id] = round(sensores[i].valor * 10) / 10.0;
-  for (int i = 0; i < N_RELES; i++)
-    estado[reles[i].id] = reles[i].encendido ? 1 : 0;
+  for (int i = 0; i < N_ENTRADAS; i++)
+    estado[entradas[i].id] = round(entradas[i].valor * 10) / 10.0;
+  for (int i = 0; i < N_SALIDAS; i++)
+    estado[salidas[i].id] = salidas[i].encendido ? 1 : 0;
 
   String cuerpo;
   serializeJson(pedido, cuerpo);
@@ -364,7 +373,7 @@ void sincronizar() {
   for (JsonVariantConst c : doc["cmd"].as<JsonArrayConst>())
     aplicarComando(c.as<String>());
 
-  // ...después las reglas, que ya vienen sin la del relé que se acaba de
+  // ...después las reglas, que ya vienen sin la de la salida que se acaba de
   // comandar a mano. Solo se toca la flash si cambiaron.
   JsonArrayConst lista = doc["reglas"];
   if (!lista.isNull()) {
@@ -413,13 +422,13 @@ void setup() {
   delay(300);
   Serial.println("\n== Nexus IoT ==");
 
-  // Restaurar cómo estaba cada relé antes del último apagón
-  memoria.begin("reles", true);
-  for (int i = 0; i < N_RELES; i++) {
-    pinMode(reles[i].pin, OUTPUT);
-    reles[i].encendido = memoria.getBool(reles[i].id, false);
-    escribirPin(reles[i]);
-    Serial.printf("[flash] %s = %d\n", reles[i].id, reles[i].encendido);
+  // Restaurar cómo estaba cada salida antes del último apagón
+  memoria.begin("salidas", true);
+  for (int i = 0; i < N_SALIDAS; i++) {
+    pinMode(salidas[i].pin, OUTPUT);
+    salidas[i].encendido = memoria.getBool(salidas[i].id, false);
+    escribirPin(salidas[i]);
+    Serial.printf("[flash] %s = %d\n", salidas[i].id, salidas[i].encendido);
   }
   memoria.end();
 
@@ -432,10 +441,10 @@ void setup() {
   if (!deserializeJson(guardadas, reglasGuardadas)) cargarReglas(guardadas.as<JsonArrayConst>());
   Serial.printf("[flash] %d reglas activas\n", nReglas);
 
-#if USAR_SENSOR
+#if USAR_DHT
   dht.begin();
 #else
-  Serial.println("[info] modo simulado: valores de sensores inventados");
+  Serial.println("[info] modo simulado: valores del DHT22 inventados");
 #endif
 
   conectarWiFi();
@@ -449,7 +458,7 @@ void setup() {
   // segundos y la placa no hace otra cosa que negociar conexiones.
   http.setReuse(true);
 
-  leerSensores();
+  leerEntradas();
   sincronizar();
 }
 
@@ -457,7 +466,7 @@ void loop() {
   // Nada de delay() largo: el loop tiene que quedar libre.
   if (millis() - ultimoSync >= INTERVALO_SYNC) {
     ultimoSync = millis();
-    leerSensores();
+    leerEntradas();
     evaluarReglas();   // primero regula, después informa el estado ya corregido
 
     if (WiFi.status() == WL_CONNECTED) {

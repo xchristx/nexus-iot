@@ -26,20 +26,30 @@ El 2026-09-19 se preparó el repo para GitHub: se sacaron las claves reales de
 `src/main.cpp` (quedaron en `src/main.local.cpp`, ignorado), se agregaron
 `README.md` y `.gitattributes`, y se hizo el commit inicial en `main`.
 
+El 2026-09-23, a pedido del usuario: **no se dice "sensores" ni "relés"** sino
+**entradas** (lo que la placa mide o lee: un sensor, un botón) y **salidas** (lo
+que prende y apaga: un relé, un LED). El renombre llega al contrato: `tipo`
+`entrada`/`salida`, plantilla `{entradas, salidas, reglas}`, reglas
+`{salida, entrada, ...}`, parámetros `p_salida`, firmware `USAR_DHT`. "Relé" o
+"sensor" solo quedan como ejemplos de componentes físicos ("módulo de relés",
+"DHT sensor library"). Además, **la plantilla por defecto está vacía**: cada
+alumno arranca sin nada. Para llevarlo a Supabase hay que correr `00`→`03`
+(cambiaron columnas de `reglas`).
+
 ## Mapa del repo
 
 | Ruta | Qué es |
 |---|---|
 | `backend/00-borrar-todo.sql` | Borra TODO (datos incluidos). Solo para pasar desde versiones viejas |
-| `backend/01-esquema.sql` | Tablas, RLS cerrado, `util.nombre_clave`, plantilla por defecto del curso |
+| `backend/01-esquema.sql` | Tablas, RLS cerrado, `util.nombre_clave`, plantilla por defecto del curso (vacía) |
 | `backend/02-funciones.sql` | Las 11 funciones RPC y los helpers en `util`. Re-ejecutable sin perder datos |
-| `backend/03-curso-ejemplo.sql` | Crea el curso `IOT2026` + recetas del docente comentadas |
+| `backend/03-curso-ejemplo.sql` | Crea el curso `IOT2026` (vacío) + recetas del docente comentadas, incluida "Cargar un kit" |
 | `backend/LEEME.md` | Puesta en marcha en Supabase, pruebas con curl, decisiones |
 | `portal/` | React + Vite, para Netlify. `src/pantallas/` (Entrar, MiPlaca, Configurar, MisDatos), `src/componentes/comunes.jsx`, `src/api.js`, `src/prompt.js` |
 | `portal/src/prompt.js` | Genera el prompt del firmware con el hardware del alumno. **Única fuente** de `PROMPT.md` (`cd portal && npm run prompt`) |
-| `portal/src/plantilla-ejemplo.js` | Copia de la plantilla por defecto del SQL; solo para generar `PROMPT.md` |
-| `src/main.cpp` | Firmware de referencia (PlatformIO). Sensores, relés y reglas en tablas |
-| `arduino/NexusIoT/NexusIoT.ino` | Mismo firmware para Arduino IDE = `arduino/cabecera.txt` + `main.cpp` con `USAR_SENSOR 0` |
+| `portal/src/plantilla-ejemplo.js` | Kit de ejemplo (DHT22 + bomba, vent, luz); solo para generar `PROMPT.md`. Igual a la receta de `03` y a las tablas de `main.cpp` |
+| `src/main.cpp` | Firmware de referencia (PlatformIO). Entradas, salidas y reglas en tablas, con el kit de ejemplo |
+| `arduino/NexusIoT/NexusIoT.ino` | Mismo firmware para Arduino IDE = `arduino/cabecera.txt` + `main.cpp` con `USAR_DHT 0` y WiFi vacío |
 | `NexusIoT-arduino.zip` | Lo que se reparte: el `.ino` + `arduino/LEEME.txt` |
 | `kodular/generar-aia.mjs` | Genera `NexusIoT.aia` (marcadores) y `NexusIoT_curso.aia` (con `portal/.env`, en `.gitignore`). Node sin dependencias |
 | `kodular/GUIA.md` | Importar el `.aia`, usar `valor`/`enviarComando`/`enviando`, pasar bloques por PNG, armarlo a mano |
@@ -71,26 +81,30 @@ verificá que sigan con los marcadores.
 ## Modelo de datos
 
 - `cursos` — `codigo` en mayúsculas, `abierto`, `plantilla` jsonb
-  `{sensores, reles, reglas}` que se COPIA a cada alumno nuevo. Trigger que la valida.
+  `{entradas, salidas, reglas}` que se COPIA a cada alumno nuevo. Por defecto
+  vacía. Trigger que la valida.
 - `dispositivos` — un alumno. `clave` (placa + app), `clave_admin` (portal),
   `pin_hash` (bcrypt), bloqueo tras 5 PIN mal (15 min). Único por
   `(curso, util.nombre_clave(alumno))`: ignora tildes, mayúsculas y espacios.
-- `canales` — sensores y relés del alumno (los "feeds"). PK `(device_id, id)`.
+- `canales` — entradas y salidas del alumno (los "feeds"), `tipo`
+  `'entrada'`/`'salida'`. PK `(device_id, id)`.
   `id` `^[a-z][a-z0-9_]{0,14}$` (15 = largo máximo de clave de Preferences).
-  Relés exigen `pin` y `nivel_activo` LOW/HIGH. Máximo 10 sensores y 10 relés.
-- `reglas` — UNA por relé. `sensor`, `condicion` `>`/`<`, `umbral`, `hist`, `activa`.
-  FK a canales con cascade.
+  Salidas exigen `pin` y `nivel_activo` LOW/HIGH. Máximo 10 entradas y 10 salidas.
+  Orden: `order by tipo` ascendente = entradas primero.
+- `reglas` — UNA por salida. Columnas `salida` (PK con device_id), `entrada`,
+  `condicion` `>`/`<`, `umbral`, `hist`, `activa`. FK a canales con cascade.
 - `estado` — `valores` jsonb (último sync), `avisos`, `visto_en` (último válido),
   `ultimo_intento` (rate limit), `ultimo_error`, `syncs`.
-- `comandos` — cola `rele=1|0`, tope 20 por dispositivo.
+- `comandos` — cola `salida=1|0` (ej. `bomba=1`), tope 20 por dispositivo.
 
 ## API (11 funciones, todas SECURITY DEFINER)
 
 Con `clave_admin` (portal): `entrar(curso, alumno, pin)`, `leer_config`,
-`guardar_canal`, `borrar_canal`, `guardar_regla`, `borrar_regla`.
+`guardar_canal`, `borrar_canal`, `guardar_regla`, `borrar_regla(p_admin, p_salida)`.
 
 Con `clave` (placa y Kodular): `leer_estado` (STABLE → GET sin headers),
-`enviar_comando`, `ajustar_regla` (solo `activa`/`umbral`/`hist`), `sync`.
+`enviar_comando`, `ajustar_regla(p_clave, p_salida, p_cambios)` (solo
+`activa`/`umbral`/`hist`), `sync`.
 Además `salud()`.
 
 `sync` responde `{ok, cmd:[...], reglas:[solo activas, sin campo activa], avisos:[...]}`.
@@ -112,9 +126,9 @@ Además `salud()`.
    sketch que manda JSON inválido en loop nunca se frena.
 6. **Dos claves**: la del APK es extraíble, así que no puede cambiar la estructura.
 7. **Reglas evaluadas en la placa** (el usuario lo eligió, para que regule sin
-   internet), acotadas para que la IA no se equivoque: una por relé, `>`/`<`,
+   internet), acotadas para que la IA no se equivoque: una por salida, `>`/`<`,
    histéresis siempre, a la placa solo le llegan las activas, la lista reemplaza
-   completa a la anterior. Un comando manual desactiva la regla de ESE relé.
+   completa a la anterior. Un comando manual desactiva la regla de ESA salida.
 8. **El comando se refleja en `estado.valores` al entregarse en `sync`**; si la
    placa no lo aplica, el sync siguiente lo corrige.
 9. **Claves en la URL (`?apikey=`)**: concesión consciente para que Kodular lea
@@ -126,7 +140,7 @@ Además `salud()`.
 12. **El firmware arma el JSON con ArduinoJson**, nunca concatenando strings: un
     JSON inválido lo rechaza Supabase antes de llegar a `sync` y no deja rastro.
 13. **El WiFi no bloquea el loop** en el firmware: sin red se siguen leyendo
-    sensores y evaluando reglas.
+    entradas y evaluando reglas.
 14. Historial y gráficos: **pospuestos**. Se engancharían en `sync` con una tabla
     `lecturas` (máx. 1 por minuto por placa, borrar > 24 h).
 
@@ -139,10 +153,13 @@ Tocar juntos: `backend/02-funciones.sql`, `portal/src/prompt.js` (+ `npm run pro
 `src/main.cpp` (+ regenerar `.ino` y zip), `kodular/generar-aia.mjs` y `kodular/GUIA.md`
 (+ `node kodular/generar-aia.mjs`), y los `LEEME`. Si `leer_estado` suma una clave
 del sistema, va también en la lista `SISTEMA` del generador. Si cambia la plantilla por
-defecto en `01-esquema.sql`, copiarla en `portal/src/plantilla-ejemplo.js`.
+defecto en `01-esquema.sql` (hoy vacía), revisar `LEEME.md` y `backend/LEEME.md`. El
+kit de ejemplo está en tres lugares iguales: receta de `03`, `plantilla-ejemplo.js`
+y tablas de `main.cpp`.
 
-Regenerar el `.ino` (bash, desde la raíz):
-`cat arduino/cabecera.txt src/main.cpp | sed 's/^#define USAR_SENSOR 1$/#define USAR_SENSOR 0/' > arduino/NexusIoT/NexusIoT.ino`
+Regenerar el `.ino` (bash, desde la raíz): el comando está en `LEEME.md`, sección
+Firmware. Además de `USAR_DHT 1`→`0`, vacía `WIFI_SSID`/`WIFI_PASS` por si
+`src/main.cpp` tiene cargado el WiFi del usuario (pasa: lo carga para flashear).
 
 Regenerar el zip (PowerShell; `zip` no existe en este Windows):
 `Compress-Archive -Path arduino\NexusIoT, arduino\LEEME.txt -DestinationPath NexusIoT-arduino.zip -Force`

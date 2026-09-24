@@ -46,7 +46,7 @@ export function Etiqueta({ children, tenue }) {
 
 // "prende si t > 28, histéresis 1.5"
 export function textoRegla(g) {
-  return `prende si ${g.sensor} ${g.condicion} ${g.umbral}, histéresis ${g.hist}`
+  return `prende si ${g.entrada} ${g.condicion} ${g.umbral}, histéresis ${g.hist}`
 }
 
 export const esBinario = (v) => v === 0 || v === 1

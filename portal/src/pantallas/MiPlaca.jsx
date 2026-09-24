@@ -8,17 +8,17 @@ const CONSULTA_NORMAL = 3000
 const CONSULTA_PENDIENTE = 1000
 
 // Lo que manda la placa sin haberlo declarado. Un valor 1/0 probablemente es
-// un relé; cualquier otro número, un sensor. Es la misma regla que usa el
+// una salida; cualquier otro número, una entrada. Es la misma regla que usa el
 // backend para decidir qué se puede comandar.
 function separarDetectados(e) {
   const ids = e.detectados || []
   return {
-    sensores: ids.filter(id => !esBinario(e[id])),
-    reles: ids.filter(id => esBinario(e[id])),
+    entradas: ids.filter(id => !esBinario(e[id])),
+    salidas: ids.filter(id => esBinario(e[id])),
   }
 }
 
-const enCola = (e, rele) => (e?.pendientes || []).some(c => c.startsWith(rele + '='))
+const enCola = (e, salida) => (e?.pendientes || []).some(c => c.startsWith(salida + '='))
 
 function Dato({ titulo, valor, unidad, children }) {
   return (
@@ -66,11 +66,11 @@ export default function MiPlaca({ clave, canales, onAgregar, onConfigurar }) {
     // no, una respuesta que salió antes lo daría por hecho sin serlo.
     setEnviando(prev => {
       const resueltos = Object.entries(prev)
-        .filter(([rele, p]) => p.encolado && inicio >= p.encolado && !enCola(r, rele))
-        .map(([rele]) => rele)
+        .filter(([salida, p]) => p.encolado && inicio >= p.encolado && !enCola(r, salida))
+        .map(([salida]) => salida)
       if (resueltos.length === 0) return prev
       const sig = { ...prev }
-      resueltos.forEach(rele => delete sig[rele])
+      resueltos.forEach(salida => delete sig[salida])
       return sig
     })
   }, [clave])
@@ -87,55 +87,55 @@ export default function MiPlaca({ clave, canales, onAgregar, onConfigurar }) {
   const nunca = !e || e.edad < 0
   const conectada = !nunca && e.edad <= 30
 
-  async function comandar(rele, valor) {
-    setEnviando(prev => ({ ...prev, [rele]: { valor, encolado: null } }))
-    const r = await enviarComando(clave, rele + '=' + valor)
+  async function comandar(salida, valor) {
+    setEnviando(prev => ({ ...prev, [salida]: { valor, encolado: null } }))
+    const r = await enviarComando(clave, salida + '=' + valor)
 
     if (!r.ok) {
-      setEnviando(prev => { const sig = { ...prev }; delete sig[rele]; return sig })
+      setEnviando(prev => { const sig = { ...prev }; delete sig[salida]; return sig })
       setAviso(r.error)
       return
     }
 
-    setEnviando(prev => ({ ...prev, [rele]: { valor, encolado: Date.now() } }))
+    setEnviando(prev => ({ ...prev, [salida]: { valor, encolado: Date.now() } }))
     setAviso(!conectada
       ? 'Tu placa no está conectada: el comando queda en cola y se aplica apenas vuelva.'
       : r.regla_desactivada
-        ? `Se desactivó el modo automático de "${rele}" porque lo manejaste a mano.`
+        ? `Se desactivó el modo automático de "${salida}" porque lo manejaste a mano.`
         : null)
   }
 
-  async function alternarRegla(rele, activa) {
-    setOcupada(rele)
-    const r = await ajustarRegla(clave, rele, { activa })
+  async function alternarRegla(salida, activa) {
+    setOcupada(salida)
+    const r = await ajustarRegla(clave, salida, { activa })
     setAviso(r.ok ? null : r.error)
     await refrescar()
     setOcupada(null)
   }
 
   // Qué decirle al alumno mientras el comando no se aplicó.
-  function estadoEnvio(rele) {
-    const p = enviando[rele]
+  function estadoEnvio(salida) {
+    const p = enviando[salida]
     if (p && !p.encolado) return 'enviando…'
     if (p) return conectada ? 'esperando a la placa…' : 'en cola: la placa no está conectada'
-    if (enCola(e, rele)) return 'comando en cola'   // mandado desde la app Kodular
+    if (enCola(e, salida)) return 'comando en cola'   // mandado desde la app Kodular
     return null
   }
 
   if (fallo) return <div className="tarjeta"><p className="error">{fallo}</p></div>
   if (!e) return <div className="tarjeta"><p className="ayuda">Cargando…</p></div>
 
-  const sensores = canales.filter(c => c.tipo === 'sensor')
-  const reles = canales.filter(c => c.tipo === 'rele')
+  const entradas = canales.filter(c => c.tipo === 'entrada')
+  const salidas = canales.filter(c => c.tipo === 'salida')
   const detectados = separarDetectados(e)
   const faltan = new Set(e.faltan || [])
-  const reglaDe = Object.fromEntries((e.reglas || []).map(g => [g.rele, g]))
+  const reglaDe = Object.fromEntries((e.reglas || []).map(g => [g.salida, g]))
   const vacio = canales.length === 0 && (e.detectados || []).length === 0
 
   // Función de render y no componente: definido acá adentro, React lo vería
   // como un componente nuevo en cada consulta y remontaría las filas cada
   // segundo, reiniciando la animación del botón pendiente.
-  function filaRele({ id, nombre, extra, noLoManda, regla }) {
+  function filaSalida({ id, nombre, extra, noLoManda, regla }) {
     const envio = estadoEnvio(id)
     return (
       <div key={id} className="salida">
@@ -144,7 +144,7 @@ export default function MiPlaca({ clave, canales, onAgregar, onConfigurar }) {
             {nombre}
             {noLoManda && <Etiqueta tenue>tu placa no lo manda</Etiqueta>}
             {extra && (
-              <button className="chico" onClick={() => onAgregar({ id, tipo: 'rele' })}>
+              <button className="chico" onClick={() => onAgregar({ id, tipo: 'salida' })}>
                 no declarado · agregar
               </button>
             )}
@@ -175,18 +175,18 @@ export default function MiPlaca({ clave, canales, onAgregar, onConfigurar }) {
             : conectada ? 'Placa conectada' : 'Desconectada hace ' + e.edad + ' s'}
         </div>
 
-        {conectada && (sensores.length > 0 || detectados.sensores.length > 0) && (
+        {conectada && (entradas.length > 0 || detectados.entradas.length > 0) && (
           <div className="datos">
-            {sensores.map(s => (
+            {entradas.map(s => (
               <Dato key={s.id} titulo={s.nombre || s.id}
                     valor={faltan.has(s.id) ? '—' : Number(e[s.id]).toFixed(1)}
                     unidad={faltan.has(s.id) ? '' : (s.unidad || '')}>
                 {faltan.has(s.id) && <Etiqueta tenue>sin dato</Etiqueta>}
               </Dato>
             ))}
-            {detectados.sensores.map(id => (
+            {detectados.entradas.map(id => (
               <Dato key={id} titulo={id} valor={Number(e[id]).toFixed(1)} unidad="">
-                <button className="chico" onClick={() => onAgregar({ id, tipo: 'sensor' })}>
+                <button className="chico" onClick={() => onAgregar({ id, tipo: 'entrada' })}>
                   no declarado · agregar
                 </button>
               </Dato>
@@ -219,7 +219,7 @@ export default function MiPlaca({ clave, canales, onAgregar, onConfigurar }) {
 
       {vacio && (
         <div className="tarjeta">
-          <h3>Todavía no tenés sensores ni relés</h3>
+          <h3>Todavía no tenés entradas ni salidas</h3>
           <p className="ayuda">
             Declaralos en Configurar, o conectá tu placa: lo que mande va a aparecer
             acá para agregarlo con un clic.
@@ -228,19 +228,19 @@ export default function MiPlaca({ clave, canales, onAgregar, onConfigurar }) {
         </div>
       )}
 
-      {(reles.length > 0 || detectados.reles.length > 0) && (
+      {(salidas.length > 0 || detectados.salidas.length > 0) && (
         <div className="tarjeta">
-          <h3>Relés</h3>
+          <h3>Salidas</h3>
           <p className="ayuda">
             Probalos desde acá para confirmar que tu ESP32 responde, antes de buscar
             el problema en la app. El cambio se ve cuando la placa lo recoge, en
             unos 5 segundos.
           </p>
           <div className="salidas">
-            {reles.map(r => filaRele({
+            {salidas.map(r => filaSalida({
               id: r.id, nombre: r.nombre || r.id, noLoManda: faltan.has(r.id), regla: reglaDe[r.id],
             }))}
-            {detectados.reles.map(id => filaRele({ id, nombre: id, extra: true }))}
+            {detectados.salidas.map(id => filaSalida({ id, nombre: id, extra: true }))}
           </div>
         </div>
       )}

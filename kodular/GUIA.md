@@ -38,6 +38,10 @@ Con la placa andando, la pantalla muestra "Placa conectada", la lista de valores
 (`t: 24.5`, `bomba: 0`, ...) y el estado de la bomba. Los botones la prenden y la
 apagan.
 
+El ejemplo usa una salida con id `bomba`. Como cada alumno arranca sin nada
+configurado, o declara una salida `bomba` en el portal para probar, o cambia
+`"bomba"` por el id de su salida en `mostrarEstado` y en los dos botones.
+
 Si algo está mal, el error aparece arriba, donde dice si la placa está
 conectada. Los mensajes del servidor dicen qué corregir (por ejemplo, "Clave
 inválida. Sacá la tuya del portal.").
@@ -53,22 +57,22 @@ En el editor de bloques hay dos columnas:
 
 | Bloque | Qué hace | Ejemplo |
 |---|---|---|
-| `valor(id)` | El último valor de un sensor o relé. Da 0 si todavía no llegó. | `valor("t")`, `valor("bomba")` |
-| `enviarComando(rele, prender)` | Prende (1) o apaga (0) un relé. | `enviarComando("vent", 1)` |
-| `enviando(rele)` | Verdadero mientras la placa todavía no recogió el comando. | mostrar "enviando…" |
+| `valor(id)` | El último valor de una entrada o salida. Da 0 si todavía no llegó. | `valor("t")`, `valor("bomba")` |
+| `enviarComando(salida, prender)` | Prende (1) o apaga (0) una salida. | `enviarComando("vent", 1)` |
+| `enviando(salida)` | Verdadero mientras la placa todavía no recogió el comando. | mostrar "enviando…" |
 | `mostrarEstado` | **Lo escribís vos.** Se llama solo cada vez que llegan datos nuevos. | poner valores en labels |
 | `mostrarError(mensaje)` | Muestra un error arriba. | |
 | `valor("edad")` | Segundos desde el último dato de la placa: -1 si nunca se conectó; más de 30, desconectada. | |
 
-Los `id` son los del portal (**Configurar**): `t`, `h`, `bomba`, `vent`, `luz` en el
-kit del curso, o los que cada alumno haya declarado.
+Los `id` son los que cada alumno declaró en el portal (**Configurar**): sus
+entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 
-### Ejemplo: sumar el ventilador
+### Ejemplo: sumar otra salida (un ventilador, `vent`)
 
 1. **Designer:** agregá un Label `LabelVent` y dos botones, `BotonPrenderVent` y
    `BotonApagarVent`.
 2. **Blocks:** `when BotonPrenderVent.Click` → `call enviarComando` con
-   `rele = "vent"` y `prender = 1`. Lo mismo con 0 para apagar.
+   `salida = "vent"` y `prender = 1`. Lo mismo con 0 para apagar.
 3. En `mostrarEstado`, duplicá el `if` de la bomba (clic derecho → **Duplicate**)
    y cambiá `"bomba"` por `"vent"` y `LabelBomba` por `LabelVent`.
 
@@ -77,10 +81,10 @@ kit del curso, o los que cada alumno haya declarado.
 - **La respuesta no vuelve en el mismo bloque.** `pedirEstado` hace el pedido y
   la respuesta llega después, en `WebEstado.GotText`. Por eso existe
   `mostrarEstado`: todo lo que dependa de los datos va ahí adentro.
-- **Un comando tarda unos 5 segundos** en llegar al relé, porque la placa lo
-  recoge en su próximo sync. Mientras tanto, `enviando(rele)` da verdadero:
+- **Un comando tarda unos 5 segundos** en llegar a la salida, porque la placa lo
+  recoge en su próximo sync. Mientras tanto, `enviando(salida)` da verdadero:
   mostrá "enviando…" para que no parezca que el botón no anduvo.
-- **Apretar un botón apaga el modo automático de ese relé**, y solo de ese. Si
+- **Apretar un botón apaga el modo automático de esa salida**, y solo de esa. Si
   no, la regla lo revertiría a los pocos segundos. Se vuelve a activar desde el
   portal.
 - **No bajes el reloj de 5000 ms.** Cada lectura gasta transferencia del plan
@@ -91,7 +95,7 @@ kit del curso, o los que cada alumno haya declarado.
   con `JsonTextDecode`, que da una lista de pares, y se lee con
   `look up in pairs`. Eso es lo que hace `valor`.
 - **La clave de la app no es el PIN.** Con la clave se leen datos y se prenden
-  relés, pero no se cambia la configuración. Aun así, conviene no compartirla.
+  salidas, pero no se cambia la configuración. Aun así, conviene no compartirla.
 
 ## 4. Pasar los bloques a otro proyecto
 
@@ -191,11 +195,11 @@ when WebEstado.GotText
 to valor (id)  result
   look up in pairs  key (get id)  pairs (get global estado)  notFound 0
 
-to enviando (rele)  result
-  (is in list? thing join (get rele) "=1"
+to enviando (salida)  result
+  (is in list? thing join (get salida) "=1"
                list look up in pairs key "pendientes" pairs (get global estado) notFound create empty list)
   or
-  (is in list? thing join (get rele) "=0"
+  (is in list? thing join (get salida) "=0"
                list look up in pairs key "pendientes" pairs (get global estado) notFound create empty list)
 ```
 
@@ -203,11 +207,11 @@ to enviando (rele)  result
 Las comillas van adentro de los bloques de texto:
 
 ```
-to enviarComando (rele, prender)
+to enviarComando (salida, prender)
   set WebComando.Url to join (get global URL_BASE) "enviar_comando?apikey=" (get global PUBLICABLE)
   set WebComando.RequestHeaders to make a list (make a list "Content-Type" "application/json")
   call WebComando.PostText text: join  {"p_clave":"   (get global CLAVE)   ","p_cmd":"
-                                       (get rele)   =   (get prender)   "}
+                                       (get salida)   =   (get prender)   "}
 
 when WebComando.GotText
   if responseCode ≠ 200
@@ -273,10 +277,10 @@ to mostrarEstado
     set LabelBomba.Text to "Bomba: apagada"
 
 when BotonPrender.Click
-  call enviarComando rele "bomba" prender 1
+  call enviarComando salida "bomba" prender 1
 
 when BotonApagar.Click
-  call enviarComando rele "bomba" prender 0
+  call enviarComando salida "bomba" prender 0
 ```
 
 En `for each item in list`, cambiá `item` por `par`. El `"\n"` es una barra
@@ -305,4 +309,4 @@ App Inventor). Hay dos cosas que el generador evita a propósito:
 
 **Si `leer_estado` suma una clave del sistema** (en `util.reservados()` de
 `backend/02-funciones.sql`), agregala a `SISTEMA` en el generador y en esta guía.
-Si no, `mostrarEstado` la muestra como si fuera un sensor.
+Si no, `mostrarEstado` la muestra como si fuera una entrada.

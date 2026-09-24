@@ -13,7 +13,7 @@
  *  2) Libreria
  *     Programa > Incluir libreria > Administrar bibliotecas...
  *       - "ArduinoJson" de Benoit Blanchon  (version 7 o mayor)
- *     Solo si vas a usar el DHT de verdad (USAR_SENSOR 1), instala tambien:
+ *     Solo si vas a usar el DHT22 de verdad (USAR_DHT 1), instala tambien:
  *       - "DHT sensor library" de Adafruit
  *       - "Adafruit Unified Sensor" de Adafruit
  *     WiFi, WiFiClientSecure, HTTPClient y Preferences ya vienen con el

@@ -40,12 +40,12 @@ export const leerConfig   = (admin)              => rpc('leer_config', { p_admin
 export const guardarCanal = (admin, canal)       => rpc('guardar_canal', { p_admin: admin, p_canal: canal })
 export const borrarCanal  = (admin, id)          => rpc('borrar_canal', { p_admin: admin, p_id: id })
 export const guardarRegla = (admin, regla)       => rpc('guardar_regla', { p_admin: admin, p_regla: regla })
-export const borrarRegla  = (admin, rele)        => rpc('borrar_regla', { p_admin: admin, p_rele: rele })
+export const borrarRegla  = (admin, salida)      => rpc('borrar_regla', { p_admin: admin, p_salida: salida })
 
 // --- placa y app: operación (clave) ---
 export const leerEstado    = (clave)                => rpc('leer_estado', { p_clave: clave })
 export const enviarComando = (clave, cmd)           => rpc('enviar_comando', { p_clave: clave, p_cmd: cmd })
-export const ajustarRegla  = (clave, rele, cambios) => rpc('ajustar_regla', { p_clave: clave, p_rele: rele, p_cambios: cambios })
+export const ajustarRegla  = (clave, salida, cambios) => rpc('ajustar_regla', { p_clave: clave, p_salida: salida, p_cambios: cambios })
 
 // La URL que el alumno pega en Web.Url de Kodular. Es GET y no lleva ningún
 // header, que es justamente lo que la hace cómoda de usar en bloques.

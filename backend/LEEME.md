@@ -19,7 +19,7 @@ En **SQL Editor**, pegar y ejecutar **en este orden**:
 | `00-borrar-todo.sql` | ⚠️ borra todo lo de versiones anteriores. Solo si ya habías cargado una |
 | `01-esquema.sql` | tablas, índices y RLS |
 | `02-funciones.sql` | las once funciones de la API |
-| `03-curso-ejemplo.sql` | crea el curso `IOT2026` |
+| `03-curso-ejemplo.sql` | crea el curso `IOT2026`, vacío |
 
 Antes de correr el `03`, cambiá el código y el nombre del curso por los de la
 comisión de verdad. El `02` se puede volver a correr sin romper nada.
@@ -63,6 +63,7 @@ PUB=sb_publishable_...
 curl "$URL/rest/v1/rpc/salud?apikey=$PUB"
 
 # 2. un alumno de prueba entra por primera vez: se crea con la plantilla
+#    del curso (vacía, salvo que le hayas cargado un kit)
 curl -X POST "$URL/rest/v1/rpc/entrar?apikey=$PUB" \
   -H "Content-Type: application/json" \
   -d '{"p_curso":"IOT2026","p_alumno":"Prueba Uno","p_pin":"1234"}'
@@ -75,14 +76,20 @@ curl -X POST "$URL/rest/v1/rpc/entrar?apikey=$PUB" \
 CLAVE=la_clave
 ADMIN=la_clave_admin
 
-# 4. la configuración, desde el portal
+# 4. declarar una entrada y una salida, como lo hace el portal
+curl -X POST "$URL/rest/v1/rpc/guardar_canal?apikey=$PUB" \
+  -H "Content-Type: application/json" \
+  -d "{\"p_admin\":\"$ADMIN\",\"p_canal\":{\"id\":\"t\",\"tipo\":\"entrada\",\"unidad\":\"C\"}}"
+curl -X POST "$URL/rest/v1/rpc/guardar_canal?apikey=$PUB" \
+  -H "Content-Type: application/json" \
+  -d "{\"p_admin\":\"$ADMIN\",\"p_canal\":{\"id\":\"luz\",\"tipo\":\"salida\",\"pin\":2,\"nivel_activo\":\"HIGH\"}}"
 curl -X POST "$URL/rest/v1/rpc/leer_config?apikey=$PUB" \
   -H "Content-Type: application/json" -d "{\"p_admin\":\"$ADMIN\"}"
 
 # 5. la placa sincroniza
 curl -X POST "$URL/rest/v1/rpc/sync?apikey=$PUB" \
   -H "Content-Type: application/json" \
-  -d "{\"p_clave\":\"$CLAVE\",\"p_estado\":{\"t\":24.5,\"h\":61.2,\"bomba\":0,\"vent\":0,\"luz\":0}}"
+  -d "{\"p_clave\":\"$CLAVE\",\"p_estado\":{\"t\":24.5,\"luz\":0}}"
 
 # 6. la app lee, por GET y SIN HEADERS (así la usa Kodular)
 curl "$URL/rest/v1/rpc/leer_estado?apikey=$PUB&p_clave=$CLAVE"
@@ -95,7 +102,7 @@ curl -X POST "$URL/rest/v1/rpc/sync?apikey=$PUB" \
 # 8. nombres que no coinciden: se acepta, con avisos (esperá 3 s antes)
 curl -X POST "$URL/rest/v1/rpc/sync?apikey=$PUB" \
   -H "Content-Type: application/json" \
-  -d "{\"p_clave\":\"$CLAVE\",\"p_estado\":{\"temp\":24.5,\"h\":61.2}}"
+  -d "{\"p_clave\":\"$CLAVE\",\"p_estado\":{\"temp\":24.5,\"luz\":0}}"
 
 # 9. las tablas están cerradas
 curl "$URL/rest/v1/dispositivos?apikey=$PUB"
@@ -130,21 +137,29 @@ apuntando a `https://xxxxx.supabase.co/rest/v1/rpc/salud?apikey=PUBLISHABLE_KEY`
 
 ### Cada alumno tiene su hardware
 
-Los sensores y relés de cada alumno están en la tabla `canales` (el equivalente
-a los feeds de Adafruit), y las reglas del modo automático en `reglas`, una por
-relé. El alumno los administra desde el portal, en **Configurar**.
+Cada alumno declara dos clases de canales, en la tabla `canales` (el equivalente
+a los feeds de Adafruit):
+
+- **Entradas**: lo que la placa mide o lee y manda como número. Un DHT22, un LDR,
+  un sensor de suelo, un botón (1/0).
+- **Salidas**: lo que se prende y se apaga desde la app o por una regla. Un
+  relé, un LED, un buzzer. Viajan como 1 o 0 y necesitan GPIO y nivel activo.
+
+Las reglas del modo automático están en `reglas`, una por salida. El alumno
+administra todo desde el portal, en **Configurar**.
 
 ### Plantilla del curso
 
 Cuando un alumno entra por primera vez, recibe una **copia** de la plantilla del
-curso. Por defecto es el kit de siempre (DHT22 + bomba, ventilador y luz) con dos
-reglas apagadas, así la plantilla de Kodular funciona de entrada. Después ese
-hardware es del alumno.
+curso. Por defecto está **vacía**: el alumno arranca sin nada y declara su
+hardware en Configurar. Si el docente quiere que todos arranquen con el mismo kit,
+se lo carga al curso. Después ese hardware es del alumno.
 
 Cambiar la plantilla afecta solo a los alumnos que entren después. Las recetas
-(plantilla vacía, agregar un relé, agregarle un sensor a todos los que ya están)
-están en `03-curso-ejemplo.sql`. Si la plantilla queda mal armada, un trigger la
-rechaza con un mensaje que dice qué corregir, y no se guarda nada.
+(cargar un kit de ejemplo, volver a vacía, agregar una salida, agregarle una
+entrada a todos los que ya están) están en `03-curso-ejemplo.sql`. Si la
+plantilla queda mal armada, un trigger la rechaza con un mensaje que dice qué
+corregir, y no se guarda nada.
 
 ### PIN y dos claves
 
@@ -156,11 +171,11 @@ Entrar devuelve dos claves con alcances distintos:
 
 | Clave | Dónde va | Qué puede hacer |
 |---|---|---|
-| `clave` | sketch del ESP32 y app Kodular | leer, sincronizar, prender relés, activar reglas y mover umbrales |
-| `clave_admin` | solo el portal | crear, editar y borrar sensores, relés y reglas |
+| `clave` | sketch del ESP32 y app Kodular | leer, sincronizar, prender salidas, activar reglas y mover umbrales |
+| `clave_admin` | solo el portal | crear, editar y borrar entradas, salidas y reglas |
 
 La `clave` va dentro del APK y es extraíble, por eso **no** puede cambiar la
-estructura: quien la saque de una app puede como mucho prender un relé, no
+estructura: quien la saque de una app puede como mucho prender una salida, no
 borrarle la configuración a nadie.
 
 Si un alumno se olvida el PIN, la receta para resetearlo está en
@@ -169,10 +184,10 @@ en otro navegador deja de servir. La clave de la placa no cambia.
 
 ### Qué se rechaza y qué solo se avisa
 
-- **Forma incorrecta → rechazo.** Un valor como texto, un relé en 2, un nombre
+- **Forma incorrecta → rechazo.** Un valor como texto, una salida en 2, un nombre
   inválido. Es un error del sketch y conviene que sea ruidoso. Queda guardado en
   `estado.ultimo_error` y el alumno lo ve en el portal.
-- **Nombres que no coinciden → aviso.** Un sensor declarado que no llega, o algo
+- **Nombres que no coinciden → aviso.** Una entrada declarada que no llega, o algo
   que llega sin declarar. El sync se acepta y vuelve con `avisos`. Si no, la placa
   quedaría desconectada cada vez que el alumno declara algo antes de reflashear.
 - **Un `null` es "no llegó valor".** ArduinoJson manda `NaN` como `null`, y un

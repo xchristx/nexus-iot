@@ -1,12 +1,13 @@
 -- ===================================================================
 --  Nexus IoT — BORRAR TODO
 --
---  ⚠️  ESTO BORRA TODOS LOS DATOS: cursos, alumnos, claves, sensores,
---  relés, reglas y estados. No se puede deshacer.
+--  ⚠️  ESTO BORRA TODOS LOS DATOS: cursos, alumnos, claves, entradas,
+--  salidas, reglas y estados. No se puede deshacer.
 --
---  Existe para pasar de las versiones anteriores (hardware fijo o por
---  curso) a esta, que tiene hardware por alumno. Se corre UNA vez, antes de
---  01-esquema.sql, y solo mientras no haya alumnos usando el sistema.
+--  Existe para pasar de las versiones anteriores (hardware fijo, por curso,
+--  o con sensores y relés en vez de entradas y salidas) a esta. Se corre UNA
+--  vez, antes de 01-esquema.sql, y solo mientras no haya alumnos usando el
+--  sistema.
 --
 --  No toca la extensión pgcrypto: en Supabase la administra la plataforma.
 -- ===================================================================

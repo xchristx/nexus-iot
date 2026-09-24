@@ -193,8 +193,8 @@ const cuando = (comp, evento, cuerpo) => bloque('component_event', {
 const FIRMAS = {
   pedirEstado: [],
   valor: ['id'],
-  enviando: ['rele'],
-  enviarComando: ['rele', 'prender'],
+  enviando: ['salida'],
+  enviarComando: ['salida', 'prender'],
   mostrarError: ['mensaje'],
   mostrarEstado: [],
 }
@@ -256,14 +256,14 @@ function programa(urlBase, publicable) {
   ]
 
   // ---------------- 2. bloques Nexus ----------------
-  // Las claves de leer_estado que no son sensores ni relés (util.reservados()
+  // Las claves de leer_estado que no son entradas ni salidas (util.reservados()
   // en backend/02-funciones.sql, sin las que no vienen en esa respuesta).
   const SISTEMA = ['ok', 'device_id', 'alumno', 'detectados', 'faltan', 'pendientes',
                    'reglas', 'edad', 'avisos', 'ultimo_error', 'syncs']
 
   const nexus = [
     comentar(declararGlobal('SISTEMA', lista(...SISTEMA.map(texto))),
-      'Las claves de la respuesta que no son sensores ni relés. mostrarEstado las saltea.'),
+      'Las claves de la respuesta que no son entradas ni salidas. mostrarEstado las saltea.'),
 
     comentar(procedimiento('pedirEstado',
       si([[estaVacio(global('CLAVE')),
@@ -284,20 +284,20 @@ function programa(urlBase, publicable) {
 
     comentar(funcion('valor',
       buscarEnPares(local('id'), global('estado'), numero(0))),
-      'El valor de un sensor o relé, por su id: valor("t"), valor("bomba"). Si todavía no llegó, da 0.'),
+      'El valor de una entrada o salida, por su id: valor("t"), valor("bomba"). Si todavía no llegó, da 0.'),
 
     comentar(funcion('enviando',
       logica('OR',
-        estaEnLista(unir(local('rele'), texto('=1')), buscarEnPares(texto('pendientes'), global('estado'), lista())),
-        estaEnLista(unir(local('rele'), texto('=0')), buscarEnPares(texto('pendientes'), global('estado'), lista())))),
-      'Verdadero mientras la placa todavía no recogió el último comando para ese relé (tarda unos 5 segundos).'),
+        estaEnLista(unir(local('salida'), texto('=1')), buscarEnPares(texto('pendientes'), global('estado'), lista())),
+        estaEnLista(unir(local('salida'), texto('=0')), buscarEnPares(texto('pendientes'), global('estado'), lista())))),
+      'Verdadero mientras la placa todavía no recogió el último comando para esa salida (tarda unos 5 segundos).'),
 
     comentar(procedimiento('enviarComando', sec(
       fijar('WebComando', 'Url', unir(global('URL_BASE'), texto('enviar_comando?apikey='), global('PUBLICABLE'))),
       fijar('WebComando', 'RequestHeaders', lista(lista(texto('Content-Type'), texto('application/json')))),
       metodo('WebComando', 'PostText',
-        unir(texto('{"p_clave":"'), global('CLAVE'), texto('","p_cmd":"'), local('rele'), texto('='), local('prender'), texto('"}'))))),
-      'Prende (1) o apaga (0) un relé: enviarComando("bomba", 1). Si el relé tenía modo automático, se desactiva.'),
+        unir(texto('{"p_clave":"'), global('CLAVE'), texto('","p_cmd":"'), local('salida'), texto('='), local('prender'), texto('"}'))))),
+      'Prende (1) o apaga (0) una salida: enviarComando("bomba", 1). Si la salida tenía modo automático, se desactiva.'),
 
     cuando('WebComando', 'GotText',
       si([[comparar(parametroEvento('responseCode'), 'NEQ', numero(200)), errorHttp()]],
@@ -347,7 +347,8 @@ function programa(urlBase, publicable) {
           [comparar(llamarFuncion('valor', texto('bomba')), 'EQ', numero(1)),
            fijar('LabelBomba', 'Text', texto('Bomba: prendida'))]],
          fijar('LabelBomba', 'Text', texto('Bomba: apagada'))))),
-      'ESTE ES TUYO. Se llama cada vez que llegan datos nuevos. Cambialo para mostrar tus sensores y relés.'),
+      'ESTE ES TUYO. Se llama cada vez que llegan datos nuevos. Cambialo para mostrar tus entradas y salidas: '
+      + 'el ejemplo usa una salida "bomba"; poné el id de la tuya.'),
 
     cuando('BotonPrender', 'Click', llamar('enviarComando', texto('bomba'), numero(1))),
     cuando('BotonApagar', 'Click', llamar('enviarComando', texto('bomba'), numero(0))),

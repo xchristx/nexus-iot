@@ -30,7 +30,7 @@ create schema if not exists util;
 --  NOMBRES
 -- ===================================================================
 
--- Claves que usa la respuesta de leer_estado. Un sensor con uno de estos
+-- Claves que usa la respuesta de leer_estado. Una entrada o salida con uno de estos
 -- nombres pisaría un dato del sistema.
 create or replace function util.reservados()
 returns text[]
@@ -99,7 +99,7 @@ $$;
 
 
 -- ===================================================================
---  VALIDACIÓN DE SENSORES, RELÉS, REGLAS Y PLANTILLAS
+--  VALIDACIÓN DE ENTRADAS, SALIDAS, REGLAS Y PLANTILLAS
 --
 --  Devuelven null si está bien, o un texto que dice qué corregir. Las usan
 --  tanto las funciones del portal como el trigger que protege la plantilla
@@ -119,7 +119,7 @@ declare
   v_pin   numeric;
 begin
   if c is null or jsonb_typeof(c) <> 'object' then
-    return 'el sensor o relé tiene que ser un objeto JSON';
+    return 'la entrada o salida tiene que ser un objeto JSON';
   end if;
 
   if jsonb_typeof(c -> 'id') is distinct from 'string' then
@@ -134,12 +134,12 @@ begin
 
   if not util.nombre_valido(v_id) then
     return format('"%s" no es un id válido: usá minúsculas, números y _, empezando con letra, '
-                  'hasta 15 caracteres (por ejemplo "suelo" o "rele_2")', v_id);
+                  'hasta 15 caracteres (por ejemplo "suelo" o "bomba_2")', v_id);
   end if;
 
   v_tipo := c ->> 'tipo';
-  if v_tipo is null or v_tipo not in ('sensor', 'rele') then
-    return format('"%s": "tipo" tiene que ser "sensor" o "rele"', v_id);
+  if v_tipo is null or v_tipo not in ('entrada', 'salida') then
+    return format('"%s": "tipo" tiene que ser "entrada" o "salida"', v_id);
   end if;
 
   for v_campo, v_max in
@@ -163,55 +163,55 @@ begin
     if v_pin not between 0 and 39 or v_pin <> trunc(v_pin) then
       return format('"%s": "pin" tiene que ser un número de GPIO entre 0 y 39', v_id);
     end if;
-  elsif v_tipo = 'rele' then
-    return format('"%s": un relé necesita "pin", el GPIO al que está conectado', v_id);
+  elsif v_tipo = 'salida' then
+    return format('"%s": una salida necesita "pin", el GPIO al que está conectado', v_id);
   end if;
 
-  if v_tipo = 'rele' and coalesce(c ->> 'nivel_activo', '') not in ('LOW', 'HIGH') then
+  if v_tipo = 'salida' and coalesce(c ->> 'nivel_activo', '') not in ('LOW', 'HIGH') then
     return format('"%s": "nivel_activo" tiene que ser "LOW" o "HIGH" (la mayoría de los '
-                  'módulos de relé son LOW; el LED de la placa es HIGH)', v_id);
+                  'módulos de relé se activan con LOW; un LED, con HIGH)', v_id);
   end if;
 
   return null;
 end;
 $$;
 
--- p_sensores y p_reles: los ids que tiene el alumno (o la plantilla).
-create or replace function util.error_regla(r jsonb, p_sensores text[], p_reles text[])
+-- p_entradas y p_salidas: los ids que tiene el alumno (o la plantilla).
+create or replace function util.error_regla(r jsonb, p_entradas text[], p_salidas text[])
 returns text
 language plpgsql
 immutable
 as $$
 declare
-  v_rele   text;
-  v_sensor text;
+  v_salida   text;
+  v_entrada text;
 begin
   if r is null or jsonb_typeof(r) <> 'object' then
     return 'la regla tiene que ser un objeto JSON';
   end if;
 
-  v_rele := r ->> 'rele';
-  if jsonb_typeof(r -> 'rele') is distinct from 'string' then
-    return 'falta "rele": el id del relé que controla la regla';
+  v_salida := r ->> 'salida';
+  if jsonb_typeof(r -> 'salida') is distinct from 'string' then
+    return 'falta "salida": el id de la salida que controla la regla';
   end if;
-  if not (v_rele = any(p_reles)) then
-    return case when v_rele = any(p_sensores)
-                then format('"%s" es un sensor, no un relé', v_rele)
-                else format('"%s" no es uno de tus relés', v_rele) end;
+  if not (v_salida = any(p_salidas)) then
+    return case when v_salida = any(p_entradas)
+                then format('"%s" es una entrada, no una salida', v_salida)
+                else format('"%s" no es una de tus salidas', v_salida) end;
   end if;
 
-  v_sensor := r ->> 'sensor';
-  if jsonb_typeof(r -> 'sensor') is distinct from 'string' then
-    return 'falta "sensor": el id del sensor que mira la regla';
+  v_entrada := r ->> 'entrada';
+  if jsonb_typeof(r -> 'entrada') is distinct from 'string' then
+    return 'falta "entrada": el id de la entrada que mira la regla';
   end if;
-  if not (v_sensor = any(p_sensores)) then
-    return case when v_sensor = any(p_reles)
-                then format('"%s" es un relé, no un sensor', v_sensor)
-                else format('"%s" no es uno de tus sensores', v_sensor) end;
+  if not (v_entrada = any(p_entradas)) then
+    return case when v_entrada = any(p_salidas)
+                then format('"%s" es una salida, no una entrada', v_entrada)
+                else format('"%s" no es una de tus entradas', v_entrada) end;
   end if;
 
   if coalesce(r ->> 'condicion', '') not in ('>', '<') then
-    return '"condicion" tiene que ser ">" (prende si el sensor supera el umbral) '
+    return '"condicion" tiene que ser ">" (prende si la entrada supera el umbral) '
         || 'o "<" (prende si baja del umbral)';
   end if;
 
@@ -246,24 +246,24 @@ declare
   v_n        bigint;
   v_err      text;
   v_ids      text[] := '{}';
-  v_sensores text[] := '{}';
-  v_reles    text[] := '{}';
+  v_entradas text[] := '{}';
+  v_salidas    text[] := '{}';
   v_con_regla text[] := '{}';
 begin
   if p is null or jsonb_typeof(p) <> 'object' then
-    return 'la plantilla tiene que ser un objeto JSON con "sensores", "reles" y "reglas"';
+    return 'la plantilla tiene que ser un objeto JSON con "entradas", "salidas" y "reglas"';
   end if;
 
-  foreach v_lista in array array['sensores', 'reles'] loop
+  foreach v_lista in array array['entradas', 'salidas'] loop
     if jsonb_typeof(p -> v_lista) is distinct from 'array' then
-      return format('falta el arreglo "%s" (si no hay ninguno, poné "%s": [])', v_lista, v_lista);
+      return format('falta el arreglo "%s" (si no hay ninguna, poné "%s": [])', v_lista, v_lista);
     end if;
 
     if jsonb_array_length(p -> v_lista) > 10 then
       return format('"%s" puede tener hasta 10 elementos', v_lista);
     end if;
 
-    v_tipo := case v_lista when 'sensores' then 'sensor' else 'rele' end;
+    v_tipo := case v_lista when 'entradas' then 'entrada' else 'salida' end;
 
     for v_item, v_n in
       select e, n from jsonb_array_elements(p -> v_lista) with ordinality as a(e, n)
@@ -282,10 +282,10 @@ begin
       end if;
 
       v_ids := v_ids || (v_item ->> 'id');
-      if v_tipo = 'sensor' then
-        v_sensores := v_sensores || (v_item ->> 'id');
+      if v_tipo = 'entrada' then
+        v_entradas := v_entradas || (v_item ->> 'id');
       else
-        v_reles := v_reles || (v_item ->> 'id');
+        v_salidas := v_salidas || (v_item ->> 'id');
       end if;
     end loop;
   end loop;
@@ -298,16 +298,16 @@ begin
     for v_item, v_n in
       select e, n from jsonb_array_elements(p -> 'reglas') with ordinality as a(e, n)
     loop
-      v_err := util.error_regla(v_item, v_sensores, v_reles);
+      v_err := util.error_regla(v_item, v_entradas, v_salidas);
       if v_err is not null then
         return format('reglas[%s]: %s', v_n, v_err);
       end if;
 
-      if (v_item ->> 'rele') = any(v_con_regla) then
-        return format('reglas[%s]: el relé "%s" ya tiene una regla, y se permite una por relé',
-                      v_n, v_item ->> 'rele');
+      if (v_item ->> 'salida') = any(v_con_regla) then
+        return format('reglas[%s]: la salida "%s" ya tiene una regla, y se permite una por salida',
+                      v_n, v_item ->> 'salida');
       end if;
-      v_con_regla := v_con_regla || (v_item ->> 'rele');
+      v_con_regla := v_con_regla || (v_item ->> 'salida');
     end loop;
   end if;
 
@@ -350,13 +350,13 @@ as $$
     'nivel_activo', c.nivel_activo, 'conexion', c.conexion, 'libreria', c.libreria));
 $$;
 
--- Sensores primero, después relés, cada grupo en el orden en que se crearon.
+-- Entradas primero, después salidas, cada grupo en el orden en que se crearon.
 create or replace function util.canales_json(p_device text)
 returns jsonb
 language sql
 stable
 as $$
-  select coalesce(jsonb_agg(util.canal_json(c) order by c.tipo desc, c.orden, c.id), '[]')
+  select coalesce(jsonb_agg(util.canal_json(c) order by c.tipo, c.orden, c.id), '[]')
     from public.canales c
    where c.device_id = p_device;
 $$;
@@ -370,11 +370,11 @@ language sql
 stable
 as $$
   select coalesce(jsonb_agg(
-           jsonb_build_object('rele', r.rele, 'sensor', r.sensor, 'condicion', r.condicion,
+           jsonb_build_object('salida', r.salida, 'entrada', r.entrada, 'condicion', r.condicion,
                               'umbral', r.umbral, 'hist', r.hist)
            || case when p_solo_activas then '{}'::jsonb
                    else jsonb_build_object('activa', r.activa) end
-           order by r.rele), '[]')
+           order by r.salida), '[]')
     from public.reglas r
    where r.device_id = p_device
      and (r.activa or not p_solo_activas);
@@ -388,10 +388,10 @@ language sql
 stable
 as $$
   select coalesce(
-           json_object_agg(id, valor order by tipo desc, orden, id),
+           json_object_agg(id, valor order by tipo, orden, id),
            '{"t": 24.5, "bomba": 0}'::json)
     from (select c.id, c.tipo, c.orden,
-                 case when c.tipo = 'rele' then '0'::json
+                 case when c.tipo = 'salida' then '0'::json
                       else to_json(case row_number() over (partition by c.tipo order by c.orden, c.id)
                                      when 1 then 24.5 when 2 then 61.2 else 10.5 end)
                  end as valor
@@ -403,7 +403,7 @@ $$;
 -- ===================================================================
 --  VALIDACIÓN DE LO QUE MANDA LA PLACA
 --
---  Forma incorrecta -> rechazo: un valor como texto, un relé en 2, un nombre
+--  Forma incorrecta -> rechazo: un valor como texto, una salida en 2, un nombre
 --  inválido. Eso es un error del sketch y conviene que sea ruidoso.
 --
 --  Los nombres que no coinciden con lo declarado NO se validan acá: los
@@ -413,7 +413,7 @@ $$;
 --  serializa NaN como null, y un DHT22 que falla una lectura devuelve NaN.
 --  Rechazar por eso dejaría la placa desconectada por un cable flojo.
 -- ===================================================================
-create or replace function util.validar_estado(p_estado json, p_sensores text[], p_reles text[],
+create or replace function util.validar_estado(p_estado json, p_entradas text[], p_salidas text[],
                                                out valores jsonb, out error text)
 language plpgsql
 immutable
@@ -448,7 +448,7 @@ begin
       return;
     end if;
 
-    if v_id = any(p_sensores) then
+    if v_id = any(p_entradas) then
       if v_tipo = 'number' then
         valores := valores || jsonb_build_object(v_id, v_val);
       elsif v_tipo = 'string' then
@@ -456,11 +456,11 @@ begin
                         v_id, v_val::text, v_id);
         return;
       else
-        error := format('''%s'' es un sensor: tiene que ser un número, llegó un %s', v_id, util.tipo_es(v_tipo));
+        error := format('''%s'' es una entrada: tiene que ser un número, llegó un %s', v_id, util.tipo_es(v_tipo));
         return;
       end if;
 
-    elsif v_id = any(p_reles) then
+    elsif v_id = any(p_salidas) then
       if v_tipo = 'boolean' then
         valores := valores || jsonb_build_object(v_id, case when v_val = 'true'::jsonb then 1 else 0 end);
       elsif v_tipo = 'number' and v_val in ('0'::jsonb, '1'::jsonb) then
@@ -470,7 +470,7 @@ begin
                         v_id, v_val::text, v_id);
         return;
       else
-        error := format('''%s'' es un relé: tiene que ser 1 o 0, llegó %s', v_id, v_val::text);
+        error := format('''%s'' es una salida: tiene que ser 1 o 0, llegó %s', v_id, v_val::text);
         return;
       end if;
 
@@ -608,17 +608,17 @@ begin
 
   -- La plantilla ya viene validada por el trigger de cursos.
   insert into canales (device_id, id, tipo, nombre, unidad, pin, conexion, libreria, orden)
-  select v_disp.device_id, x ->> 'id', 'sensor', x ->> 'nombre', x ->> 'unidad',
+  select v_disp.device_id, x ->> 'id', 'entrada', x ->> 'nombre', x ->> 'unidad',
          (x ->> 'pin')::numeric::smallint, x ->> 'conexion', x ->> 'libreria', n
-    from jsonb_array_elements(v_curso.plantilla -> 'sensores') with ordinality as s(x, n);
+    from jsonb_array_elements(v_curso.plantilla -> 'entradas') with ordinality as s(x, n);
 
   insert into canales (device_id, id, tipo, nombre, pin, nivel_activo, conexion, orden)
-  select v_disp.device_id, x ->> 'id', 'rele', x ->> 'nombre',
+  select v_disp.device_id, x ->> 'id', 'salida', x ->> 'nombre',
          (x ->> 'pin')::numeric::smallint, x ->> 'nivel_activo', x ->> 'conexion', n
-    from jsonb_array_elements(v_curso.plantilla -> 'reles') with ordinality as s(x, n);
+    from jsonb_array_elements(v_curso.plantilla -> 'salidas') with ordinality as s(x, n);
 
-  insert into reglas (device_id, rele, sensor, condicion, umbral, hist, activa)
-  select v_disp.device_id, x ->> 'rele', x ->> 'sensor', x ->> 'condicion',
+  insert into reglas (device_id, salida, entrada, condicion, umbral, hist, activa)
+  select v_disp.device_id, x ->> 'salida', x ->> 'entrada', x ->> 'condicion',
          (x ->> 'umbral')::numeric, coalesce((x ->> 'hist')::numeric, 1),
          coalesce((x ->> 'activa')::boolean, false)
     from jsonb_array_elements(coalesce(v_curso.plantilla -> 'reglas', '[]')) as s(x);
@@ -711,24 +711,24 @@ begin
     if v_cuantos >= c_max then
       return json_build_object('ok', false,
         'error', format('Ya tenés %s %s, que es el máximo.', c_max,
-                        case v_tipo when 'sensor' then 'sensores' else 'relés' end));
+                        case v_tipo when 'entrada' then 'entradas' else 'salidas' end));
     end if;
   end if;
 
-  -- Si pasa de sensor a relé (o al revés), sus reglas dejan de tener sentido.
+  -- Si pasa de entrada a salida (o al revés), sus reglas dejan de tener sentido.
   if v_existia and v_prev.tipo <> v_tipo then
-    delete from reglas where device_id = v_disp.device_id and (rele = v_id or sensor = v_id);
+    delete from reglas where device_id = v_disp.device_id and (salida = v_id or entrada = v_id);
     get diagnostics v_borradas = row_count;
   end if;
 
   insert into canales as c (device_id, id, tipo, nombre, unidad, pin, nivel_activo, conexion, libreria, orden)
   values (v_disp.device_id, v_id, v_tipo,
           nullif(btrim(v_c ->> 'nombre'), ''),
-          case when v_tipo = 'sensor' then nullif(btrim(v_c ->> 'unidad'), '') end,
+          case when v_tipo = 'entrada' then nullif(btrim(v_c ->> 'unidad'), '') end,
           (v_c ->> 'pin')::numeric::smallint,
-          case when v_tipo = 'rele' then v_c ->> 'nivel_activo' end,
+          case when v_tipo = 'salida' then v_c ->> 'nivel_activo' end,
           nullif(btrim(v_c ->> 'conexion'), ''),
-          case when v_tipo = 'sensor' then nullif(btrim(v_c ->> 'libreria'), '') end,
+          case when v_tipo = 'entrada' then nullif(btrim(v_c ->> 'libreria'), '') end,
           coalesce((select max(orden) + 1 from canales
                      where device_id = v_disp.device_id and tipo = v_tipo), 1))
   on conflict (device_id, id) do update
@@ -760,11 +760,11 @@ begin
   end if;
 
   select count(*) into v_reglas
-    from reglas where device_id = v_disp.device_id and (rele = v_id or sensor = v_id);
+    from reglas where device_id = v_disp.device_id and (salida = v_id or entrada = v_id);
 
   delete from canales where device_id = v_disp.device_id and id = v_id;
   if not found then
-    return json_build_object('ok', false, 'error', format('No tenés ningún sensor ni relé "%s".', v_id));
+    return json_build_object('ok', false, 'error', format('No tenés ninguna entrada ni salida "%s".', v_id));
   end if;
 
   -- Si la placa lo sigue mandando, pasa a aparecer como "detectado".
@@ -773,9 +773,9 @@ end;
 $$;
 
 -- -------------------------------------------------------------------
---  guardar_regla(admin, {rele, sensor, condicion, umbral, hist, activa})
+--  guardar_regla(admin, {salida, entrada, condicion, umbral, hist, activa})
 --
---  Una por relé: si el relé ya tiene regla, se reemplaza. "hist" y "activa"
+--  Una por salida: si la salida ya tiene regla, se reemplaza. "hist" y "activa"
 --  son opcionales; si no vienen, se conserva lo que había (o 1 y false).
 -- -------------------------------------------------------------------
 create or replace function public.guardar_regla(p_admin text, p_regla json)
@@ -788,8 +788,8 @@ as $$
 declare
   v_disp     dispositivos%rowtype := util.por_admin(p_admin);
   v_r        jsonb := p_regla::jsonb;
-  v_sensores text[];
-  v_reles    text[];
+  v_entradas text[];
+  v_salidas    text[];
   v_err      text;
   v_trae_hist   boolean;
   v_trae_activa boolean;
@@ -798,12 +798,12 @@ begin
     return json_build_object('ok', false, 'error', 'Tu sesión no es válida. Volvé a entrar con tu PIN.');
   end if;
 
-  select coalesce(array_agg(id) filter (where tipo = 'sensor'), '{}'),
-         coalesce(array_agg(id) filter (where tipo = 'rele'), '{}')
-    into v_sensores, v_reles
+  select coalesce(array_agg(id) filter (where tipo = 'entrada'), '{}'),
+         coalesce(array_agg(id) filter (where tipo = 'salida'), '{}')
+    into v_entradas, v_salidas
     from canales where device_id = v_disp.device_id;
 
-  v_err := util.error_regla(v_r, v_sensores, v_reles);
+  v_err := util.error_regla(v_r, v_entradas, v_salidas);
   if v_err is not null then
     return json_build_object('ok', false, 'error', v_err);
   end if;
@@ -811,13 +811,13 @@ begin
   v_trae_hist   := coalesce(jsonb_typeof(v_r -> 'hist'), 'null') <> 'null';
   v_trae_activa := coalesce(jsonb_typeof(v_r -> 'activa'), 'null') <> 'null';
 
-  insert into reglas as g (device_id, rele, sensor, condicion, umbral, hist, activa)
-  values (v_disp.device_id, v_r ->> 'rele', v_r ->> 'sensor', v_r ->> 'condicion',
+  insert into reglas as g (device_id, salida, entrada, condicion, umbral, hist, activa)
+  values (v_disp.device_id, v_r ->> 'salida', v_r ->> 'entrada', v_r ->> 'condicion',
           (v_r ->> 'umbral')::numeric,
           coalesce((v_r ->> 'hist')::numeric, 1),
           coalesce((v_r ->> 'activa')::boolean, false))
-  on conflict (device_id, rele) do update
-     set sensor    = excluded.sensor,
+  on conflict (device_id, salida) do update
+     set entrada   = excluded.entrada,
          condicion = excluded.condicion,
          umbral    = excluded.umbral,
          hist      = case when v_trae_hist   then excluded.hist   else g.hist   end,
@@ -827,7 +827,11 @@ begin
 end;
 $$;
 
-create or replace function public.borrar_regla(p_admin text, p_rele text)
+-- En v3 el parámetro se llamaba p_rele, y un parámetro no se puede renombrar
+-- con "create or replace".
+drop function if exists public.borrar_regla(text, text);
+
+create or replace function public.borrar_regla(p_admin text, p_salida text)
 returns json
 language plpgsql
 volatile
@@ -836,18 +840,18 @@ set search_path = public, util, extensions
 as $$
 declare
   v_disp dispositivos%rowtype := util.por_admin(p_admin);
-  v_rele text := lower(btrim(coalesce(p_rele, '')));
+  v_salida text := lower(btrim(coalesce(p_salida, '')));
 begin
   if v_disp.device_id is null or not v_disp.activo then
     return json_build_object('ok', false, 'error', 'Tu sesión no es válida. Volvé a entrar con tu PIN.');
   end if;
 
-  delete from reglas where device_id = v_disp.device_id and rele = v_rele;
+  delete from reglas where device_id = v_disp.device_id and salida = v_salida;
   if not found then
-    return json_build_object('ok', false, 'error', format('El relé "%s" no tiene regla.', v_rele));
+    return json_build_object('ok', false, 'error', format('La salida "%s" no tiene regla.', v_salida));
   end if;
 
-  return json_build_object('ok', true, 'borrada', v_rele);
+  return json_build_object('ok', true, 'borrada', v_salida);
 end;
 $$;
 
@@ -870,7 +874,7 @@ $$;
 --  "pendientes" son los comandos que la placa todavía no recogió. Con eso la
 --  app puede mostrar "enviando…" en vez de un botón que parece no responder.
 --
---  Las claves salen en orden fijo (sistema, sensores, relés, detectados,
+--  Las claves salen en orden fijo (sistema, entradas, salidas, detectados,
 --  estado) para que el JSON se pueda leer a ojo en el navegador.
 -- -------------------------------------------------------------------
 create or replace function public.leer_estado(p_clave text)
@@ -909,7 +913,7 @@ begin
 
   -- Antes del primer sync no "falta" nada: la placa todavía no habló.
   if v_e.visto_en is not null then
-    select coalesce(array_agg(c.id order by c.tipo desc, c.orden, c.id), '{}') into v_faltan
+    select coalesce(array_agg(c.id order by c.tipo, c.orden, c.id), '{}') into v_faltan
       from canales c
      where c.device_id = v_disp.device_id and not (v_valores ? c.id);
   end if;
@@ -923,7 +927,7 @@ begin
     union all select 3, 'alumno',    to_json(v_disp.alumno)
 
     union all
-    select 100 + row_number() over (order by c.tipo desc, c.orden, c.id), c.id,
+    select 100 + row_number() over (order by c.tipo, c.orden, c.id), c.id,
            coalesce((v_valores -> c.id)::json, '0'::json)
       from canales c
      where c.device_id = v_disp.device_id
@@ -953,12 +957,12 @@ end;
 $$;
 
 -- -------------------------------------------------------------------
---  enviar_comando(clave, 'rele=1')
+--  enviar_comando(clave, 'bomba=1')
 --
---  Se pueden comandar los relés declarados y los detectados que valen 1 o 0
---  (un relé que el alumno sumó al sketch y todavía no declaró).
+--  Se pueden comandar las salidas declaradas y los detectados que valen 1 o 0
+--  (una salida que el alumno sumó al sketch y todavía no declaró).
 --
---  Un comando manual desactiva la regla de ESE relé, y solo esa. Si no, el
+--  Un comando manual desactiva la regla de ESA salida, y solo esa. Si no, el
 --  alumno aprieta un botón y cinco segundos después la regla lo revierte:
 --  la app parecería rota cuando en realidad hace lo que le dijeron.
 -- -------------------------------------------------------------------
@@ -975,7 +979,7 @@ declare
   v_ids      text[];
   v_validas  text[];
   v_cmd      text := lower(btrim(coalesce(p_cmd, '')));
-  v_rele     text;
+  v_salida     text;
   v_valor    text;
   v_corte    int;
   v_cola     int;
@@ -989,7 +993,7 @@ begin
   select coalesce(array_agg(id), '{}') into v_ids from canales where device_id = v_disp.device_id;
 
   select coalesce(array_agg(id order by orden, id), '{}') into v_validas
-    from canales where device_id = v_disp.device_id and tipo = 'rele';
+    from canales where device_id = v_disp.device_id and tipo = 'salida';
 
   v_validas := v_validas || coalesce(
     (select array_agg(key order by key) from jsonb_each(coalesce(v_valores, '{}'))
@@ -998,18 +1002,18 @@ begin
   v_corte := position('=' in v_cmd);
   if v_corte < 2 then
     return json_build_object('ok', false,
-      'error', format('Comando inválido: "%s". El formato es rele=valor, por ejemplo %s=1.',
+      'error', format('Comando inválido: "%s". El formato es salida=valor, por ejemplo %s=1.',
                       p_cmd, coalesce(v_validas[1], 'bomba')),
-      'reles_validos', to_json(v_validas));
+      'salidas_validas', to_json(v_validas));
   end if;
 
-  v_rele  := btrim(substring(v_cmd from 1 for v_corte - 1));
+  v_salida  := btrim(substring(v_cmd from 1 for v_corte - 1));
   v_valor := btrim(substring(v_cmd from v_corte + 1));
 
-  if not (v_rele = any(v_validas)) then
+  if not (v_salida = any(v_validas)) then
     return json_build_object('ok', false,
-      'error', format('No tenés ningún relé "%s".', v_rele),
-      'reles_validos', to_json(v_validas));
+      'error', format('No tenés ninguna salida "%s".', v_salida),
+      'salidas_validas', to_json(v_validas));
   end if;
 
   if v_valor not in ('0', '1', 'on', 'off', 'true', 'false') then
@@ -1027,25 +1031,28 @@ begin
                    order by id limit (v_cola - 19));
   end if;
 
-  insert into comandos (device_id, cmd) values (v_disp.device_id, v_rele || '=' || v_valor);
+  insert into comandos (device_id, cmd) values (v_disp.device_id, v_salida || '=' || v_valor);
 
   update reglas set activa = false
-   where device_id = v_disp.device_id and rele = v_rele and activa;
+   where device_id = v_disp.device_id and salida = v_salida and activa;
   get diagnostics v_apagadas = row_count;
 
-  return json_build_object('ok', true, 'cmd', v_rele || '=' || v_valor,
+  return json_build_object('ok', true, 'cmd', v_salida || '=' || v_valor,
                            'regla_desactivada', v_apagadas > 0);
 end;
 $$;
 
 -- -------------------------------------------------------------------
---  ajustar_regla(clave, rele, {activa, umbral, hist})
+--  ajustar_regla(clave, salida, {activa, umbral, hist})
 --
 --  Lo que la app Kodular puede tocar del modo automático: prenderlo,
---  apagarlo y mover el umbral. Crear o borrar reglas, o cambiar qué sensor
+--  apagarlo y mover el umbral. Crear o borrar reglas, o cambiar qué entrada
 --  mira, es estructura y se hace desde el portal con el PIN.
 -- -------------------------------------------------------------------
-create or replace function public.ajustar_regla(p_clave text, p_rele text, p_cambios json)
+-- Ídem borrar_regla: antes el parámetro era p_rele.
+drop function if exists public.ajustar_regla(text, text, json);
+
+create or replace function public.ajustar_regla(p_clave text, p_salida text, p_cambios json)
 returns json
 language plpgsql
 volatile
@@ -1054,7 +1061,7 @@ set search_path = public, util, extensions
 as $$
 declare
   v_disp   dispositivos%rowtype := util.por_clave(p_clave);
-  v_rele   text := lower(btrim(coalesce(p_rele, '')));
+  v_salida   text := lower(btrim(coalesce(p_salida, '')));
   v_c      jsonb := p_cambios::jsonb;
   v_regla  reglas%rowtype;
   v_extra  text;
@@ -1064,10 +1071,10 @@ begin
     return json_build_object('ok', false, 'error', 'Clave inválida o dispositivo desactivado.');
   end if;
 
-  select * into v_regla from reglas where device_id = v_disp.device_id and rele = v_rele;
+  select * into v_regla from reglas where device_id = v_disp.device_id and salida = v_salida;
   if not found then
     return json_build_object('ok', false,
-      'error', format('El relé "%s" no tiene regla. Las reglas se crean en el portal, en Configurar.', v_rele));
+      'error', format('La salida "%s" no tiene regla. Las reglas se crean en el portal, en Configurar.', v_salida));
   end if;
 
   if v_c is null or jsonb_typeof(v_c) <> 'object' or v_c = '{}'::jsonb then
@@ -1079,7 +1086,7 @@ begin
   if v_extra is not null then
     return json_build_object('ok', false,
       'error', format('Desde la app solo se puede cambiar "activa", "umbral" e "hist", no "%s". '
-                      'Para cambiar el sensor o la condición, usá el portal.', v_extra));
+                      'Para cambiar la entrada o la condición, usá el portal.', v_extra));
   end if;
 
   -- "activa" acepta true/false y también 1/0, porque en bloques de Kodular
@@ -1106,11 +1113,11 @@ begin
      set activa = coalesce(v_activa, activa),
          umbral = coalesce((v_c ->> 'umbral')::numeric, umbral),
          hist   = coalesce((v_c ->> 'hist')::numeric, hist)
-   where device_id = v_disp.device_id and rele = v_rele
+   where device_id = v_disp.device_id and salida = v_salida
   returning * into v_regla;
 
   return json_build_object('ok', true, 'regla', json_build_object(
-    'rele', v_regla.rele, 'sensor', v_regla.sensor, 'condicion', v_regla.condicion,
+    'salida', v_regla.salida, 'entrada', v_regla.entrada, 'condicion', v_regla.condicion,
     'umbral', v_regla.umbral, 'hist', v_regla.hist, 'activa', v_regla.activa));
 end;
 $$;
@@ -1124,7 +1131,7 @@ $$;
 --  sync(clave, estado) -> {cmd, reglas, avisos}
 --
 --  Una sola llamada manda el estado y recibe los comandos pendientes y las
---  reglas activas. Agregar un sensor más no cuesta una request más.
+--  reglas activas. Agregar una entrada más no cuesta una request más.
 -- -------------------------------------------------------------------
 create or replace function public.sync(p_clave text, p_estado json)
 returns json
@@ -1136,8 +1143,8 @@ as $$
 declare
   v_disp     dispositivos%rowtype := util.por_clave(p_clave);
   v_e        estado%rowtype;
-  v_sensores text[];
-  v_reles    text[];
+  v_entradas text[];
+  v_salidas    text[];
   v_res      record;
   v_avisos    text[];
   v_cmds      json;
@@ -1170,12 +1177,12 @@ begin
   end if;
 
   -- 3. forma: lo que está mal armado se rechaza
-  select coalesce(array_agg(id) filter (where tipo = 'sensor'), '{}'),
-         coalesce(array_agg(id) filter (where tipo = 'rele'), '{}')
-    into v_sensores, v_reles
+  select coalesce(array_agg(id) filter (where tipo = 'entrada'), '{}'),
+         coalesce(array_agg(id) filter (where tipo = 'salida'), '{}')
+    into v_entradas, v_salidas
     from canales where device_id = v_disp.device_id;
 
-  select * into v_res from util.validar_estado(p_estado, v_sensores, v_reles);
+  select * into v_res from util.validar_estado(p_estado, v_entradas, v_salidas);
 
   if v_res.error is not null then
     -- se guarda para que el alumno lo vea en el portal, sin monitor serie
@@ -1190,8 +1197,8 @@ begin
   --    El alumno cambia el portal y el sketch por separado; rechazar acá
   --    dejaría la placa desconectada cada vez que declara algo antes de
   --    reflashear.
-  -- Mismo orden que leer_estado: sensores, relés, y después los no declarados.
-  select coalesce(array_agg(mensaje order by grupo, tipo desc, orden, id), '{}') into v_avisos
+  -- Mismo orden que leer_estado: entradas, salidas, y después los no declarados.
+  select coalesce(array_agg(mensaje order by grupo, tipo, orden, id), '{}') into v_avisos
     from (
       select 1 as grupo, c.tipo, c.orden, c.id,
              format('no llegó un valor para ''%s''%s, que está declarado',
@@ -1203,7 +1210,7 @@ begin
              format('llegó ''%s'', que no está declarado. Si es nuevo, agregalo en el portal; '
                     'si es un error de nombre, corregilo en el sketch.', k)
         from jsonb_object_keys(v_res.valores) as k
-       where not (k = any(v_sensores || v_reles))
+       where not (k = any(v_entradas || v_salidas))
     ) as a;
 
   -- 5. guardar
@@ -1217,24 +1224,24 @@ begin
    where device_id = v_disp.device_id;
 
   -- 6. entregar los comandos pendientes y vaciarlos en el mismo paso.
-  --    De paso se calcula cómo queda cada relé comandado (si hubo dos
+  --    De paso se calcula cómo queda cada salida comandada (si hubo dos
   --    comandos para el mismo, gana el último).
   with entregados as (
     delete from comandos where device_id = v_disp.device_id returning id, cmd
   ), ultimos as (
     select distinct on (split_part(cmd, '=', 1))
-           split_part(cmd, '=', 1) as rele, split_part(cmd, '=', 2)::int as valor
+           split_part(cmd, '=', 1) as salida, split_part(cmd, '=', 2)::int as valor
       from entregados
      order by split_part(cmd, '=', 1), id desc
   )
   select coalesce((select json_agg(cmd order by id) from entregados), '[]'::json),
-         coalesce((select jsonb_object_agg(rele, valor) from ultimos), '{}'::jsonb)
+         coalesce((select jsonb_object_agg(salida, valor) from ultimos), '{}'::jsonb)
     into v_cmds, v_aplicados;
 
   -- 7. reflejar ya lo que se acaba de entregar.
   --    La placa aplica los comandos apenas recibe esta respuesta, pero lo que
   --    reportó en ESTE sync es el estado de antes. Sin esto, la app mostraría
-  --    el relé viejo hasta el sync siguiente: un ciclo entero de demora, que
+  --    la salida con el valor viejo hasta el sync siguiente: un ciclo entero de demora, que
   --    es justo lo que se nota al apretar ON y ver que el botón no cambia. Si
   --    la placa no lo aplicara, su próximo sync lo corrige solo.
   if v_aplicados <> '{}'::jsonb then

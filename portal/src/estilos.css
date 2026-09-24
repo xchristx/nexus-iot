@@ -199,7 +199,7 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
 .lista-avisos      { margin: 0; padding-left: 18px; font-size: 14px; color: var(--tenue); }
 .lista-avisos li + li { margin-top: 6px; }
 
-/* --- relés --------------------------------------------------------- */
+/* --- salidas ------------------------------------------------------- */
 
 .salidas { display: flex; flex-direction: column; gap: 14px; }
 .salida  { display: flex; flex-direction: column; gap: 6px; }

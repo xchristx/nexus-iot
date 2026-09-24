@@ -5,12 +5,12 @@ import { Etiqueta, textoRegla } from '../componentes/comunes.jsx'
 const MAX = 10
 
 // ===================================================================
-//  Formulario de sensor o relé
+//  Formulario de entrada o salida
 // ===================================================================
 
 function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
   const [f, setF] = useState({
-    tipo: inicial.tipo || 'sensor',
+    tipo: inicial.tipo || 'entrada',
     id: inicial.id || '',
     nombre: inicial.nombre || '',
     unidad: inicial.unidad || '',
@@ -22,7 +22,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
   const [error, setError] = useState(null)
   const [yendo, setYendo] = useState(false)
   const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
-  const esRele = f.tipo === 'rele'
+  const esSalida = f.tipo === 'salida'
 
   // Solo se mandan los campos con algo escrito: el backend valida el resto y
   // devuelve el mensaje que se muestra tal cual.
@@ -31,7 +31,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
     if (f.nombre.trim()) c.nombre = f.nombre.trim()
     if (f.conexion.trim()) c.conexion = f.conexion.trim()
     if (f.pin !== '') c.pin = Number(f.pin)
-    if (esRele) {
+    if (esSalida) {
       c.nivel_activo = f.nivel_activo
     } else {
       if (f.unidad.trim()) c.unidad = f.unidad.trim()
@@ -53,14 +53,14 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
 
   return (
     <form className="tarjeta" onSubmit={enviar}>
-      <h2>{nuevo ? 'Agregar' : 'Editar'} {esRele ? 'relé' : 'sensor'}</h2>
+      <h2>{nuevo ? 'Agregar' : 'Editar'} {esSalida ? 'salida' : 'entrada'}</h2>
 
       {nuevo && (
         <label>
           Tipo
           <select value={f.tipo} onChange={campo('tipo')}>
-            <option value="sensor">Sensor (mide algo: un número)</option>
-            <option value="rele">Relé (se prende y se apaga)</option>
+            <option value="entrada">Entrada (la placa la mide o la lee: un sensor, un botón)</option>
+            <option value="salida">Salida (se prende y se apaga: un relé, un LED)</option>
           </select>
         </label>
       )}
@@ -68,7 +68,7 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
       <label>
         Id
         <input value={f.id} onChange={campo('id')} disabled={!nuevo}
-               placeholder={esRele ? 'riego' : 'suelo'} autoCapitalize="none" required />
+               placeholder={esSalida ? 'riego' : 'suelo'} autoCapitalize="none" required />
         <span className="ayuda-campo">
           {nuevo
             ? 'El nombre que viaja en el JSON: minúsculas, números y _, hasta 15 caracteres. Tiene que ser igual en tu sketch y en tu app.'
@@ -79,22 +79,22 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
       <label>
         Nombre para mostrar
         <input value={f.nombre} onChange={campo('nombre')} maxLength={40}
-               placeholder={esRele ? 'Riego' : 'Humedad de suelo'} />
+               placeholder={esSalida ? 'Riego' : 'Humedad de suelo'} />
       </label>
 
       <div className="dos-columnas">
         <label>
-          GPIO {esRele ? '' : '(opcional)'}
+          GPIO {esSalida ? '' : '(opcional)'}
           <input value={f.pin} onChange={campo('pin')} type="number" min={0} max={39}
-                 placeholder={esRele ? '25' : '34'} required={esRele} />
+                 placeholder={esSalida ? '25' : '34'} required={esSalida} />
         </label>
 
-        {esRele ? (
+        {esSalida ? (
           <label>
             Se activa con
             <select value={f.nivel_activo} onChange={campo('nivel_activo')}>
-              <option value="LOW">LOW (módulo de relés)</option>
-              <option value="HIGH">HIGH (LED de la placa)</option>
+              <option value="LOW">LOW (la mayoría de los módulos de relés)</option>
+              <option value="HIGH">HIGH (un LED, el LED de la placa)</option>
             </select>
           </label>
         ) : (
@@ -108,11 +108,11 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
       <label>
         Conexión (opcional)
         <input value={f.conexion} onChange={campo('conexion')} maxLength={120}
-               placeholder={esRele ? 'IN1 del módulo de relés' : 'sensor capacitivo, salida analógica'} />
+               placeholder={esSalida ? 'IN1 del módulo de relés' : 'sensor capacitivo, salida analógica'} />
         <span className="ayuda-campo">Aparece en el prompt, para que la IA sepa cómo está cableado.</span>
       </label>
 
-      {!esRele && (
+      {!esSalida && (
         <label>
           Librería (opcional)
           <input value={f.libreria} onChange={campo('libreria')} maxLength={120}
@@ -134,9 +134,9 @@ function FormCanal({ admin, inicial, nuevo, onListo, onCancelar }) {
 //  Formulario de regla
 // ===================================================================
 
-function FormRegla({ admin, rele, sensores, inicial, onListo, onCancelar }) {
+function FormRegla({ admin, salida, entradas, inicial, onListo, onCancelar }) {
   const [f, setF] = useState({
-    sensor: inicial?.sensor || sensores[0]?.id || '',
+    entrada: inicial?.entrada || entradas[0]?.id || '',
     condicion: inicial?.condicion || '>',
     umbral: inicial?.umbral ?? '',
     hist: inicial?.hist ?? 1,
@@ -148,8 +148,8 @@ function FormRegla({ admin, rele, sensores, inicial, onListo, onCancelar }) {
   async function enviar(ev) {
     ev.preventDefault()
     const r = await guardarRegla(admin, {
-      rele,
-      sensor: f.sensor,
+      salida,
+      entrada: f.entrada,
       condicion: f.condicion,
       umbral: f.umbral === '' ? null : Number(f.umbral),
       hist: f.hist === '' ? null : Number(f.hist),
@@ -160,17 +160,17 @@ function FormRegla({ admin, rele, sensores, inicial, onListo, onCancelar }) {
   }
 
   async function borrar() {
-    if (!window.confirm(`¿Borrar la regla de "${rele}"?`)) return
-    const r = await borrarRegla(admin, rele)
+    if (!window.confirm(`¿Borrar la regla de "${salida}"?`)) return
+    const r = await borrarRegla(admin, salida)
     if (!r.ok) { setError(r.error); return }
     onListo(null)
   }
 
-  if (sensores.length === 0) {
+  if (entradas.length === 0) {
     return (
       <div className="tarjeta">
-        <h2>Regla de "{rele}"</h2>
-        <p className="ayuda">Para armar una regla primero necesitás al menos un sensor.</p>
+        <h2>Regla de "{salida}"</h2>
+        <p className="ayuda">Para armar una regla primero necesitás al menos una entrada.</p>
         <button onClick={onCancelar}>Volver</button>
       </div>
     )
@@ -182,21 +182,21 @@ function FormRegla({ admin, rele, sensores, inicial, onListo, onCancelar }) {
 
   return (
     <form className="tarjeta" onSubmit={enviar}>
-      <h2>Regla de "{rele}"</h2>
+      <h2>Regla de "{salida}"</h2>
       <p className="ayuda">
-        La evalúa tu placa, así sigue funcionando aunque se corte internet. Un
-        relé tiene una sola regla.
+        La evalúa tu placa, así sigue funcionando aunque se corte internet. Una
+        salida tiene una sola regla.
       </p>
 
       <div className="dos-columnas">
         <label>
-          Sensor
-          <select value={f.sensor} onChange={campo('sensor')}>
-            {sensores.map(s => <option key={s.id} value={s.id}>{s.nombre || s.id} ({s.id})</option>)}
+          Entrada
+          <select value={f.entrada} onChange={campo('entrada')}>
+            {entradas.map(e => <option key={e.id} value={e.id}>{e.nombre || e.id} ({e.id})</option>)}
           </select>
         </label>
         <label>
-          Se prende si el sensor
+          Se prende si la entrada
           <select value={f.condicion} onChange={campo('condicion')}>
             <option value=">">supera el umbral</option>
             <option value="<">baja del umbral</option>
@@ -217,9 +217,9 @@ function FormRegla({ admin, rele, sensores, inicial, onListo, onCancelar }) {
 
       {completa && (
         <p className="ayuda">
-          "{rele}" se prende cuando {f.sensor} {f.condicion === '>' ? 'supera' : 'baja de'} {u},
-          y se apaga recién cuando {apagado}. Esa franja evita que el relé
-          se prenda y apague sin parar cuando el valor ronda el umbral.
+          "{salida}" se prende cuando {f.entrada} {f.condicion === '>' ? 'supera' : 'baja de'} {u},
+          y se apaga recién cuando {apagado}. Esa franja evita que la
+          salida se prenda y apague sin parar cuando el valor ronda el umbral.
         </p>
       )}
 
@@ -244,7 +244,7 @@ function FormRegla({ admin, rele, sensores, inicial, onListo, onCancelar }) {
 // ===================================================================
 
 export default function Configurar({ admin, config, recargar, precarga, onPrecargaUsada }) {
-  const [editando, setEditando] = useState(null)   // {clase:'canal', inicial, nuevo} | {clase:'regla', rele}
+  const [editando, setEditando] = useState(null)   // {clase:'canal', inicial, nuevo} | {clase:'regla', salida}
   const [mensaje, setMensaje] = useState(null)
 
   // "agregar" desde un detectado en Mi placa
@@ -255,9 +255,9 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
     }
   }, [precarga, onPrecargaUsada])
 
-  const sensores = config.canales.filter(c => c.tipo === 'sensor')
-  const reles = config.canales.filter(c => c.tipo === 'rele')
-  const reglaDe = Object.fromEntries(config.reglas.map(g => [g.rele, g]))
+  const entradas = config.canales.filter(c => c.tipo === 'entrada')
+  const salidas = config.canales.filter(c => c.tipo === 'salida')
+  const reglaDe = Object.fromEntries(config.reglas.map(g => [g.salida, g]))
 
   async function listo(texto) {
     setEditando(null)
@@ -266,7 +266,7 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
   }
 
   async function borrar(c) {
-    const afectadas = config.reglas.filter(g => g.rele === c.id || g.sensor === c.id).length
+    const afectadas = config.reglas.filter(g => g.salida === c.id || g.entrada === c.id).length
     const extra = afectadas ? ` También se borra${afectadas > 1 ? 'n' : ''} ${afectadas} regla${afectadas > 1 ? 's' : ''}.` : ''
     if (!window.confirm(`¿Borrar "${c.id}"?${extra}`)) return
     const r = await borrarCanal(admin, c.id)
@@ -280,8 +280,8 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
   }
 
   if (editando?.clase === 'regla') {
-    return <FormRegla admin={admin} rele={editando.rele} sensores={sensores}
-                      inicial={reglaDe[editando.rele]} onListo={listo} onCancelar={() => setEditando(null)} />
+    return <FormRegla admin={admin} salida={editando.salida} entradas={entradas}
+                      inicial={reglaDe[editando.salida]} onListo={listo} onCancelar={() => setEditando(null)} />
   }
 
   return (
@@ -295,14 +295,15 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
 
       <div className="tarjeta">
         <div className="bloque-cab">
-          <h3>Sensores <span className="tenue">({sensores.length} de {MAX})</span></h3>
-          <button className="chico" disabled={sensores.length >= MAX}
-                  onClick={() => setEditando({ clase: 'canal', nuevo: true, inicial: { tipo: 'sensor' } })}>
+          <h3>Entradas <span className="tenue">({entradas.length} de {MAX})</span></h3>
+          <button className="chico" disabled={entradas.length >= MAX}
+                  onClick={() => setEditando({ clase: 'canal', nuevo: true, inicial: { tipo: 'entrada' } })}>
             + Agregar
           </button>
         </div>
-        {sensores.length === 0 && <p className="ayuda">Ninguno todavía.</p>}
-        {sensores.map(s => (
+        <p className="ayuda">Lo que tu placa mide o lee y manda como número: un sensor, un botón, un potenciómetro.</p>
+        {entradas.length === 0 && <p className="ayuda">Ninguna todavía.</p>}
+        {entradas.map(s => (
           <div key={s.id} className="fila-canal">
             <div>
               <code>{s.id}</code> {s.nombre || ''}{s.unidad ? ` (${s.unidad})` : ''}
@@ -320,14 +321,15 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
 
       <div className="tarjeta">
         <div className="bloque-cab">
-          <h3>Relés <span className="tenue">({reles.length} de {MAX})</span></h3>
-          <button className="chico" disabled={reles.length >= MAX}
-                  onClick={() => setEditando({ clase: 'canal', nuevo: true, inicial: { tipo: 'rele' } })}>
+          <h3>Salidas <span className="tenue">({salidas.length} de {MAX})</span></h3>
+          <button className="chico" disabled={salidas.length >= MAX}
+                  onClick={() => setEditando({ clase: 'canal', nuevo: true, inicial: { tipo: 'salida' } })}>
             + Agregar
           </button>
         </div>
-        {reles.length === 0 && <p className="ayuda">Ninguno todavía.</p>}
-        {reles.map(r => {
+        <p className="ayuda">Lo que tu placa prende y apaga: un relé, un LED, un buzzer.</p>
+        {salidas.length === 0 && <p className="ayuda">Ninguna todavía.</p>}
+        {salidas.map(r => {
           const g = reglaDe[r.id]
           return (
             <div key={r.id} className="fila-canal">
@@ -344,7 +346,7 @@ export default function Configurar({ admin, config, recargar, precarga, onPrecar
               </div>
               <div className="acciones-fila">
                 <button className="chico" onClick={() => setEditando({ clase: 'canal', nuevo: false, inicial: r })}>Editar</button>
-                <button className="chico" onClick={() => setEditando({ clase: 'regla', rele: r.id })}>Regla</button>
+                <button className="chico" onClick={() => setEditando({ clase: 'regla', salida: r.id })}>Regla</button>
                 <button className="chico peligro" onClick={() => borrar(r)}>Borrar</button>
               </div>
             </div>

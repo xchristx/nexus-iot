@@ -2,7 +2,7 @@
 
 Backend, portal y firmware para que una clase de ~20 alumnos practique **Kodular**
 contra un servidor real, con un ESP32 cada uno. Cada alumno declara su propio
-hardware (sensores, relés y las reglas de su modo automático) desde un portal, saca
+hardware (entradas, salidas y las reglas de su modo automático) desde un portal, saca
 de ahí la clave de su placa y el prompt para generar su sketch, y arma su app.
 
 Corre entero sobre el plan gratuito de Supabase y Netlify.

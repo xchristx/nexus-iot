@@ -2,9 +2,11 @@
 --  Nexus IoT — esquema
 --  Pegar en Supabase > SQL Editor y ejecutar, DESPUÉS de 00-borrar-todo.sql.
 --
---  Cada alumno administra su propio hardware: cuántos sensores y cuántos
---  relés tiene, y las reglas de su modo automático. Es el equivalente a los
---  feeds de Adafruit, pero con un docente que ve toda la clase.
+--  Cada alumno administra su propio hardware: cuántas entradas (lo que la
+--  placa mide o lee: un DHT22, un LDR, un botón) y cuántas salidas (lo que
+--  prende y apaga: un relé, un LED, un buzzer) tiene, y las reglas de su modo
+--  automático. Es el equivalente a los feeds de Adafruit, pero con un docente
+--  que ve toda la clase.
 -- ===================================================================
 
 -- pgcrypto genera las claves y guarda los PIN con bcrypt.
@@ -50,9 +52,14 @@ $$;
 --  toca a los que ya estaban.
 --
 --  Formato de la plantilla, el mismo que usan las funciones del portal:
---    {"sensores": [{id, nombre, unidad, pin, conexion, libreria}, ...],
---     "reles":    [{id, nombre, pin, nivel_activo, conexion}, ...],
---     "reglas":   [{rele, sensor, condicion, umbral, hist, activa}, ...]}
+--    {"entradas": [{id, nombre, unidad, pin, conexion, libreria}, ...],
+--     "salidas":  [{id, nombre, pin, nivel_activo, conexion}, ...],
+--     "reglas":   [{salida, entrada, condicion, umbral, hist, activa}, ...]}
+--
+--  Por defecto viene VACÍA: cada alumno arranca sin nada y declara su
+--  hardware en el portal. En 03-curso-ejemplo.sql hay una receta para
+--  cargarle una plantilla a un curso, si el docente quiere que todos
+--  arranquen con el mismo kit.
 --
 --  Un trigger (en 02-funciones.sql) rechaza el guardado si la plantilla
 --  queda mal armada, con un mensaje que dice qué corregir.
@@ -61,27 +68,7 @@ create table cursos (
   codigo    text primary key,
   nombre    text,
   abierto   boolean not null default true,   -- en false no se registra nadie NUEVO
-  plantilla jsonb not null default '{
-    "sensores": [
-      {"id": "t", "nombre": "Temperatura", "unidad": "°C",
-       "conexion": "DHT22, pin de datos en GPIO 4",
-       "libreria": "DHT sensor library y Adafruit Unified Sensor, de Adafruit (DHT.h)"},
-      {"id": "h", "nombre": "Humedad", "unidad": "%",
-       "conexion": "el mismo DHT22 de la temperatura"}
-    ],
-    "reles": [
-      {"id": "bomba", "nombre": "Bomba", "pin": 26, "nivel_activo": "LOW",
-       "conexion": "IN1 del módulo de relés"},
-      {"id": "vent", "nombre": "Ventilador", "pin": 27, "nivel_activo": "LOW",
-       "conexion": "IN2 del módulo de relés"},
-      {"id": "luz", "nombre": "Luz", "pin": 2, "nivel_activo": "HIGH",
-       "conexion": "LED integrado de la placa, hasta tener un tercer relé"}
-    ],
-    "reglas": [
-      {"rele": "vent",  "sensor": "t", "condicion": ">", "umbral": 28, "hist": 1.5, "activa": false},
-      {"rele": "bomba", "sensor": "h", "condicion": "<", "umbral": 40, "hist": 1.5, "activa": false}
-    ]
-  }'::jsonb,
+  plantilla jsonb not null default '{"entradas": [], "salidas": [], "reglas": []}'::jsonb,
   creado    timestamptz not null default now(),
 
   -- entrar() pasa el código a mayúsculas; uno cargado en minúsculas a mano
@@ -99,10 +86,10 @@ create table cursos (
 --                 es extraíble, así que NO puede cambiar la estructura.
 --
 --    clave_admin  solo la tiene el portal, después de entrar con el PIN.
---                 Crea y borra sensores, relés y reglas.
+--                 Crea y borra entradas, salidas y reglas.
 --
 --  Así un compañero que saca la clave de un APK puede, como mucho, prender
---  un relé: no puede borrarle la configuración a nadie.
+--  una salida: no puede borrarle la configuración a nadie.
 -- -------------------------------------------------------------------
 create sequence dispositivos_num;
 
@@ -123,10 +110,15 @@ create table dispositivos (
 create unique index dispositivos_curso_alumno on dispositivos (curso, util.nombre_clave(alumno));
 
 -- -------------------------------------------------------------------
---  canales — los sensores y relés de cada alumno
+--  canales — las entradas y salidas de cada alumno
+--
+--    entrada  lo que la placa mide o lee y manda como número: temperatura,
+--             luz, un botón (1/0)...
+--    salida   lo que se prende y se apaga desde la app o por una regla: un
+--             relé, un LED, un buzzer... Viaja como 1 o 0.
 --
 --  El id es el nombre que viaja en el JSON ("t", "bomba", "suelo"), y es
---  único por alumno entre sensores y relés juntos, porque en el JSON
+--  único por alumno entre entradas y salidas juntas, porque en el JSON
 --  comparten el mismo nivel.
 --
 --  Las funciones validan todo con mensajes claros; estos CHECK son la red de
@@ -141,44 +133,44 @@ create table canales (
   pin          smallint,
   nivel_activo text,
   conexion     text,            -- texto libre: sale en el prompt tal cual
-  libreria     text,            -- ídem, solo para sensores
+  libreria     text,            -- ídem, solo para entradas
   orden        integer not null default 0,
   creado       timestamptz not null default now(),
 
   primary key (device_id, id),
 
   -- 15 caracteres es el largo máximo de una clave de Preferences en el ESP32,
-  -- donde el firmware guarda el estado de cada relé.
-  constraint id_valido     check (id ~ '^[a-z][a-z0-9_]{0,14}$'),
-  constraint tipo_valido   check (tipo in ('sensor', 'rele')),
-  constraint pin_valido    check (pin between 0 and 39),
-  constraint nivel_valido  check (nivel_activo in ('LOW', 'HIGH')),
-  constraint rele_completo check (tipo <> 'rele' or (pin is not null and nivel_activo is not null)),
+  -- donde el firmware guarda el estado de cada salida.
+  constraint id_valido       check (id ~ '^[a-z][a-z0-9_]{0,14}$'),
+  constraint tipo_valido     check (tipo in ('entrada', 'salida')),
+  constraint pin_valido      check (pin between 0 and 39),
+  constraint nivel_valido    check (nivel_activo in ('LOW', 'HIGH')),
+  constraint salida_completa check (tipo <> 'salida' or (pin is not null and nivel_activo is not null)),
   constraint textos_cortos check (length(nombre)   <= 40  and length(unidad)   <= 10
                               and length(conexion) <= 120 and length(libreria) <= 120)
 );
 
 -- -------------------------------------------------------------------
---  reglas — el modo automático, UNA por relé
+--  reglas — el modo automático, UNA por salida
 --
---  "el relé X se prende si el sensor Y está por encima (o por debajo) de un
---  umbral". Una sola por relé para que no existan dos reglas peleándose por
---  la misma salida. Las evalúa la placa, así sigue regulando sin internet.
+--  "la salida X se prende si la entrada Y está por encima (o por debajo) de
+--  un umbral". Una sola por salida para que no existan dos reglas peleándose
+--  por lo mismo. Las evalúa la placa, así sigue regulando sin internet.
 --
---  Borrar el relé o el sensor borra la regla sola.
+--  Borrar la salida o la entrada borra la regla sola.
 -- -------------------------------------------------------------------
 create table reglas (
   device_id text not null,
-  rele      text not null,
-  sensor    text not null,
+  salida    text not null,
+  entrada   text not null,
   condicion text not null,
   umbral    numeric not null,
   hist      numeric not null default 1,
   activa    boolean not null default false,
 
-  primary key (device_id, rele),
-  foreign key (device_id, rele)   references canales (device_id, id) on delete cascade,
-  foreign key (device_id, sensor) references canales (device_id, id) on delete cascade,
+  primary key (device_id, salida),
+  foreign key (device_id, salida)  references canales (device_id, id) on delete cascade,
+  foreign key (device_id, entrada) references canales (device_id, id) on delete cascade,
 
   constraint condicion_valida check (condicion in ('>', '<')),
   constraint hist_valida      check (hist >= 0)
@@ -203,7 +195,8 @@ create table estado (
 
 -- -------------------------------------------------------------------
 --  comandos — cola. La app encola, sync() entrega y borra.
---  Formato 'rele=valor', el mismo desde la primera versión.
+--  Formato 'salida=valor' (por ejemplo 'bomba=1'), el mismo desde la
+--  primera versión.
 -- -------------------------------------------------------------------
 create table comandos (
   id        bigserial primary key,

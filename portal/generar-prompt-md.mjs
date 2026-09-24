@@ -4,8 +4,8 @@
 // Correr con:  npm run prompt
 //
 // El portal arma el prompt de cada alumno con SU hardware declarado. Este
-// archivo usa la plantilla por defecto (src/plantilla-ejemplo.js), asi que
-// PROMPT.md muestra como sale el prompt para un alumno recien registrado.
+// archivo usa un kit de ejemplo (src/plantilla-ejemplo.js), asi que PROMPT.md
+// muestra como sale el prompt para un alumno que declaro ese hardware.
 
 import { writeFileSync } from 'node:fs'
 import { generarPrompt } from './src/prompt.js'
@@ -26,11 +26,11 @@ const encabezado = `<!-- GENERADO AUTOMATICAMENTE — no editar a mano.
 Este es el prompt que cada alumno le pega a una IA para que le genere su sketch.
 
 **El portal lo arma con la clave y el hardware que declaró cada alumno**, en la
-pantalla "Mis datos", con un botón de copiar. Si el alumno agrega un sensor en
-Configurar, su prompt lo incluye solo.
+pantalla "Mis datos", con un botón de copiar. Si el alumno agrega una entrada o una
+salida en Configurar, su prompt la incluye sola.
 
-Esta copia usa la plantilla por defecto del curso (DHT22 + bomba, ventilador y
-luz) y está acá para poder versionarla, revisarla en un diff y probarla sin
+Esta copia usa un kit de ejemplo (un DHT22 como entradas; bomba, ventilador y
+LED como salidas) y está acá para poder versionarla, revisarla en un diff y probarla sin
 levantar el portal. Los marcadores \`TUPROYECTO\`, \`TU_PUBLISHABLE_KEY\` y
 \`TU_CLAVE\` los reemplaza el portal.
 
