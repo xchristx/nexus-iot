@@ -6,7 +6,8 @@
 // que las tablas de src/main.cpp, para que PROMPT.md muestre un prompt
 // completo.
 //
-// Si cambiás el kit, cambialo en los tres lugares y regenerá PROMPT.md con
+// Si cambiás el kit, cambialo en los tres lugares (tablero y alertas, solo
+// en este y en el .json: el firmware no los usa) y regenerá PROMPT.md con
 // `npm run prompt`.
 
 export const plantillaEjemplo = {
@@ -27,6 +28,17 @@ export const plantillaEjemplo = {
   reglas: [
     { salida: 'vent', entrada: 't', condicion: '>', umbral: 28, hist: 1.5 },
     { salida: 'bomba', entrada: 'h', condicion: '<', umbral: 40, hist: 1.5 },
+  ],
+  // Solo para el portal y la app: el prompt y el firmware no los usan.
+  tablero: {
+    t: { widget: 'medidor', min: 0, max: 50, color: 'ambar', icono: 'termometro' },
+    h: { widget: 'barra', min: 0, max: 100, color: 'azul', icono: 'gota' },
+    bomba: { widget: 'boton', color: 'azul', icono: 'gota' },
+    vent: { widget: 'interruptor', color: 'violeta', icono: 'ventilador' },
+    luz: { widget: 'boton', color: 'ambar', icono: 'foco' },
+  },
+  alertas: [
+    { entrada: 't', condicion: '>', umbral: 35, hist: 1 },
   ],
 }
 

@@ -202,6 +202,63 @@ test('borrar una salida junto con su regla', async () => {
   }))
 })
 
+// --- tablero y alertas: solo los usan el portal y la app ---------------
+
+test('cada canal elige su widget, según sea entrada o salida', async () => {
+  const db = alumno('iot2026-beto')
+  const w = (id, v) => set(ref(db, 'placas/iot2026-beto/tablero/' + id), v)
+  await assertSucceeds(w('t', { widget: 'medidor', min: 0, max: 50, color: 'ambar', icono: 'termometro' }))
+  await assertSucceeds(w('bomba', { widget: 'boton', color: 'azul' }))
+  await assertFails(w('t', { widget: 'boton' }))
+  await assertFails(w('bomba', { widget: 'medidor' }))
+  await assertFails(w('riego', { widget: 'interruptor' }))
+  await assertFails(w('t', { widget: 'barra', min: 50, max: 10 }))
+  await assertFails(w('t', { widget: 'numero', color: 'fucsia' }))
+  await assertFails(w('t', { widget: 'numero', tamano: 3 }))
+  await assertFails(w('t', { color: 'verde' }))
+})
+
+test('una alerta va sobre una entrada que existe', async () => {
+  const db = alumno('iot2026-beto')
+  const a = (id, v) => set(ref(db, 'placas/iot2026-beto/alertas/' + id), v)
+  await assertSucceeds(a('t', { condicion: '>', umbral: 35, hist: 1 }))
+  await assertFails(a('bomba', { condicion: '>', umbral: 35, hist: 1 }))
+  await assertFails(a('h', { condicion: '>', umbral: 35, hist: 1 }))
+  await assertFails(a('t', { condicion: '>=', umbral: 35, hist: 1 }))
+  await assertFails(a('t', { condicion: '>', umbral: 35, hist: -1 }))
+  await assertFails(a('t', { condicion: '>', umbral: 35 }))
+})
+
+test('tablero y alertas son privados de cada alumno', async () => {
+  const db = alumno('iot2026-ana')
+  await assertFails(set(ref(db, 'placas/iot2026-beto/tablero/t'), { widget: 'numero' }))
+  await assertFails(set(ref(db, 'placas/iot2026-beto/alertas/t'), { condicion: '>', umbral: 1, hist: 0 }))
+})
+
+test('el alta copia tablero y alertas de la plantilla', async () => {
+  const db = alumno('iot2026-ana')
+  await assertSucceeds(update(ref(db), {
+    'alumnos/iot2026-ana': { curso: 'IOT2026', nombre: 'Ana Pérez', creado: Date.now() },
+    'placas/iot2026-ana': {
+      ...KIT,
+      tablero: { t: { widget: 'medidor', min: 0, max: 50 }, bomba: { widget: 'boton' } },
+      alertas: { t: { condicion: '>', umbral: 35, hist: 1 } },
+    },
+  }))
+})
+
+test('borrar una entrada junto con su widget y su alerta', async () => {
+  const db = alumno('iot2026-beto')
+  await assertSucceeds(set(ref(db, 'placas/iot2026-beto/tablero/t'), { widget: 'barra', min: 0, max: 50 }))
+  await assertSucceeds(set(ref(db, 'placas/iot2026-beto/alertas/t'), { condicion: '>', umbral: 35, hist: 1 }))
+  await assertSucceeds(update(ref(db, 'placas/iot2026-beto'), {
+    'config/entradas/t': null,
+    'control/reglas/bomba': null,
+    'tablero/t': null,
+    'alertas/t': null,
+  }))
+})
+
 // --- estado: lo escribe la placa --------------------------------------
 
 test('la placa publica valores, visto y aviso', async () => {

@@ -1,6 +1,6 @@
 import { firebaseConfig } from '../firebase.js'
 import { generarPrompt } from '../prompt.js'
-import { Bloque, Copiar, textoRegla } from '../componentes/comunes.jsx'
+import { Bloque, Copiar, textoRegla, BajarApp } from '../componentes/comunes.jsx'
 
 export default function MisDatos({ usuario, placa }) {
   const { canales, reglas, pulsadorModo } = placa
@@ -65,6 +65,8 @@ export default function MisDatos({ usuario, placa }) {
                'escribís tu usuario y tu contraseña. Para probarla tenés que compilar el APK: el ' +
                'Companion no funciona con Firebase. Si armás tus propios bloques, estas son las rutas:'}
         texto={rutas} />
+
+      <BajarApp />
 
       <Bloque
         titulo="Tu sketch del ESP32"

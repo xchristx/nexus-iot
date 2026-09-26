@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 
 export function Copiar({ texto, children }) {
   const [copiado, setCopiado] = useState(false)
@@ -50,3 +51,11 @@ export function textoRegla(g) {
 }
 
 export const esBinario = (v) => v === 0 || v === 1
+
+// Link a la app Android (Play Store o el .apk), si está configurado en
+// VITE_URL_APK. Dentro de la app no se muestra.
+export function BajarApp() {
+  const url = import.meta.env.VITE_URL_APK
+  if (!url || Capacitor.isNativePlatform()) return null
+  return <a className="descargar-app" href={url} target="_blank" rel="noopener">Bajar la app para Android</a>
+}

@@ -28,3 +28,12 @@ firebase/*-debug.log
 .DS_Store
 Thumbs.db
 *.local
+
+# App Android (portal/android): la firma y lo compilado no se suben. El
+# .apk/.aab sale con las VITE_FIREBASE_* del .env adentro: se reparte por
+# Play Store o como release, nunca en el repo.
+portal/android/keystore.properties
+*.jks
+*.keystore
+*.apk
+*.aab

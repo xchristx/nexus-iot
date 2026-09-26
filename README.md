@@ -22,7 +22,9 @@ Corre entero sobre el plan gratuito de Firebase y Netlify.
 
 - `firebase/` — reglas de Realtime Database, curso y kit de ejemplo, pruebas y una
   placa simulada.
-- `portal/` — portal React + Vite que se publica en Netlify.
+- `portal/` — portal React + Vite que se publica en Netlify, con tablero
+  personalizable y alertas. `portal/android/` es el mismo portal como app Android
+  ([portal/ANDROID.md](portal/ANDROID.md)).
 - `src/`, `arduino/` — firmware de referencia del ESP32 (PlatformIO y Arduino IDE).
 - `kodular/` — proyecto `.aia` con los bloques para leer y comandar, y su guía.
 

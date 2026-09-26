@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus IoT — Privacidad</title>
+  <style>
+    :root { --fondo: #0f1115; --texto: #e6e9ef; --tenue: #8b93a3; }
+    body { margin: 0; background: var(--fondo); color: var(--texto); font: 16px/1.6 system-ui, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 28px; }
+    p, li { color: var(--tenue); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Nexus IoT: política de privacidad</h1>
+  <p>Nexus IoT (el portal web y la app para Android) es una herramienta de clase: cada
+  alumno conecta su placa ESP32 y ve y maneja lo que la placa mide y controla.</p>
+
+  <h2>Qué datos se guardan</h2>
+  <ul>
+    <li>El código del curso y el nombre y apellido con que te anotaste, que forman tu usuario.</li>
+    <li>Tu contraseña, que la guarda Firebase Authentication (Google) cifrada. Nadie, ni el docente, la puede ver.</li>
+    <li>La configuración de tu placa (entradas, salidas, reglas, alertas, cómo se ve tu tablero) y los últimos valores que mandó.</li>
+  </ul>
+  <p>No se guarda tu ubicación, tus contactos ni nada de tu teléfono. No hay publicidad ni analítica.</p>
+
+  <h2>Dónde y quién los ve</h2>
+  <p>Todo se guarda en Firebase (Google), en el proyecto del curso. Lo ven solo vos y el
+  docente del curso. No se venden ni se comparten con nadie más.</p>
+
+  <h2>Notificaciones</h2>
+  <p>Si activás los avisos, la app te muestra una notificación cuando una entrada cruza el
+  umbral de una alerta que configuraste. Las genera el propio teléfono mientras la app está
+  abierta; no se manda nada a otros servicios.</p>
+
+  <h2>Borrar tus datos</h2>
+  <p>Pedile al docente del curso que borre tu alta: se eliminan tu cuenta, tu configuración y
+  los valores de tu placa.</p>
+</main>
+</body>
+</html>

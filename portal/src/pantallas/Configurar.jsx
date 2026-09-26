@@ -1,9 +1,48 @@
 import { useState, useEffect } from 'react'
-import { guardarCanal, borrarCanal, guardarRegla, borrarRegla, guardarPulsadorModo, mensajeError } from '../firebase.js'
-import { MAX, errorCanal, errorRegla, errorPulsadorModo } from '../validar.js'
+import {
+  guardarCanal, borrarCanal, guardarRegla, borrarRegla, guardarPulsadorModo, mensajeError,
+  guardarWidget, guardarAlerta, borrarAlerta, moverCanal, aBinario,
+} from '../firebase.js'
+import { MAX, errorCanal, errorRegla, errorPulsadorModo, errorAlerta, errorWidget } from '../validar.js'
 import { textoRegla } from '../componentes/comunes.jsx'
+import {
+  WIDGETS_ENTRADA, WIDGETS_SALIDA, COLORES, ICONOS, widgetDe,
+  WidgetEntrada, Interruptor, BotonSalida, Icono,
+} from '../componentes/widgets.jsx'
+import { textoAlerta } from '../alertas.js'
 
 const numeroONull = (v) => (v === '' || v == null ? null : Number(v))
+
+// ===================================================================
+//  Vista previa del widget
+// ===================================================================
+
+// Con el valor que manda la placa si hay uno; si no, uno de muestra.
+function VistaPrevia({ tipo, nombre, unidad, valor, w }) {
+  if (tipo === 'salida') {
+    const v = aBinario(valor) ?? 1
+    return (
+      <div className="vista-previa">
+        {w.widget === 'boton'
+          ? <BotonSalida nombre={nombre} icono={w.icono} valor={v} color={w.color} onCambiar={() => {}} />
+          : (
+            <div className="salida-fila">
+              <span className="salida-nombre">{w.icono && <Icono nombre={w.icono} />}{nombre}</span>
+              <Interruptor valor={v} color={w.color} onCambiar={() => {}} />
+            </div>
+          )}
+      </div>
+    )
+  }
+  const muestra = typeof valor === 'number' ? valor
+    : w.widget === 'indicador' ? 1
+    : w.min < w.max ? w.min + (w.max - w.min) * 0.6 : 24
+  return (
+    <div className="vista-previa datos">
+      <WidgetEntrada titulo={nombre} valor={muestra} unidad={unidad} w={w} />
+    </div>
+  )
+}
 
 // ===================================================================
 //  Formulario de entrada o salida
@@ -23,8 +62,22 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
   })
   const [error, setError] = useState(null)
   const [yendo, setYendo] = useState(false)
+  const w0 = widgetDe({ id: inicial.id, tipo: inicial.tipo || 'entrada' }, placa.tablero)
+  const [w, setWidget] = useState({ ...w0, icono: w0.icono || '', min: String(w0.min), max: String(w0.max) })
+  const setW = (nuevo) => { setWidget(nuevo); setError(null) }
   const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
   const esSalida = f.tipo === 'salida'
+  const opciones = esSalida ? WIDGETS_SALIDA : WIDGETS_ENTRADA
+  // Si cambió el tipo, el widget elegido puede no corresponder.
+  const widget = opciones.some(x => x.id === w.widget) ? w.widget : opciones[0].id
+  const conEscala = widget === 'medidor' || widget === 'barra'
+
+  function armarWidget() {
+    const r = { widget, color: w.color }
+    if (w.icono) r.icono = w.icono
+    if (conEscala) { r.min = numeroONull(w.min); r.max = numeroONull(w.max) }
+    return r
+  }
 
   // Solo se guardan los campos con algo escrito.
   function armar() {
@@ -47,16 +100,26 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
     const c = armar()
     const e = errorCanal(c, { canales: placa.canales, pulsadorModo: placa.pulsadorModo, nuevo })
     if (e) { setError(e); return }
+    const wid = armarWidget()
+    const ew = errorWidget(wid)
+    if (ew) { setError(ew); return }
     const orden = nuevo
       ? Math.max(-1, ...placa.canales.map(x => x.orden ?? 0)) + 1
       : (inicial.orden ?? 0)
     setYendo(true)
     try {
       await guardarCanal(usuario, c, orden)
-      onListo(null)
     } catch (err) {
       setError(mensajeError(err))
       setYendo(false)
+      return
+    }
+    // El canal ya quedó guardado: si falla solo el widget, se dice así.
+    try {
+      await guardarWidget(usuario, c.id, wid)
+      onListo(null)
+    } catch (err) {
+      onListo(`"${c.id}" se guardó, pero no cómo se ve. ${mensajeError(err, 'tablero')}`)
     }
   }
 
@@ -140,6 +203,51 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
                  placeholder="DHT sensor library de Adafruit (DHT.h)" />
         </label>
       )}
+
+      <h3 className="seccion">Cómo se ve en Mi placa</h3>
+      <VistaPrevia tipo={f.tipo} nombre={f.nombre.trim() || f.id.trim() || (esSalida ? 'Salida' : 'Entrada')}
+                   unidad={f.unidad.trim()} valor={placa.estado[f.id.trim()]}
+                   w={{ ...armarWidget(), min: numeroONull(w.min) ?? 0, max: numeroONull(w.max) ?? 100, icono: w.icono || null }} />
+
+      <div className="dos-columnas">
+        <label>
+          Forma
+          <select value={widget} onChange={ev => setW({ ...w, widget: ev.target.value })}>
+            {opciones.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+          </select>
+        </label>
+        <label>
+          Ícono
+          <select value={w.icono} onChange={ev => setW({ ...w, icono: ev.target.value })}>
+            <option value="">Ninguno</option>
+            {ICONOS.map(i => <option key={i} value={i}>{i}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {conEscala && (
+        <div className="dos-columnas">
+          <label>
+            Mínimo de la escala
+            <input value={w.min} onChange={ev => setW({ ...w, min: ev.target.value })} type="number" step="any" />
+          </label>
+          <label>
+            Máximo de la escala
+            <input value={w.max} onChange={ev => setW({ ...w, max: ev.target.value })} type="number" step="any" />
+          </label>
+        </div>
+      )}
+
+      <div className="etiqueta-campo">
+        Color
+        <div className="colores" role="radiogroup" aria-label="Color">
+          {COLORES.map(c => (
+            <button key={c} type="button" role="radio" aria-checked={w.color === c} aria-label={c} title={c}
+                    className={'color' + (w.color === c ? ' activo' : '')} style={{ '--c': `var(--${c})` }}
+                    onClick={() => setW({ ...w, color: c })} />
+          ))}
+        </div>
+      </div>
 
       {error && <p className="error">{error}</p>}
 
@@ -257,6 +365,93 @@ function FormRegla({ usuario, salida, entradas, inicial, onListo, onCancelar }) 
 }
 
 // ===================================================================
+//  Formulario de alerta
+// ===================================================================
+
+function FormAlerta({ usuario, entrada, inicial, onListo, onCancelar }) {
+  const [f, setF] = useState({
+    condicion: inicial?.condicion || '>',
+    umbral: inicial?.umbral ?? '',
+    hist: inicial?.hist ?? 1,
+  })
+  const [error, setError] = useState(null)
+  const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
+  const nombre = entrada.nombre || entrada.id
+
+  async function enviar(ev) {
+    ev.preventDefault()
+    const a = { entrada: entrada.id, condicion: f.condicion, umbral: numeroONull(f.umbral), hist: numeroONull(f.hist) }
+    const e = errorAlerta(a)
+    if (e) { setError(e); return }
+    try {
+      await guardarAlerta(usuario, a)
+      onListo(null)
+    } catch (err) {
+      setError(mensajeError(err, 'alertas'))
+    }
+  }
+
+  async function borrar() {
+    if (!window.confirm(`¿Borrar la alerta de "${entrada.id}"?`)) return
+    try {
+      await borrarAlerta(usuario, entrada.id)
+      onListo(null)
+    } catch (err) {
+      setError(mensajeError(err))
+    }
+  }
+
+  const u = Number(f.umbral), h = Number(f.hist)
+  const completa = f.umbral !== '' && f.hist !== ''
+  const fin = f.condicion === '>' ? `baja de ${u - h}` : `supera ${u + h}`
+
+  return (
+    <form className="tarjeta" onSubmit={enviar}>
+      <h2>Alerta de "{nombre}"</h2>
+      <p className="ayuda">
+        Te avisa con un sonido, una notificación y una tarjeta roja en Mi placa. La
+        revisa el portal (o la app) mientras está abierto: con todo cerrado no llega.
+        No prende ni apaga nada; para eso están las reglas de las salidas.
+      </p>
+
+      <div className="dos-columnas">
+        <label>
+          Avisar si {entrada.id}
+          <select value={f.condicion} onChange={campo('condicion')}>
+            <option value=">">supera el umbral</option>
+            <option value="<">baja del umbral</option>
+          </select>
+        </label>
+        <label>
+          Umbral{entrada.unidad ? ` (${entrada.unidad})` : ''}
+          <input value={f.umbral} onChange={campo('umbral')} type="number" step="any" required />
+        </label>
+      </div>
+
+      <label>
+        Histéresis
+        <input value={f.hist} onChange={campo('hist')} type="number" step="any" min={0} required />
+      </label>
+
+      {completa && (
+        <p className="ayuda">
+          Avisa cuando {entrada.id} {f.condicion === '>' ? 'supera' : 'baja de'} {u}, y la alerta
+          termina recién cuando {fin}. Así un valor que ronda el umbral no avisa una y otra vez.
+        </p>
+      )}
+
+      {error && <p className="error">{error}</p>}
+
+      <div className="acciones">
+        {inicial && <button type="button" className="peligro" onClick={borrar}>Borrar alerta</button>}
+        <button type="button" onClick={onCancelar}>Cancelar</button>
+        <button className="principal">Guardar</button>
+      </div>
+    </form>
+  )
+}
+
+// ===================================================================
 //  Pulsador de modo
 // ===================================================================
 
@@ -316,6 +511,23 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
   const entradas = canales.filter(c => c.tipo === 'entrada')
   const salidas = canales.filter(c => c.tipo === 'salida')
   const reglaDe = Object.fromEntries(reglas.map(g => [g.salida, g]))
+  const alertaDe = Object.fromEntries(placa.alertas.map(a => [a.entrada, a]))
+
+  async function mover(id, paso) {
+    try {
+      await moverCanal(usuario, canales, id, paso)
+    } catch (err) {
+      setMensaje(mensajeError(err))
+    }
+  }
+
+  // ↑ ↓ para ordenar cómo aparecen en Mi placa.
+  const flechas = (lista, i) => (
+    <span className="flechas">
+      <button className="chico" aria-label="Subir" disabled={i === 0} onClick={() => mover(lista[i].id, -1)}>↑</button>
+      <button className="chico" aria-label="Bajar" disabled={i === lista.length - 1} onClick={() => mover(lista[i].id, 1)}>↓</button>
+    </span>
+  )
 
   function listo(texto) {
     setEditando(null)
@@ -344,6 +556,11 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
                       inicial={reglaDe[editando.salida]} onListo={listo} onCancelar={() => setEditando(null)} />
   }
 
+  if (editando?.clase === 'alerta') {
+    return <FormAlerta usuario={usuario} entrada={editando.entrada} inicial={alertaDe[editando.entrada.id]}
+                       onListo={listo} onCancelar={() => setEditando(null)} />
+  }
+
   return (
     <>
       <p className="ayuda">
@@ -363,16 +580,19 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
         </div>
         <p className="ayuda">Lo que tu placa mide o lee y manda como número: un sensor, un botón, un potenciómetro.</p>
         {entradas.length === 0 && <p className="ayuda">Ninguna todavía.</p>}
-        {entradas.map(s => (
+        {entradas.map((s, i) => (
           <div key={s.id} className="fila-canal">
             <div>
               <code>{s.id}</code> {s.nombre || ''}{s.unidad ? ` (${s.unidad})` : ''}
               {(s.conexion || s.pin != null) && (
                 <div className="tenue detalle">{[s.pin != null && `GPIO ${s.pin}`, s.conexion].filter(Boolean).join(' · ')}</div>
               )}
+              {alertaDe[s.id] && <div className="detalle">Alerta: {textoAlerta(alertaDe[s.id], s.unidad)}</div>}
             </div>
             <div className="acciones-fila">
+              {flechas(entradas, i)}
               <button className="chico" onClick={() => setEditando({ clase: 'canal', nuevo: false, inicial: s })}>Editar</button>
+              <button className="chico" onClick={() => setEditando({ clase: 'alerta', entrada: s })}>Alerta</button>
               <button className="chico peligro" onClick={() => borrar(s)}>Borrar</button>
             </div>
           </div>
@@ -389,7 +609,7 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
         </div>
         <p className="ayuda">Lo que tu placa prende y apaga: un relé, un LED, un buzzer.</p>
         {salidas.length === 0 && <p className="ayuda">Ninguna todavía.</p>}
-        {salidas.map(r => {
+        {salidas.map((r, i) => {
           const g = reglaDe[r.id]
           return (
             <div key={r.id} className="fila-canal">
@@ -405,6 +625,7 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
                 </div>
               </div>
               <div className="acciones-fila">
+                {flechas(salidas, i)}
                 <button className="chico" onClick={() => setEditando({ clase: 'canal', nuevo: false, inicial: r })}>Editar</button>
                 <button className="chico" onClick={() => setEditando({ clase: 'regla', salida: r.id })}>Regla</button>
                 <button className="chico peligro" onClick={() => borrar(r)}>Borrar</button>

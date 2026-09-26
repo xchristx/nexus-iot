@@ -3,6 +3,7 @@ import {
   escucharCursos, escucharClase, escucharDesfase, fijarAbierto, borrarAlumno,
   normalizarPlaca, aBinario, mensajeError,
 } from '../firebase.js'
+import { cruza, textoAlerta } from '../alertas.js'
 
 // Lo que el docente mira antes y durante la clase: quién tiene la placa
 // conectada, qué manda y si algo avisa. Todo en vivo.
@@ -140,6 +141,8 @@ function FilaAlumno({ f, ahora, onBorrar }) {
   const viva = estaConectada(p, ahora)
   const entradas = p.canales.filter(c => c.tipo === 'entrada')
   const salidas = p.canales.filter(c => c.tipo === 'salida')
+  // Sin memoria de histéresis: es una foto de ahora. Solo con la placa viva.
+  const alertas = viva ? p.alertas.filter(a => cruza(p.estado[a.entrada], a)) : []
   const valores = [
     ...entradas.map(c => typeof p.estado[c.id] === 'number' ? `${c.id} ${Number(p.estado[c.id]).toFixed(1)}` : `${c.id} —`),
     ...salidas.map(c => `${c.id} ${aBinario(p.estado[c.id]) === 1 ? 'ON' : aBinario(p.estado[c.id]) === 0 ? 'OFF' : '—'}`),
@@ -156,6 +159,9 @@ function FilaAlumno({ f, ahora, onBorrar }) {
           {p.auto && ' · modo automático'}
         </div>
         {!nunca && valores.length > 0 && <div className="detalle">{valores.join(' · ')}</div>}
+        {alertas.map(a => (
+          <div key={a.entrada} className="detalle alerta-docente">⚠ alerta: {a.entrada} {textoAlerta(a)}</div>
+        ))}
         {typeof p.estado.aviso === 'string' && p.estado.aviso && <div className="detalle aviso">{p.estado.aviso}</div>}
       </div>
       <div className="acciones-fila">

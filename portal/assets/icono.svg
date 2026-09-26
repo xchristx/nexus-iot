@@ -1,0 +1,16 @@
+<!-- Ícono de la app Android. De acá salen los PNG de esta carpeta:
+     node generar-iconos.mjs && npx capacitor-assets generate --android -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <g fill="none" stroke="#4ade80" stroke-width="34" stroke-linecap="round">
+    <line x1="512" y1="512" x2="512" y2="300"/>
+    <line x1="512" y1="512" x2="328" y2="618"/>
+    <line x1="512" y1="512" x2="696" y2="618"/>
+  </g>
+  <g fill="#4ade80">
+    <circle cx="512" cy="512" r="86"/>
+    <circle cx="512" cy="282" r="50"/>
+    <circle cx="312" cy="628" r="50"/>
+    <circle cx="712" cy="628" r="50"/>
+  </g>
+  <circle cx="512" cy="512" r="36" fill="#0f1115"/>
+</svg>

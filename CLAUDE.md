@@ -15,9 +15,11 @@ que andar sin que él toque código.
 Historia: Adafruit IO (30 datos/min para toda la cuenta) → Supabase con HTTP y
 polling (v1–v3, hasta 10 s de demora) → **v4: Firebase, en tiempo real**.
 
-**Estado (2026-09-24):** v4 implementada y verificada local (emuladores + placa
-simulada + navegador + compilación). Todavía nadie la usó contra un Firebase real
-ni con una placa. Pedidos que la motivaron:
+**Estado (2026-09-25):** v5 implementada y verificada local. v5 = **tablero
+personalizable** (widget por canal), **alertas en entradas** y **app Android propia**
+(el portal empaquetado con Capacitor, `portal/android/`), porque muchos alumnos no
+van a tener tiempo de hacer la app en Kodular. Todavía nadie la usó contra un
+Firebase real ni con una placa. Pedidos que motivaron v4:
 
 - **Tiempo real** en vez de cada 5 s.
 - **Control local**: un pulsador por salida (alterna) y un **pulsador de modo**.
@@ -43,6 +45,11 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
 | `firebase/LEEME.md` | Puesta en marcha en Firebase, recetas del docente, límites, emuladores |
 | `portal/` | React + Vite, para Netlify. `src/firebase.js` (toda la capa de datos), `src/validar.js`, `src/pantallas/` (Entrar, MiPlaca, Configurar, MisDatos, Clase = docente) |
+| `portal/src/componentes/widgets.jsx` | Widgets (número, medidor, barra, indicador; interruptor, botón grande), íconos SVG, `widgetDe` (valores por defecto) |
+| `portal/src/alertas.js`, `avisar.js` | Evaluación de alertas con histéresis (`useAlertas`, `cruza` para el docente); pitido y notificación web o nativa |
+| `portal/android/`, `capacitor.config.json`, `ANDROID.md` | App Android (Capacitor 7). `ANDROID.md`: compilar, firmar, Play Store (prueba interna), emuladores |
+| `portal/public/sw.js`, `privacidad.html` | Service worker mínimo (solo notificaciones en Chrome Android) y la política de privacidad que pide Play |
+| `portal/assets/` | `icono.svg` → PNG (`generar-iconos.mjs`) → `npx capacitor-assets generate --android` |
 | `portal/src/prompt.js` | Genera el prompt del firmware con el hardware del alumno. **Única fuente** de `PROMPT.md` (`cd portal && npm run prompt`) |
 | `portal/src/plantilla-ejemplo.js` | Kit de ejemplo; solo para `PROMPT.md`. Igual a `plantilla-kit-ejemplo.json` y a las tablas de `main.cpp` |
 | `src/main.cpp` | Firmware de referencia (PlatformIO, FirebaseClient 2.2.13). Tablas de entradas y salidas (con pulsador), reglas, modo |
@@ -67,6 +74,9 @@ que haga falta, y no los cites:
 - `portal/.env` — hoy todavía tiene las variables VIEJAS de Supabase; hay que
   cambiarlas por las `VITE_FIREBASE_*` (ver `portal/.env.example`).
 - `kodular/google-services.json` y `kodular/NexusIoT_curso.aia`.
+- `portal/android/keystore.properties`, `*.jks`, `*.apk`, `*.aab`: la firma de la app
+  y lo compilado (el APK lleva adentro las `VITE_FIREBASE_*` del `.env`).
+- `portal/android/app/src/main/assets/public`: copia del build web (gitignore de Capacitor).
 
 ⚠️ El commit `1223146` ("labels renombrados", ya pusheado) tiene su contraseña de
 WiFi real en `src/main.cpp`. Se le avisó el 2026-09-24; reescribir el historial
@@ -89,7 +99,16 @@ placas/{usuario}/
   control/reglas/{salida} {entrada, condicion >|<, umbral, hist}
   control/cmd/{salida}   1|0 (o texto); la placa lo aplica y lo BORRA
   estado/{id}            número o 0/1; estado/visto (timestamp servidor); estado/aviso (texto)
+  tablero/{id}           {widget, color, icono, min, max}  solo portal/app (v5)
+  alertas/{entrada}      {condicion >|<, umbral, hist}     solo portal/app (v5)
 ```
+
+- `tablero` y `alertas` están **fuera de `config` a propósito**: la placa, el prompt y
+  Kodular no los leen, así que se cambian sin tocar el contrato con ellos. Widgets
+  de entrada `numero|medidor|barra|indicador`, de salida `interruptor|boton`; colores
+  `verde|azul|ambar|rojo|violeta|gris` (en las reglas y en `COLORES` de widgets.jsx).
+  La plantilla del curso puede traer `tablero` (mapa) y `alertas` (lista); el alta
+  descarta lo que nombre un canal inexistente. `borrarCanal` borra también ambos.
 
 - **Usuario** = `curso.toLowerCase() + '-' + nombre normalizado` (sin tildes,
   minúsculas, espacios→`_`): `iot2026-ana_perez`. **Correo** = usuario +
@@ -138,6 +157,13 @@ placas/{usuario}/
 9. **La ruta en Kodular se arma con el usuario tipeado**, no con el uid de
    `LoginSuccess` (no se pudo verificar el nombre de ese parámetro).
 10. Historial y gráficos: **pospuestos** (`placas/{u}/lecturas`, 1/min, borrar > 24 h).
+11. **Alertas evaluadas en el cliente** (portal/app), sin push: solo avisan con el
+    portal o la app abiertos o recién minimizados. El usuario lo eligió así
+    (2026-09-25). Descartadas por ahora: la placa manda push por Expo Push, una
+    Netlify Function programada, Cloud Functions (Blaze).
+12. **App Android = el portal con Capacitor** (no Expo/React Native: habría que
+    reescribir la interfaz). Reparto: Play Store, prueba interna (el usuario tiene
+    cuenta de desarrollador); plan B, un `.apk` en una release. Link en `VITE_URL_APK`.
 
 Presupuesto: Spark gratis. Techo real = **100 conexiones simultáneas** (~3 por
 alumno: placa, app, portal). Descarga estimada 1,5–3 GB/mes de 10. RTDB no se
@@ -169,7 +195,7 @@ ESP32 + Firebase (`KPSP-28P23W00645/KPSP_NSC_DOORBELL-32`).
 ## Si cambia el contrato
 
 Tocar juntos: `firebase/database.rules.json` (+ `npm test`), `portal/src/firebase.js`
-y pantallas, `portal/src/prompt.js` (+ `npm run prompt`), `src/main.cpp` (+ `.ino` y
+y pantallas (+ recompilar y repartir la app Android), `portal/src/prompt.js` (+ `npm run prompt`), `src/main.cpp` (+ `.ino` y
 zip), `firebase/pruebas/simular-placa.mjs`, `kodular/generar-aia.mjs` y `GUIA.md`
 (+ `node kodular/generar-aia.mjs`), y los `LEEME`. Si la placa suma una clave a
 `estado` que no es entrada ni salida, va en `RESERVADOS` (firebase.js), en las
@@ -187,7 +213,7 @@ el 5.1 escribe las rutas con `\`):
 - **Java**: la máquina tiene Java 8; firebase-tools pide 21. Se usó un JDK 21
   portable (Adoptium zip) en el scratchpad, con `JAVA_HOME` y `PATH` en formato
   `/c/...` (con `C:/` los dos puntos rompen el PATH de bash).
-- **Reglas**: `cd firebase && npm test` (o `npx firebase emulators:start --project
+- **Reglas**: 26 pruebas. `cd firebase && npm test` (o `npx firebase emulators:start --project
   demo-nexus` en segundo plano y `node --test pruebas/`).
 - **Sembrar el emulador**: `curl` con `Authorization: Bearer owner` contra
   `http://127.0.0.1:9000/<ruta>.json?ns=demo-nexus-default-rtdb`; usuarios con
@@ -203,6 +229,18 @@ el 5.1 escribe las rutas con `\`):
   / `m` por stdin. 27 chequeos pasaron (alta, errores, plantilla, validación de
   GPIO, comando en ~50 ms, AUTO bloquea, pulsadores, prompt sin contraseña,
   docente).
+- **v5 en el navegador**: 33 chequeos (widgets, vista previa, min ≥ max, orden ↑↓,
+  alerta con histéresis y "Entendido", botón grande con pendiente y AUTO, docente
+  ve la alerta, borrar limpia tablero/alertas). En vez de la placa simulada se
+  escribió `estado` directo por REST (con `visto: {".sv":"timestamp"}`) para
+  controlar los valores.
+- **App Android**: la máquina tiene Android Studio (JDK 25 en `jbr`, sirve para
+  Gradle) y SDK 35/36 con un AVD `Medium_Phone`, **que suele estar abierto** (no
+  lanzar otro: falla). Build con emuladores (ver ANDROID.md), `adb install`,
+  `adb reverse` 9000 y 9099, `pm grant ... POST_NOTIFICATIONS`, y Playwright con
+  `connectOverCDP` tras `adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>`
+  (el pid sale de `/proc/net/unix`). La notificación se verifica con
+  `dumpsys notification --noredact`; capturas con `adb exec-out screencap -p`.
 - **Firmware**: `~/.platformio/penv/Scripts/pio.exe run`, y el `.ino` con
   `pio ci --project-conf platformio.ini arduino/NexusIoT/NexusIoT.ino`.
 
@@ -216,6 +254,12 @@ el 5.1 escribe las rutas con `\`):
 - `vite preview` escucha en `localhost` (IPv6), no en `127.0.0.1`.
 - Playwright `getByRole({name})` busca por substring ("DESACTIVADO" contiene
   "ACTIVADO"): usá `exact: true`.
+- **Node 20**: Capacitor 8 pide Node 22, por eso se usa Capacitor 7.
+- **Un plugin de Capacitor no se puede devolver desde un `.then()`** ni un `async`:
+  es un proxy que responde a `then` ("LocalNotifications.then() is not
+  implemented"). Se devuelve el módulo (`avisar.js`).
+- En `node -e` con `s.replace(a, b)`, un `$'` o `$&` en `b` se interpreta: usá
+  `replace(a, () => b)`. Y en XML de Android, `--` no puede ir en un comentario.
 - Un `max` en un `<input type=number>` hace que el navegador bloquee el submit con
   su propio aviso antes de nuestras validaciones: en los GPIO no se usa.
 
@@ -228,3 +272,5 @@ el 5.1 escribe las rutas con `\`):
   cambiar `ProjectPath` por bloques re-engancha el listener (por las dudas, al
   entrar se piden los valores con `GetTagList`/`GetValue`).
 - El prompt (`PROMPT.md`) en dos IA distintas, compilando lo que salga sin retocar.
+- La app Android en un celular real, desde Play Store (prueba interna), contra el
+  Firebase real; y cuánto sigue llegando la notificación minimizada.

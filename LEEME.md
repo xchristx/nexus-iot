@@ -16,6 +16,7 @@ y salidas, y las reglas de su modo automático), y el docente ve toda la clase.
 |---|---|---|
 | `firebase/` | Reglas de la base, curso y kit de ejemplo, pruebas y una placa simulada | el docente, una vez |
 | `portal/` | Portal React que se publica en Netlify | el alumno, para entrar, configurar y ver su placa; el docente, para ver la clase |
+| `portal/android/` | El mismo portal como app Android (Capacitor), con notificaciones: ver [portal/ANDROID.md](portal/ANDROID.md) | el alumno que no arma su app en Kodular |
 | `src/`, `arduino/` | Firmware de referencia del ESP32 | el alumno que se traba |
 | `PROMPT.md` | Prompt para generar el firmware con IA | el alumno que lo genera |
 | `kodular/` | Proyecto Kodular (`.aia`) con los bloques para leer y comandar, y su guía | el alumno, como base de su app |
@@ -36,7 +37,12 @@ placas/<usuario>/
                reglas   una por salida: {entrada, condicion, umbral, hist}
                cmd      {salida: 1|0}; la placa lo aplica y lo borra
   estado/    lo que escribe la placa: los valores, "visto" (latido) y "aviso"
+  tablero/   cómo se ve cada entrada y salida en el portal: {widget, color, icono, min, max}
+  alertas/   una por entrada: {condicion, umbral, hist}; avisan, no prenden nada
 ```
+
+`tablero` y `alertas` los usan solo el portal y la app Android: la placa, el
+prompt y la app Kodular no los leen, así que se pueden cambiar sin tocar el firmware.
 
 **Una cuenta por alumno**, que usan el portal, la placa y la app. El alumno se da
 de alta con el código del curso, su nombre y una contraseña; su usuario es el
@@ -44,6 +50,19 @@ curso más su nombre sin tildes: `iot2026-ana_perez`. Firebase pide un correo, a
 que por dentro es `iot2026-ana_perez@nexus-iot.example.com`, un correo que no
 existe ni recibe mails. Las reglas de la base solo dejan a cada alumno leer y
 escribir su propia rama.
+
+### Tablero y alertas
+
+Muchos alumnos no llegan a armar su app en Kodular y se quedan con el portal. Para
+que igual sea "su" tablero, en **Configurar** cada entrada elige cómo se ve
+(**número**, **medidor**, **barra** o **indicador** para 0/1) y cada salida,
+**interruptor ON/OFF** o **botón grande**; con color, ícono y orden (↑ ↓).
+
+Cada entrada puede tener una **alerta**: "avisar si `t` supera 35", con histéresis
+como las reglas. Al cruzarse, Mi placa muestra una tarjeta roja, pinta el widget,
+suena un pitido y llega una notificación (del navegador o nativa en la app
+Android). El docente ve "⚠ alerta" en la fila del alumno. **Solo avisa con el
+portal o la app abiertos**: ver Decisiones.
 
 ### Modo automático y control local
 
@@ -67,7 +86,9 @@ escribir su propia rama.
    nunca va en el prompt.
 4. Flashea la placa. **Mi placa** muestra en vivo si está conectada, sus valores,
    sus avisos y si manda algo que no declaró (con un botón para agregarlo).
-5. Importa el `.aia` en Kodular, compila el APK y entra con el mismo usuario.
+5. Importa el `.aia` en Kodular, compila el APK y entra con el mismo usuario. O,
+   si no le da el tiempo, usa el portal o la app Android de Nexus IoT, que hacen lo
+   mismo, y personaliza su tablero en Configurar.
 
 ## Puesta en marcha (una sola vez)
 
@@ -146,6 +167,18 @@ sin explicar). La placa no puede recibir un mensaje de error de la base: si algo
 no llega, el portal muestra qué declaraste que la placa no manda, y la placa avisa
 en "aviso" cuando ignora un comando.
 
+**Las alertas las evalúa el portal (o la app), no un servidor.** Por eso solo
+avisan con el portal o la app abiertos, o recién minimizados. Mandar un aviso con
+todo cerrado necesita a alguien despierto que lo mande, y se descartaron las tres
+opciones: Cloud Functions (pide el plan Blaze, con tarjeta), que la placa mande un
+push por Expo Push (otra cosa más que la IA tiene que meter en el firmware) y una
+Netlify Function programada cada minuto (una clave de administrador de Firebase en
+Netlify). Cualquiera de las tres se puede sumar después sin cambiar el modelo.
+
+**La app Android es el portal empaquetado con Capacitor**, no una segunda app: una
+sola interfaz, y cada arreglo llega a las dos. Se descartó React Native / Expo porque
+obligaba a reescribir todas las pantallas.
+
 ## Costos
 
 Todo entra en planes gratuitos (Firebase Spark y Netlify). El detalle de los
@@ -203,6 +236,7 @@ Hay que tocar juntos:
 3. `portal/src/prompt.js` → y regenerar `PROMPT.md` con `cd portal && npm run prompt`
 4. `src/main.cpp` → y regenerar el `.ino` y el zip
 5. `firebase/pruebas/simular-placa.mjs`
+   (y la app Android: `cd portal && npm run android`, recompilar y repartir)
 6. `kodular/generar-aia.mjs` y `kodular/GUIA.md` → y regenerar los `.aia`
 
 El dominio de los correos (`@nexus-iot.example.com`) está en las reglas, el portal,
@@ -214,9 +248,11 @@ sale `PROMPT.md`) y las tablas de `src/main.cpp`.
 
 ## Lo que falta probar en el mundo real
 
-Verificado: las reglas de la base con 21 pruebas contra el emulador; el portal
+Verificado: las reglas de la base con 26 pruebas contra el emulador; el portal
 recorrido en un navegador contra los emuladores, con una placa simulada (alta,
-configurar, comandos, modo automático, pulsadores, vista del docente); el firmware
+configurar, comandos, modo automático, pulsadores, vista del docente, widgets y
+alertas con histéresis); la app Android en un emulador de Android contra los de
+Firebase (alta, tiempo real, alerta con notificación nativa, comandos); el firmware
 compilado en PlatformIO y como `.ino`; el `.aia` leído por `aia-kit`. Lo que no se
 puede probar desde ahí:
 
@@ -228,3 +264,7 @@ puede probar desde ahí:
   nuevo (`KodularFirebaseDatabase`, de código cerrado). La placa y las reglas
   aceptan número, booleano o texto, pero hay que verlo.
 - **El prompt en dos IA distintas**, compilando lo que salga sin retocarlo.
+- **La app Android en un celular** contra el Firebase real, instalada desde la
+  prueba interna de Play Store: login, tiempo real, y hasta cuándo sigue llegando
+  la notificación con la app minimizada (cada fabricante corta el segundo plano
+  distinto).

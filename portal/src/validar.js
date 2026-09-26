@@ -71,3 +71,17 @@ export function errorRegla(g) {
   if (!Number.isFinite(g.hist) || g.hist < 0) return 'La histéresis tiene que ser un número mayor o igual a 0.'
   return null
 }
+
+export function errorAlerta(a) {
+  if (!Number.isFinite(a.umbral)) return 'El umbral tiene que ser un número.'
+  if (!Number.isFinite(a.hist) || a.hist < 0) return 'La histéresis tiene que ser un número mayor o igual a 0.'
+  return null
+}
+
+// El medidor y la barra necesitan saber de dónde a dónde va la escala.
+export function errorWidget(w) {
+  if (w.widget !== 'medidor' && w.widget !== 'barra') return null
+  if (!Number.isFinite(w.min) || !Number.isFinite(w.max)) return 'Completá el mínimo y el máximo de la escala.'
+  if (w.min >= w.max) return 'El mínimo tiene que ser menor que el máximo.'
+  return null
+}

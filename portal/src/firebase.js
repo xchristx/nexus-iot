@@ -11,8 +11,9 @@
 // pide Firebase Auth. El usuario es también la clave de su placa en la base.
 
 import { initializeApp } from 'firebase/app'
+import { Capacitor } from '@capacitor/core'
 import {
-  getAuth, connectAuthEmulator, onAuthStateChanged,
+  getAuth, initializeAuth, indexedDBLocalPersistence, connectAuthEmulator, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
 } from 'firebase/auth'
 import {
@@ -42,7 +43,12 @@ export const RESERVADOS = ['visto', 'aviso', 'auto', 'cmd', 'reglas']
 let auth, db
 if (configurado) {
   const app = initializeApp(firebaseConfig)
-  auth = getAuth(app)
+  // En la app Android (Capacitor), getAuth carga el iframe de inicio con
+  // redirección, que dentro del WebView puede no terminar nunca. Solo usamos
+  // correo y contraseña, así que alcanza con guardar la sesión en IndexedDB.
+  auth = Capacitor.isNativePlatform()
+    ? initializeAuth(app, { persistence: indexedDBLocalPersistence })
+    : getAuth(app)
   db = getDatabase(app)
   if (env.VITE_USAR_EMULADOR) {
     connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
@@ -75,7 +81,9 @@ export const usuarioDeCorreo = (correo) =>
 //  Errores: lo que ve el alumno
 // ===================================================================
 
-export function mensajeError(e) {
+// `rama`: si el rechazo es al escribir tablero/ o alertas/ (v5), lo más probable
+// es que el proyecto tenga publicadas las reglas de antes, que no las conocen.
+export function mensajeError(e, rama) {
   const codigo = e?.code || ''
   if (codigo.includes('network-request-failed')) return 'No se pudo conectar. Revisá tu internet.'
   if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found') || codigo.includes('invalid-login'))
@@ -84,8 +92,11 @@ export function mensajeError(e) {
   if (codigo.includes('weak-password')) return 'La contraseña tiene que tener al menos 6 caracteres.'
   if (codigo.includes('invalid-email')) return 'Ese nombre no sirve para crear una cuenta: usá letras y números.'
   if (codigo.includes('user-disabled')) return 'Tu cuenta está deshabilitada. Hablá con el docente.'
-  if (/permission.denied|PERMISSION_DENIED/i.test(codigo + ' ' + (e?.message || '')))
+  if (/permission.denied|PERMISSION_DENIED/i.test(codigo + ' ' + (e?.message || ''))) {
+    if (rama) return `Firebase no acepta "${rama}": seguramente el proyecto tiene publicadas reglas viejas. ` +
+      'Avisale al docente que publique de nuevo firebase/database.rules.json (Realtime Database → Reglas).'
     return 'Firebase rechazó el cambio: algún dato no cumple las reglas.'
+  }
   return e?.message || String(e)
 }
 
@@ -136,7 +147,19 @@ function placaDesdePlantilla(p) {
   for (const g of lista(p?.reglas)) {
     reglas[g.salida] = { entrada: g.entrada, condicion: g.condicion, umbral: g.umbral, hist: g.hist ?? 1 }
   }
-  return { config, control: { auto: false, reglas } }
+  // Cómo se ve cada canal y las alertas: solo los usan el portal y la app.
+  // Lo que nombra un canal que el kit no tiene se descarta: las reglas de la
+  // base rechazarían el alta entera por eso.
+  const existe = (id) => config.entradas[id] || config.salidas[id]
+  const tablero = {}
+  for (const [id, w] of Object.entries(p?.tablero || {})) {
+    if (existe(id) && w) tablero[id] = sinVacios(w)
+  }
+  const alertas = {}
+  for (const a of lista(p?.alertas)) {
+    if (config.entradas[a.entrada]) alertas[a.entrada] = { condicion: a.condicion, umbral: a.umbral, hist: a.hist ?? 1 }
+  }
+  return { config, control: { auto: false, reglas }, tablero, alertas }
 }
 
 // Crear la cuenta. Si ya existe con esa contraseña y le falta el alta (el
@@ -235,6 +258,8 @@ export function aBinario(v) {
 // De la forma de la base a la que usan las pantallas:
 //   canales  [{id, tipo, nombre, pin, ...}] ordenados, entradas primero
 //   reglas   [{salida, entrada, condicion, umbral, hist}]
+//   tablero  {id: {widget, color, icono, min, max}}  (lo que falta lo completa widgets.jsx)
+//   alertas  [{entrada, condicion, umbral, hist}]
 export function normalizarPlaca(p) {
   const config = p?.config || {}
   const control = p?.control || {}
@@ -250,6 +275,8 @@ export function normalizarPlaca(p) {
     auto: aBool(control.auto),
     cmd: control.cmd || {},
     estado: p?.estado || {},
+    tablero: p?.tablero || {},
+    alertas: Object.entries(p?.alertas || {}).map(([entrada, a]) => ({ ...a, entrada })),
   }
 }
 
@@ -270,7 +297,8 @@ export async function guardarCanal(usuario, canal, orden) {
   await set(placa(usuario, `config/${rama}/${id}`), { ...campos, orden })
 }
 
-// Borra el canal, las reglas que lo usan y un comando que haya quedado.
+// Borra el canal, las reglas que lo usan, un comando que haya quedado, su
+// widget y su alerta.
 export async function borrarCanal(usuario, c, reglas) {
   const cambios = {}
   cambios[`config/${c.tipo === 'salida' ? 'salidas' : 'entradas'}/${c.id}`] = null
@@ -278,8 +306,31 @@ export async function borrarCanal(usuario, c, reglas) {
     if (g.salida === c.id || g.entrada === c.id) cambios[`control/reglas/${g.salida}`] = null
   }
   if (c.tipo === 'salida') cambios[`control/cmd/${c.id}`] = null
+  cambios[`tablero/${c.id}`] = null
+  cambios[`alertas/${c.id}`] = null
   await update(ref(db, 'placas/' + usuario), cambios)
 }
+
+// Mueve un canal un lugar (-1 arriba, +1 abajo) entre los de su tipo, y
+// renumera el orden de todos: así no importa si había dos con el mismo.
+export async function moverCanal(usuario, canales, id, paso) {
+  const c = canales.find(x => x.id === id)
+  const lista = canales.filter(x => x.tipo === c.tipo)
+  const i = lista.indexOf(c), j = i + paso
+  if (j < 0 || j >= lista.length) return
+  ;[lista[i], lista[j]] = [lista[j], lista[i]]
+  const rama = c.tipo === 'salida' ? 'salidas' : 'entradas'
+  // Las entradas van primero: las salidas siguen numerando después.
+  const base = c.tipo === 'salida' ? canales.filter(x => x.tipo === 'entrada').length : 0
+  const cambios = {}
+  lista.forEach((x, k) => { cambios[`config/${rama}/${x.id}/orden`] = base + k })
+  await update(ref(db, 'placas/' + usuario), cambios)
+}
+
+export const guardarWidget = (usuario, id, w) => set(placa(usuario, `tablero/${id}`), w)
+export const guardarAlerta = (usuario, { entrada, condicion, umbral, hist }) =>
+  set(placa(usuario, `alertas/${entrada}`), { condicion, umbral, hist })
+export const borrarAlerta = (usuario, entrada) => remove(placa(usuario, `alertas/${entrada}`))
 
 export async function guardarRegla(usuario, { salida, entrada, condicion, umbral, hist }) {
   await set(placa(usuario, `control/reglas/${salida}`), { entrada, condicion, umbral, hist })

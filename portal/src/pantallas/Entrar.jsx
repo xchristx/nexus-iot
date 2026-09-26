@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { entrar, registrar, entrarDocente, usuarioDe, normalizarNombre } from '../firebase.js'
+import { BajarApp } from '../componentes/comunes.jsx'
 
 export default function Entrar({ onInicio, onFin }) {
   const [docente, setDocente] = useState(false)
@@ -101,6 +102,7 @@ export default function Entrar({ onInicio, onFin }) {
       </button>
 
       <p className="pie"><button type="button" className="enlace" onClick={() => { setDocente(true); setError(null) }}>Soy docente</button></p>
+      <BajarApp />
     </form>
   )
 }

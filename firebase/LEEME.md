@@ -22,7 +22,10 @@ demás. Se hace una sola vez y lleva unos 20 minutos.
      funcionan.
    - Arrancá en **modo bloqueado**.
 3. En la pestaña **Reglas**, borrá lo que hay, pegá el contenido de
-   `database.rules.json` y tocá **Publicar**.
+   `database.rules.json` y tocá **Publicar**. **Cada vez que se actualiza el
+   repo, repetí este paso**: si el portal nuevo escribe algo que las reglas
+   publicadas no conocen (en v5, `tablero` y `alertas`), Firebase lo rechaza con
+   `permission_denied`.
 4. **Compilación → Authentication → Comenzar.** En **Método de acceso**, habilitá
    **Correo electrónico/contraseña** (solo el primer interruptor, sin "vínculo de
    correo electrónico").
@@ -96,6 +99,10 @@ afecta solo a los que se registren después.
 
 Si la plantilla tiene un error (un GPIO inválido, una regla que nombra una entrada
 que no existe), el alta falla y el portal le dice al alumno que avise al docente.
+
+La plantilla también puede traer cómo se ve cada canal (`tablero`, un mapa por id)
+y alertas (`alertas`, una lista), como el kit de ejemplo. Lo que nombre un canal
+que el kit no tiene se ignora.
 
 ## 4. La cuenta del docente
 

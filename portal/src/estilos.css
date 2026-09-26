@@ -14,6 +14,12 @@
   --sobre-acento: #06210f;
   --rojo: #f87171;
   --ambar: #fbbf24;
+
+  /* Colores que el alumno elige para sus widgets (los de database.rules.json). */
+  --verde: #4ade80;
+  --azul: #60a5fa;
+  --violeta: #a78bfa;
+  --gris: #9ca3af;
 }
 
 * { box-sizing: border-box; }
@@ -213,7 +219,7 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
 
 .interruptor { display: flex; gap: 6px; flex: none; }
 .interruptor button { padding: 6px 16px; font-size: 13px; }
-.interruptor .on.activo  { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
+.interruptor .on.activo  { background: var(--c, var(--acento)); border-color: var(--c, var(--acento)); color: var(--sobre-acento); }
 .interruptor .off.activo { background: var(--borde-fuerte); border-color: #4b5261; }
 
 /* Lo que se pidió y la placa todavía no recogió: late, sin mover nada de lugar.
@@ -345,3 +351,116 @@ main.ancho { max-width: 900px; }
 .alumno .punto { display: inline-block; vertical-align: middle; margin-right: 4px; }
 .alumno.viva .punto { background: var(--acento); }
 .detalle.aviso { color: var(--ambar); }
+
+/* --- v5: widgets, alertas y app Android ----------------------------- */
+
+/* Cada widget toma su color de --c, que pone widgets.jsx según lo elegido. */
+.datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--campo);
+  min-width: 0;
+}
+
+.widget-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--tenue);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.widget .icono, .salida-nombre .icono { color: var(--c, var(--tenue)); flex: none; }
+.widget .dato-valor { color: var(--c); }
+.widget.en-alerta { border-color: var(--rojo); box-shadow: 0 0 0 3px rgba(248, 113, 113, .15); }
+
+/* Los que dibujan una escala ocupan dos columnas: con una quedan diminutos. */
+.w-medidor, .w-barra { grid-column: span 2; }
+@media (max-width: 340px) { .w-medidor, .w-barra { grid-column: auto; } }
+
+.medidor { position: relative; width: 100%; max-width: 220px; align-self: center; }
+.medidor svg { display: block; width: 100%; }
+.medidor path { fill: none; stroke-width: 9; stroke-linecap: round; }
+.medidor-fondo { stroke: var(--borde); }
+.medidor-valor { stroke: var(--c); transition: stroke-dasharray .4s ease; }
+.medidor-numero {
+  position: absolute; left: 0; right: 0; top: 52%;
+  text-align: center; font-size: 26px; font-weight: 600; letter-spacing: -0.02em;
+}
+.medidor-numero small, .barra .dato-valor small { font-size: 14px; color: var(--tenue); margin-left: 3px; font-weight: 400; }
+
+.escala { display: flex; justify-content: space-between; width: 100%; font-size: 11px; color: var(--tenue); }
+.medidor .escala { padding: 0 4%; }
+
+.barra { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.barra-fondo { height: 10px; border-radius: 999px; background: var(--borde); overflow: hidden; }
+.barra-valor { height: 100%; background: var(--c); border-radius: 999px; transition: width .4s ease; }
+
+.indicador { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--tenue); margin-top: 4px; }
+.lampara { width: 18px; height: 18px; border-radius: 50%; background: var(--borde-fuerte); }
+.indicador.activo { color: var(--c); }
+.indicador.activo .lampara { background: var(--c); box-shadow: 0 0 12px var(--c); }
+
+@media (prefers-reduced-motion: reduce) {
+  .medidor-valor, .barra-valor { transition: none; }
+}
+
+.salida-nombre { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.salida-nombre .etiqueta, .etiquetas-boton .etiqueta { margin-left: 0; }
+.etiquetas-boton { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Botón grande: todo el ancho, se lee de lejos, se toca sin apuntar. */
+.boton-salida {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  text-align: left;
+  background: var(--campo);
+}
+.boton-salida .icono { color: var(--c); }
+.boton-salida-nombre { font-weight: 600; font-size: 16px; }
+.boton-salida-estado { font-size: 12px; letter-spacing: .05em; color: var(--tenue); }
+.boton-salida.activo { background: var(--c); border-color: var(--c); color: var(--sobre-acento); }
+.boton-salida.activo .icono, .boton-salida.activo .boton-salida-estado { color: var(--sobre-acento); }
+.boton-salida.pendiente { border-color: var(--c); animation: latir 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .boton-salida.pendiente { animation: none; } }
+
+.alerta { border-color: var(--rojo); }
+.alerta h3 { color: var(--rojo); margin-bottom: 8px; }
+.alerta .lista-avisos { list-style: none; padding: 0; color: var(--texto); }
+.alerta li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* Configurar: vista previa del widget y el selector de color. */
+.vista-previa { margin: 4px 0 16px; max-width: 320px; }
+.vista-previa .salida-fila { padding: 12px; border: 1px solid var(--borde); border-radius: 10px; background: var(--campo); }
+.colores { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.color {
+  width: 32px; height: 32px; padding: 0;
+  border-radius: 50%;
+  background: var(--c);
+  border: 2px solid transparent;
+}
+.color.activo { border-color: var(--texto); box-shadow: 0 0 0 2px var(--fondo) inset; }
+.flechas { display: flex; gap: 4px; }
+.flechas button { padding: 5px 8px; }
+
+/* La app Android dibuja debajo de la barra de estado. */
+main { padding-top: max(20px, env(safe-area-inset-top)); }
+
+.descargar-app { display: block; text-align: center; margin-top: 14px; font-size: 14px; color: var(--acento); }
+.seccion { margin: 22px 0 10px; padding-top: 16px; border-top: 1px solid var(--borde); }
+.etiqueta-campo { font-size: 13px; color: var(--tenue); margin-bottom: 16px; }
+.detalle.alerta-docente { color: var(--rojo); }

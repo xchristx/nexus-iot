@@ -18,5 +18,15 @@
   "reglas": [
     {"salida": "vent",  "entrada": "t", "condicion": ">", "umbral": 28, "hist": 1.5},
     {"salida": "bomba", "entrada": "h", "condicion": "<", "umbral": 40, "hist": 1.5}
+  ],
+  "tablero": {
+    "t":     {"widget": "medidor", "min": 0, "max": 50, "color": "ambar", "icono": "termometro"},
+    "h":     {"widget": "barra", "min": 0, "max": 100, "color": "azul", "icono": "gota"},
+    "bomba": {"widget": "boton", "color": "azul", "icono": "gota"},
+    "vent":  {"widget": "interruptor", "color": "violeta", "icono": "ventilador"},
+    "luz":   {"widget": "boton", "color": "ambar", "icono": "foco"}
+  },
+  "alertas": [
+    {"entrada": "t", "condicion": ">", "umbral": 35, "hist": 1}
   ]
 }

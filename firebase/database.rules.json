@@ -93,6 +93,28 @@
           "$otro": { ".validate": false }
         },
 
+        "tablero": {
+          "$id": {
+            ".validate": "newData.hasChildren(['widget']) && ((newData.parent().parent().child('config/entradas').child($id).exists() && newData.child('widget').val().matches(/^(numero|medidor|barra|indicador)$/)) || (newData.parent().parent().child('config/salidas').child($id).exists() && newData.child('widget').val().matches(/^(interruptor|boton)$/))) && (!newData.hasChildren(['min', 'max']) || newData.child('min').val() < newData.child('max').val())",
+            "widget": { ".validate": "newData.isString()" },
+            "color":  { ".validate": "newData.isString() && newData.val().matches(/^(verde|azul|ambar|rojo|violeta|gris)$/)" },
+            "icono":  { ".validate": "newData.isString() && newData.val().matches(/^[a-z_]{1,15}$/)" },
+            "min":    { ".validate": "newData.isNumber()" },
+            "max":    { ".validate": "newData.isNumber()" },
+            "$otro":  { ".validate": false }
+          }
+        },
+
+        "alertas": {
+          "$entrada": {
+            ".validate": "newData.hasChildren(['condicion', 'umbral', 'hist']) && newData.parent().parent().child('config/entradas').child($entrada).exists()",
+            "condicion": { ".validate": "newData.val() === '>' || newData.val() === '<'" },
+            "umbral":    { ".validate": "newData.isNumber()" },
+            "hist":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "$otro":     { ".validate": false }
+          }
+        },
+
         "estado": {
           "$id": {
             ".validate": "($id === 'visto' && newData.isNumber()) || ($id === 'aviso' && newData.isString() && newData.val().length <= 200) || ($id.matches(/^[a-z][a-z0-9_]{0,14}$/) && $id !== 'visto' && $id !== 'aviso' && (newData.isNumber() || newData.isBoolean()))"

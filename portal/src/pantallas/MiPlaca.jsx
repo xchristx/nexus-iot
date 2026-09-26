@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { enviarComando, fijarAuto, escucharDesfase, aBinario, mensajeError, RESERVADOS } from '../firebase.js'
 import { Etiqueta, textoRegla, esBinario } from '../componentes/comunes.jsx'
+import { WidgetEntrada, Interruptor, BotonSalida, Icono, widgetDe } from '../componentes/widgets.jsx'
+import { useAlertas, textoAlerta } from '../alertas.js'
+import { notificar, pitido, permisoAvisos, pedirAvisos, esApp } from '../avisar.js'
 
 // La placa escribe "visto" cada 15 s aunque nada cambie. Pasados 40 s sin
 // noticias, se la da por desconectada.
@@ -17,45 +20,45 @@ function detectados(estado, canales) {
   }
 }
 
-function Dato({ titulo, valor, unidad, children }) {
-  return (
-    <div className="dato">
-      <span className="dato-titulo">{titulo}</span>
-      <span className="dato-valor">{valor}<small>{unidad}</small></span>
-      {children}
-    </div>
-  )
-}
-
-// El botón relleno es lo que la placa informó; el que late es lo que se pidió
-// y la placa todavía no recogió. Así nunca se muestra como hecho algo que no pasó.
-function Interruptor({ valor, pendiente, bloqueado, onCambiar }) {
-  const clase = (v) => [v === 1 ? 'on' : 'off', valor === v && 'activo', pendiente === v && 'pendiente']
-    .filter(Boolean).join(' ')
-  return (
-    <div className="interruptor">
-      <button className={clase(1)} disabled={bloqueado} aria-busy={pendiente === 1} onClick={() => onCambiar(1)}>ON</button>
-      <button className={clase(0)} disabled={bloqueado} aria-busy={pendiente === 0} onClick={() => onCambiar(0)}>OFF</button>
-    </div>
-  )
-}
-
 export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
-  const { canales, reglas, estado, cmd, auto, pulsadorModo } = placa
+  const { canales, reglas, estado, cmd, auto, pulsadorModo, tablero } = placa
   const [desfase, setDesfase] = useState(0)
   const [ahora, setAhora] = useState(Date.now())
   const [aviso, setAviso] = useState(null)
   const [cambiandoModo, setCambiandoModo] = useState(false)
+  const [permiso, setPermiso] = useState(null)
+  const [entendidas, setEntendidas] = useState([])
 
   useEffect(() => escucharDesfase(setDesfase), [])
   useEffect(() => {
     const id = setInterval(() => setAhora(Date.now()), 5000)
     return () => clearInterval(id)
   }, [])
+  useEffect(() => { permisoAvisos().then(setPermiso).catch(() => setPermiso('imposible')) }, [])
 
   const visto = typeof estado.visto === 'number' ? estado.visto : null
   const edad = visto == null ? null : Math.max(0, Math.round((ahora + desfase - visto) / 1000))
   const conectada = edad != null && edad * 1000 <= LATIDO_MAX
+
+  const canalDe = (id) => canales.find(c => c.id === id)
+  const nombreDe = (id) => canalDe(id)?.nombre || id
+  const alertas = useAlertas(placa, conectada, (a, v) => {
+    const c = canalDe(a.entrada)
+    pitido()
+    notificar('alerta-' + a.entrada, 'Alerta: ' + nombreDe(a.entrada),
+      `${nombreDe(a.entrada)} ${textoAlerta(a, c?.unidad)} (ahora ${Number(v).toFixed(1)})`)
+  })
+  const enAlerta = new Set(alertas.map(a => a.entrada))
+  // "Entendido" oculta la tarjeta hasta que la alerta se apague y vuelva.
+  useEffect(() => {
+    setEntendidas(e => e.filter(id => alertas.some(a => a.entrada === id)))
+  }, [alertas])
+  const aMostrar = alertas.filter(a => !entendidas.includes(a.entrada))
+
+  async function activarAvisos() {
+    setPermiso(await pedirAvisos().catch(() => 'no'))
+    pitido()   // de paso, el toque habilita el sonido
+  }
 
   const entradas = canales.filter(c => c.tipo === 'entrada')
   const salidas = canales.filter(c => c.tipo === 'salida')
@@ -97,22 +100,39 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
   function filaSalida({ id, nombre, noDeclarado, regla, pulsador }) {
     const envio = estadoEnvio(id)
     const automatica = auto && Boolean(regla)
+    const w = widgetDe({ id, tipo: 'salida' }, tablero)
+    const control = {
+      valor: aBinario(estado[id]), pendiente: aBinario(cmd[id]), color: w.color,
+      bloqueado: automatica || noDeclarado, onCambiar: v => comandar(id, v),
+    }
+    const etiquetas = (
+      <>
+        {noDeclarado && (
+          <button className="chico" onClick={() => onAgregar({ id, tipo: 'salida' })}>
+            no declarado · agregar
+          </button>
+        )}
+        {automatica && <Etiqueta>automática</Etiqueta>}
+        {envio && <Etiqueta>{envio}</Etiqueta>}
+      </>
+    )
     return (
       <div key={id} className="salida">
-        <div className="salida-fila">
-          <span>
-            {nombre}
-            {noDeclarado && (
-              <button className="chico" onClick={() => onAgregar({ id, tipo: 'salida' })}>
-                no declarado · agregar
-              </button>
-            )}
-            {automatica && <Etiqueta>automática</Etiqueta>}
-            {envio && <Etiqueta>{envio}</Etiqueta>}
-          </span>
-          <Interruptor valor={aBinario(estado[id])} pendiente={aBinario(cmd[id])}
-                       bloqueado={automatica || noDeclarado} onCambiar={v => comandar(id, v)} />
-        </div>
+        {w.widget === 'boton' ? (
+          <>
+            <BotonSalida nombre={nombre} icono={w.icono} {...control} />
+            {(noDeclarado || automatica || envio) && <div className="etiquetas-boton">{etiquetas}</div>}
+          </>
+        ) : (
+          <div className="salida-fila">
+            <span className="salida-nombre">
+              {w.icono && <Icono nombre={w.icono} />}
+              {nombre}
+              {etiquetas}
+            </span>
+            <Interruptor {...control} />
+          </div>
+        )}
         {(regla || pulsador != null) && (
           <div className="regla-linea">
             {regla && <span>Regla: {textoRegla(regla)}</span>}
@@ -137,24 +157,53 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
           <div className={'datos' + (conectada ? '' : ' viejos')}>
             {entradas.map(s => {
               const v = estado[s.id]
-              const hay = typeof v === 'number'
               return (
-                <Dato key={s.id} titulo={s.nombre || s.id}
-                      valor={hay ? Number(v).toFixed(1) : '—'} unidad={hay ? (s.unidad || '') : ''}>
-                  {!hay && <Etiqueta tenue>sin dato</Etiqueta>}
-                </Dato>
+                <WidgetEntrada key={s.id} titulo={s.nombre || s.id} valor={v} unidad={s.unidad || ''}
+                               w={widgetDe(s, tablero)} alerta={enAlerta.has(s.id)}>
+                  {typeof v !== 'number' && <Etiqueta tenue>sin dato</Etiqueta>}
+                </WidgetEntrada>
               )
             })}
             {extra.entradas.map(id => (
-              <Dato key={id} titulo={id} valor={Number(estado[id]).toFixed(1)} unidad="">
+              <WidgetEntrada key={id} titulo={id} valor={estado[id]} unidad=""
+                             w={widgetDe({ id, tipo: 'entrada' }, null)}>
                 <button className="chico" onClick={() => onAgregar({ id, tipo: 'entrada' })}>
                   no declarado · agregar
                 </button>
-              </Dato>
+              </WidgetEntrada>
             ))}
           </div>
         )}
       </div>
+
+      {aMostrar.length > 0 && (
+        <div className="tarjeta alerta" role="alert">
+          <h3>¡Alerta!</h3>
+          <ul className="lista-avisos">
+            {aMostrar.map(a => (
+              <li key={a.entrada}>
+                <span>
+                  {nombreDe(a.entrada)} {textoAlerta(a, canalDe(a.entrada)?.unidad)}: ahora
+                  {' '}<strong>{Number(estado[a.entrada]).toFixed(1)}</strong>
+                </span>
+                <button className="chico" onClick={() => setEntendidas(e => [...e, a.entrada])}>Entendido</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {placa.alertas.length > 0 && permiso === 'preguntar' && (
+        <div className="tarjeta">
+          <div className="salida-fila">
+            <p className="ayuda sin-margen">
+              Tenés alertas configuradas. Activá los avisos para que suenen y te
+              lleguen como notificación mientras {esApp ? 'la app' : 'el portal'} esté abierto.
+            </p>
+            <button className="chico" onClick={activarAvisos}>Activar avisos</button>
+          </div>
+        </div>
+      )}
 
       {typeof estado.aviso === 'string' && estado.aviso && (
         <div className="tarjeta atencion">

@@ -1,0 +1,22 @@
+{
+  "appId": "com.nexusiot.portal",
+  "appName": "Nexus IoT",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#0f1115",
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "plugins": {
+    "StatusBar": {
+      "backgroundColor": "#0f1115",
+      "style": "DARK",
+      "overlaysWebView": false
+    },
+    "LocalNotifications": {
+      "iconColor": "#4ade80"
+    }
+  }
+}
