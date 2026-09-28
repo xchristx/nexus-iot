@@ -60,83 +60,96 @@ las reglas.
 3. Corré `node kodular/generar-aia.mjs`: genera `kodular/NexusIoT_curso.aia` con
    ese archivo adentro y el mismo package. Ese `.aia` es el que se reparte.
 
-## 3. El primer curso
+## 3. La cuenta del docente
 
-En **Realtime Database → Datos**, pasá el mouse sobre la raíz y tocá **+**:
+Es la única cuenta que se crea a mano, y se hace una sola vez. Con ella se entra
+al portal como docente, y desde ahí se crean los cursos y las cuentas de los
+alumnos.
 
-```text
-cursos
-  IOT2026
-    nombre:  "Internet de las Cosas — 2026"
-    abierto: true
-```
+1. **Compilación → Authentication → Usuarios → Agregar usuario.** Poné tu correo
+   (el real, el de todos los días) y una contraseña de al menos 6 caracteres. Tocá
+   **Agregar usuario**.
+2. En la lista aparece tu correo con una columna **UID de usuario** (una cadena
+   larga como `Xk3pQ9…`). Pasá el mouse por encima y tocá el ícono de copiar.
+3. **Compilación → Realtime Database → Datos.** Pasá el mouse sobre la raíz (la
+   primera línea, con la URL de la base) y tocá **+**:
+   - **Clave:** `docentes`, y sin escribir valor tocá el **+** de al lado para
+     agregarle un hijo;
+   - **Clave del hijo:** el UID que copiaste; **valor:** `true` (sin comillas).
+   - **Agregar.** Tiene que quedar así:
 
-El código del curso va en mayúsculas, de 3 a 12 letras o números. Es lo único que
-el docente reparte: con eso, su nombre y una contraseña que eligen ellos, los
-alumnos se dan de alta solos en el portal. `abierto: true` (sin comillas) permite
-altas nuevas; con `false`, los que ya están siguen entrando.
+   ```text
+   docentes
+     Xk3pQ9…: true
+   ```
 
-Otra forma, **solo con la base vacía**: en la raíz, menú `⋮` → **Importar JSON**
-y subí `curso-ejemplo.json` (ya trae la ruta `cursos/IOT2026` adentro). **Ojo:**
-importar reemplaza TODO el nodo donde estás parado; con alumnos adentro, nunca
-importes en la raíz: agregá los cursos nuevos a mano con **+**.
+4. En el portal, **Soy docente** → tu correo y tu contraseña.
+
+Si el portal dice "Esa cuenta no está marcada como docente", el UID de
+`docentes` no es el de tu usuario, o el valor quedó como texto `"true"` en vez
+de `true`. Para sumar otro docente, se repiten los tres pasos con su correo.
+
+## 4. El primer curso y los alumnos
+
+Todo desde el portal, con la cuenta de docente:
+
+1. **Crear el curso:** la primera vez, el portal pide un **código** (de 3 a 12
+   letras o números: `IOT2026`) y un nombre. El código va al principio de cada
+   usuario (`iot2026-ana_perez`).
+2. **Cargar alumnos:** en la tarjeta **Cargar alumnos**, un nombre y apellido por
+   renglón (o una columna pegada de una planilla), y **Crear N cuentas**. A cada
+   uno se le crea una cuenta con una contraseña del estilo `rana-3051`, y
+   arranca con la plantilla del curso, si tiene. Dos alumnos con el mismo nombre
+   quedan como `…_perez` y `…_perez_2`.
+3. **Repartir:** **imprimir tarjetas** (una por alumno, para recortar, con el
+   usuario, la contraseña y la dirección del portal) o **copiar lista** (para
+   pegar en una planilla o un mensaje).
+
+Los alumnos **no se pueden registrar solos**: entran con el usuario y la
+contraseña de su tarjeta, que son los mismos que ponen en la placa y en la app.
+
+Las contraseñas quedan guardadas en `credenciales/`, que **solo lee el docente**
+(las reglas lo impiden a cualquier otro). Es lo que permite volver a verlas y
+cambiarlas desde el portal: Firebase, sin un servidor, no deja que alguien le
+cambie la contraseña a otro.
 
 ### Plantilla: que todos arranquen con el mismo kit (opcional)
 
 Por defecto cada alumno arranca sin entradas, salidas ni reglas. Para que arranquen
-con un kit:
+con un kit, **antes de cargar la lista**:
 
-1. En `cursos/IOT2026`, tocá **+** y creá un hijo `plantilla` con cualquier valor
-   (por ejemplo `0`): la consola solo importa en un nodo que ya existe.
+1. En **Realtime Database → Datos**, abrí `cursos/IOT2026`, tocá **+** y creá un
+   hijo `plantilla` con cualquier valor (por ejemplo `0`): la consola solo
+   importa en un nodo que ya existe.
 2. Hacé clic en `plantilla` para entrar a ese nodo (arriba tiene que decir
    `…/cursos/IOT2026/plantilla`).
 3. Menú `⋮` → **Importar JSON** → `plantilla-kit-ejemplo.json` (o uno tuyo con la
    misma forma). Reemplaza el `0`.
 
-Cada alumno recibe una
-**copia** al darse de alta, y después la cambia como quiere. Cambiar la plantilla
-afecta solo a los que se registren después.
+Cada alumno recibe una **copia** al crearse su cuenta, y después la cambia como
+quiere. Cambiar la plantilla afecta solo a los que se carguen después.
 
 Si la plantilla tiene un error (un GPIO inválido, una regla que nombra una entrada
-que no existe), el alta falla y el portal le dice al alumno que avise al docente.
+que no existe), crear las cuentas falla con un aviso.
 
 La plantilla también puede traer cómo se ve cada canal (`tablero`, un mapa por id)
 y alertas (`alertas`, una lista), como el kit de ejemplo. Lo que nombre un canal
 que el kit no tiene se ignora.
 
-## 4. La cuenta del docente
-
-1. **Authentication → Usuarios → Agregar usuario:** tu correo real y una
-   contraseña.
-2. Copiá el **UID** de ese usuario.
-3. En **Realtime Database → Datos**, agregá en la raíz:
-
-   ```text
-   docentes
-     <el UID>: true
-   ```
-
-En el portal, "Soy docente" entra con ese correo. La pantalla **Clase** muestra a
-todos los alumnos del curso en vivo (placa conectada o no, valores, avisos) y abre
-o cierra la inscripción.
-
 ## 5. Recetas del docente
 
-**Un alumno se olvidó la contraseña.** En **Authentication → Usuarios**, buscá su
-usuario (por ejemplo `iot2026-ana_perez@nexus-iot.example.com`) y borralo. El
-alumno toca **Es mi primera vez** con el mismo nombre y una contraseña nueva:
-conserva todo lo que había configurado. Tiene que cambiarla también en su sketch y
-en su app. (Firebase no deja ponerle una contraseña a otra persona desde la
-consola, y el correo no existe para mandarle un mail de recuperación.)
+**Un alumno se olvidó la contraseña.** En el portal, en su fila, **ver** muestra
+la que tiene, y **Nueva contraseña** le da otra (la vieja deja de andar: la tiene
+que cambiar también en su sketch y en su app). No pierde nada de lo que configuró.
 
-**Borrar a un alumno** (por ejemplo, se anotó con el nombre mal escrito): en el
-portal, **Clase → Borrar** (se lleva su hardware, reglas y datos), y después en
-**Authentication** borrá su usuario.
+**Borrar a un alumno** (se cargó con el nombre mal escrito, dejó el curso): en el
+portal, **Borrar** en su fila. Se lleva su cuenta, su hardware, sus reglas y su
+contraseña. Si el portal avisa que no pudo borrar la cuenta (una creada a mano, o
+de antes de este sistema), borrala en **Authentication → Usuarios**.
 
 **Cortarle el acceso a uno solo:** en **Authentication**, menú `⋮` del usuario →
 **Inhabilitar cuenta**.
 
-**Cerrar las inscripciones:** en el portal, **Clase → Cerrar**.
 
 ## 6. Límites del plan gratuito
 

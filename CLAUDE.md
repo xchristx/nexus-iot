@@ -40,12 +40,14 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | Ruta | Qué es |
 |---|---|
 | `firebase/database.rules.json` | Reglas de RTDB: aislamiento por usuario, docente, validación de forma |
-| `firebase/pruebas/reglas.test.mjs` | 21 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
+| `firebase/pruebas/reglas.test.mjs` | 29 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
 | `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores |
 | `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
 | `firebase/LEEME.md` | Puesta en marcha en Firebase, recetas del docente, límites, emuladores |
 | `portal/` | React + Vite, para Netlify. `src/firebase.js` (toda la capa de datos), `src/validar.js`, `src/pantallas/` (Entrar, MiPlaca, Configurar, MisDatos, Clase = docente) |
 | `portal/src/componentes/widgets.jsx` | Widgets (número, medidor, barra, indicador; interruptor, botón grande), íconos SVG, `widgetDe` (valores por defecto) |
+| `portal/src/tema.js`, `pantallas/Tema.jsx` | Tema local (localStorage `nexus-iot:tema`, NO Firebase): presets, colores, letra, forma, título; `normalizar()` valida todo; `aplicar()` pisa las variables CSS de `<html>`. Pruebas: `portal/pruebas/tema.test.mjs` (`cd portal && npm test`) |
+| `portal/src/cuentas.js`, `nombres.js` | Sin Firebase: contraseñas, lista de altas, usuario a partir del nombre (`nombres.js` lo reexporta `firebase.js`) |
 | `portal/src/alertas.js`, `avisar.js` | Evaluación de alertas con histéresis (`useAlertas`, `cruza` para el docente); pitido y notificación web o nativa |
 | `portal/android/`, `capacitor.config.json`, `ANDROID.md` | App Android (Capacitor 7). `ANDROID.md`: compilar, firmar, Play Store (prueba interna), emuladores |
 | `portal/public/sw.js`, `privacidad.html` | Service worker mínimo (solo notificaciones en Chrome Android) y la política de privacidad que pide Play |
@@ -88,7 +90,8 @@ verificá que sigan con los marcadores.
 ## Modelo de datos (RTDB)
 
 ```text
-cursos/{CODIGO}      {nombre, abierto, plantilla:{entradas[], salidas[], reglas[], pulsador_modo}}
+cursos/{CODIGO}      {nombre, plantilla:{entradas[], salidas[], reglas[], pulsador_modo, tablero, alertas}}
+credenciales/{usuario} {contrasena, creado}   SOLO el docente lee y escribe (v6)
 docentes/{uid}       true        (se crea a mano en la consola)
 alumnos/{usuario}    {curso, nombre, creado}
 placas/{usuario}/
@@ -118,10 +121,16 @@ placas/{usuario}/
 - Una cuenta por alumno, para portal, placa y app. Contraseña ≥ 6 (mínimo de Firebase).
 - Ids `^[a-z][a-z0-9_]{0,14}$`, reservados `visto, aviso, auto, cmd, reglas`. Máx.
   10 entradas y 10 salidas: lo controla el portal (las reglas de RTDB no cuentan hijos).
-- Alta: `registrar()` en `firebase.js` crea la cuenta (o entra si ya existe con esa
-  contraseña), y si falta `alumnos/{usuario}` escribe alta + copia de la plantilla
-  en un solo `update`. Si el alta ya existía (el docente borró la cuenta en Auth
-  por olvido de contraseña) conserva todo.
+- **Alta (v6): la hace el docente**, no el alumno. `crearAlumnos()` en `firebase.js`,
+  con la lista de `prepararLista()` (`cuentas.js`: un nombre por renglón, repetidos
+  → `_2`, `_3`). Por cada uno: guarda `credenciales/{u}` PRIMERO (así un reintento
+  reconoce la cuenta), crea la cuenta en una **segunda instancia de Auth en memoria**
+  (`auxiliar()`, no le cierra la sesión al docente) y escribe `alumnos` + `placas`
+  (copia de la plantilla). `nuevaContrasena()` y `borrarAlumno()` entran como el
+  alumno con la guardada (`comoAlumno()`) para `updatePassword` / `deleteUser`.
+  Contraseñas `palabra-1234` (`generarContrasena`, crypto). El alumno entra con el
+  **usuario** de la tarjeta (no con curso + nombre). El curso se crea desde el
+  portal; `abierto` ya no existe (las reglas lo aceptan por compatibilidad).
 
 ## Firmware (src/main.cpp)
 
@@ -161,6 +170,20 @@ placas/{usuario}/
     portal o la app abiertos o recién minimizados. El usuario lo eligió así
     (2026-09-25). Descartadas por ahora: la placa manda push por Expo Push, una
     Netlify Function programada, Cloud Functions (Blaze).
+14. **Cuentas administradas por el docente** (2026-09-26, pedido del usuario): lista por
+    curso, contraseñas generadas `palabra-1234` **guardadas** en `credenciales/`
+    (solo docente) para reimprimir, regenerar y borrar desde el portal sin la
+    consola. Los alumnos ya no se registran ni cambian su contraseña.
+13. **Tema solo local** (2026-09-26, pedido del usuario): `localStorage`, por
+    dispositivo y no por usuario (la pantalla de entrada también lo usa). Todo el
+    CSS sale de variables: letra en rem (el tamaño base va en `<html>`),
+    `--redondeo`, `--espacio`, `--numero`, `--widget-min`, `--ancho`, `--sombra`,
+    `--degradado`, `--fuente`. Los widgets "ámbar" y "rojo" usan `--ambar-w` y
+    `--rojo-w` (`varColor` en widgets.jsx), separados de avisos y alertas. El texto
+    sobre el acento (`--sobre-acento`) se calcula, no se elige. **Primero se validó
+    en web; falta la app Android**: barras del sistema (hoy fijas en #0f1115 en
+    `styles.xml`) con `@capacitor/status-bar` según el fondo, y confirmar que el
+    WebView conserva el localStorage.
 12. **App Android = el portal con Capacitor** (no Expo/React Native: habría que
     reescribir la interfaz). Reparto: Play Store, prueba interna (el usuario tiene
     cuenta de desarrollador); plan B, un `.apk` en una release. Link en `VITE_URL_APK`.
@@ -241,6 +264,16 @@ el 5.1 escribe las rutas con `\`):
   `connectOverCDP` tras `adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>`
   (el pid sale de `/proc/net/unix`). La notificación se verifica con
   `dumpsys notification --noredact`; capturas con `adb exec-out screencap -p`.
+- **Cuentas en el navegador**: 35 chequeos (crear curso, cargar lista con repetido,
+  inválido y una cuenta vieja de Auth, credenciales y cuentas creadas, sesión del
+  docente intacta, ver, tarjetas al imprimir, login con usuario, nueva contraseña,
+  borrar y volver a cargar). `portal/pruebas/cuentas.test.mjs`: 10 unitarias. Las
+  reglas: 29 pruebas. Lista de cuentas del emulador: `POST
+  .../v1/projects/demo-nexus/accounts:query` con `Bearer owner`.
+- **Tema en el navegador**: 39 chequeos (localStorage roto o con valores inválidos
+  o CSS inyectado, presets, título, colores, contraste, letra, redondeo, degradado,
+  persistencia al recargar, widget con el tono del tema, nada en Firebase, otra
+  pestaña se sincroniza, importar con errores, restablecer, sin scroll horizontal).
 - **Firmware**: `~/.platformio/penv/Scripts/pio.exe run`, y el `.ino` con
   `pio ci --project-conf platformio.ini arduino/NexusIoT/NexusIoT.ino`.
 

@@ -64,6 +64,38 @@ suena un pitido y llega una notificación (del navegador o nativa en la app
 Android). El docente ve "⚠ alerta" en la fila del alumno. **Solo avisa con el
 portal o la app abiertos**: ver Decisiones.
 
+### Cuentas: las crea el docente
+
+Los alumnos no se registran solos. El docente crea el curso y carga la lista de
+nombres desde el portal; cada uno recibe una cuenta con una contraseña generada
+(palabra y número: `rana-3051`) y la plantilla del curso. Desde la misma pantalla
+imprime las tarjetas para repartir, ve la contraseña de cualquiera, le da una
+nueva o lo borra.
+
+Firebase, sin servidor (plan Spark), no deja que alguien cree, cambie o borre la
+cuenta de otro. El portal lo resuelve con una **segunda instancia de Auth en
+memoria**: crea la cuenta, o entra como ese alumno para cambiarle la contraseña o
+borrarla, y sale, sin tocar la sesión del docente. Para poder volver a entrar, la
+contraseña se guarda en `credenciales/{usuario}`, que **solo lee el docente**.
+Es una concesión consciente, igual que la contraseña que va en el sketch: en una
+clase, el peor caso es una broma entre compañeros.
+
+### Tema (solo en el dispositivo)
+
+La pestaña **Tema** cambia cómo se ve todo el portal: seis temas listos (Oscuro,
+Claro, Alto contraste, Océano, Atardecer, Terminal), el título de arriba, los 17
+colores (superficies, texto, acentos y el tono de cada color de widget), fondo con
+degradado, tipo y tamaño de letra, tamaño de los números, redondeo, espaciado,
+ancho de los widgets y de la página, sombras y animaciones. Avisa si una
+combinación se lee poco, y se puede copiar y pegar como JSON para llevarlo a otro
+dispositivo.
+
+Se guarda en `localStorage` (`nexus-iot:tema`), **nunca en Firebase**: es una
+preferencia de quien mira, no un dato de la placa, y no gasta la cuota del plan
+gratuito. Todo lo que se lee pasa por `normalizar()` (`portal/src/tema.js`): un
+valor raro vuelve al de por defecto, así un tema roto o pegado a mano nunca deja el
+portal ilegible ni mete CSS. Las pruebas: `cd portal && npm test`.
+
 ### Modo automático y control local
 
 - **Un solo modo por placa.** Activado: las salidas que tienen regla las maneja
@@ -77,8 +109,9 @@ portal o la app abiertos**: ver Decisiones.
 
 ## Cómo lo usa un alumno
 
-1. Entra al portal con el código del curso, su nombre y una contraseña que elige
-   ("Es mi primera vez").
+1. Recibe una tarjeta del docente con su usuario (`iot2026-ana_perez`) y una
+   contraseña generada (`rana-3051`), y entra al portal con eso. Los alumnos no
+   se registran solos: el docente carga la lista del curso.
 2. Arranca sin nada configurado (salvo que el docente le haya cargado un kit al
    curso), y en **Configurar** declara sus entradas, salidas, pulsadores y reglas.
 3. En **Mis datos** copia su usuario y un prompt ya armado con su hardware, que le
@@ -113,9 +146,8 @@ portal o la app abiertos**: ver Decisiones.
 4. **Repartir:**
 
    ```text
-   1. Entrá a <tu-portal>.netlify.app, tocá "Es mi primera vez" y poné el código
-      IOT2026, tu nombre y una contraseña (al menos 6 caracteres). Anotala: la vas
-      a usar en el portal, en tu placa y en tu app.
+   1. Entrá a <tu-portal>.netlify.app con el usuario y la contraseña de tu
+      tarjeta. Guardala: la vas a usar en el portal, en tu placa y en tu app.
    2. En "Configurar" declará tus entradas (lo que tu placa mide o lee), tus
       salidas (lo que prende y apaga), sus pulsadores y las reglas del modo
       automático.

@@ -13,13 +13,18 @@
 import { initializeApp } from 'firebase/app'
 import { Capacitor } from '@capacitor/core'
 import {
-  getAuth, initializeAuth, indexedDBLocalPersistence, connectAuthEmulator, onAuthStateChanged,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  getAuth, initializeAuth, indexedDBLocalPersistence, inMemoryPersistence, connectAuthEmulator,
+  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  updatePassword, deleteUser,
 } from 'firebase/auth'
 import {
   getDatabase, connectDatabaseEmulator, ref, get, set, update, remove, onValue,
   query, orderByChild, orderByKey, equalTo, startAt, endAt,
 } from 'firebase/database'
+
+import { generarContrasena } from './cuentas.js'
+import { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo } from './nombres.js'
+export { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo }
 
 const env = import.meta.env
 
@@ -32,10 +37,6 @@ export const firebaseConfig = {
 }
 
 export const configurado = Boolean(firebaseConfig.apiKey && firebaseConfig.databaseURL)
-
-// Tiene que ser el mismo dominio que en database.rules.json, en el prompt del
-// firmware y en la app Kodular.
-export const DOMINIO = '@nexus-iot.example.com'
 
 // Ids que la base usa para otra cosa dentro de "estado".
 export const RESERVADOS = ['visto', 'aviso', 'auto', 'cmd', 'reglas']
@@ -57,27 +58,6 @@ if (configurado) {
 }
 
 // ===================================================================
-//  Nombres
-// ===================================================================
-
-// Sin tildes, sin mayúsculas, y los espacios (o cualquier otro signo) como
-// "_": "  Ana   Pérez " y "ana perez" son la misma persona.
-export function normalizarNombre(nombre) {
-  return (nombre || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 40)
-}
-
-export const normalizarCurso = (curso) => (curso || '').trim().toUpperCase()
-export const usuarioDe = (curso, nombre) => normalizarCurso(curso).toLowerCase() + '-' + normalizarNombre(nombre)
-export const correoDe = (usuario) => usuario + DOMINIO
-export const usuarioDeCorreo = (correo) =>
-  correo && correo.toLowerCase().endsWith(DOMINIO) ? correo.toLowerCase().slice(0, -DOMINIO.length) : null
-
-// ===================================================================
 //  Errores: lo que ve el alumno
 // ===================================================================
 
@@ -87,10 +67,10 @@ export function mensajeError(e, rama) {
   const codigo = e?.code || ''
   if (codigo.includes('network-request-failed')) return 'No se pudo conectar. Revisá tu internet.'
   if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found') || codigo.includes('invalid-login'))
-    return 'El nombre o la contraseña no coinciden. Si es tu primera vez, tocá "Es mi primera vez".'
+    return 'El usuario o la contraseña no coinciden. Están en la tarjeta que te dio el docente.'
   if (codigo.includes('too-many-requests')) return 'Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.'
   if (codigo.includes('weak-password')) return 'La contraseña tiene que tener al menos 6 caracteres.'
-  if (codigo.includes('invalid-email')) return 'Ese nombre no sirve para crear una cuenta: usá letras y números.'
+  if (codigo.includes('invalid-email')) return 'Ese usuario no existe: revisá cómo está escrito en tu tarjeta.'
   if (codigo.includes('user-disabled')) return 'Tu cuenta está deshabilitada. Hablá con el docente.'
   if (/permission.denied|PERMISSION_DENIED/i.test(codigo + ' ' + (e?.message || ''))) {
     if (rama) return `Firebase no acepta "${rama}": seguramente el proyecto tiene publicadas reglas viejas. ` +
@@ -107,19 +87,13 @@ export function mensajeError(e, rama) {
 export const escucharSesion = (cb) => onAuthStateChanged(auth, cb)
 export const salir = () => signOut(auth)
 
-function validarDatosAlta(curso, nombre, contrasena) {
-  if (!/^[A-Z0-9]{3,12}$/.test(normalizarCurso(curso))) return 'El código del curso son de 3 a 12 letras o números, sin espacios.'
-  const limpio = (nombre || '').trim().replace(/\s+/g, ' ')
-  if (limpio.length < 3 || normalizarNombre(nombre).length < 2) return 'Escribí tu nombre y apellido.'
-  if (limpio.length > 40) return 'El nombre es muy largo: usá hasta 40 letras.'
-  if ((contrasena || '').length < 6) return 'La contraseña tiene que tener al menos 6 caracteres.'
-  return null
-}
-
-export async function entrar(curso, nombre, contrasena) {
-  const error = validarDatosAlta(curso, nombre, contrasena)
-  if (error) return { ok: false, error }
-  const usuario = usuarioDe(curso, nombre)
+// El alumno entra con el usuario y la contraseña de la tarjeta que le dio el
+// docente. Se acepta con mayúsculas o espacios de más.
+export async function entrar(usuarioTipeado, contrasena) {
+  const usuario = (usuarioTipeado || '').trim().toLowerCase().replace(/\s+/g, '')
+  if (!/^[a-z0-9]{3,12}-[a-z0-9_]{2,}$/.test(usuario))
+    return { ok: false, error: 'El usuario es como "iot2026-ana_perez": el código del curso, un guion y tu nombre. Está en tu tarjeta.' }
+  if (!contrasena) return { ok: false, error: 'Falta la contraseña.' }
   try {
     await signInWithEmailAndPassword(auth, correoDe(usuario), contrasena)
   } catch (e) {
@@ -128,7 +102,7 @@ export async function entrar(curso, nombre, contrasena) {
   const alta = await get(ref(db, 'alumnos/' + usuario)).catch(() => null)
   if (!alta?.exists()) {
     await signOut(auth)
-    return { ok: false, error: 'Tu cuenta existe pero no terminó el alta. Tocá "Es mi primera vez" con los mismos datos.' }
+    return { ok: false, error: 'Tu cuenta existe pero no está en ningún curso. Hablá con el docente.' }
   }
   return { ok: true }
 }
@@ -160,62 +134,6 @@ function placaDesdePlantilla(p) {
     if (config.entradas[a.entrada]) alertas[a.entrada] = { condicion: a.condicion, umbral: a.umbral, hist: a.hist ?? 1 }
   }
   return { config, control: { auto: false, reglas }, tablero, alertas }
-}
-
-// Crear la cuenta. Si ya existe con esa contraseña y le falta el alta (el
-// docente la borró, o se cortó internet a mitad de camino), la completa.
-// Si ya existe con el alta hecha, simplemente entra.
-export async function registrar(curso, nombre, contrasena) {
-  const error = validarDatosAlta(curso, nombre, contrasena)
-  if (error) return { ok: false, error }
-  const codigo = normalizarCurso(curso)
-  const usuario = usuarioDe(curso, nombre)
-
-  let abierto
-  try {
-    abierto = (await get(ref(db, `cursos/${codigo}/abierto`))).val()
-  } catch (e) {
-    return { ok: false, error: mensajeError(e) }
-  }
-  if (abierto == null) return { ok: false, error: `No existe el curso "${codigo}". Revisá el código que te pasó el docente.` }
-
-  let creada = false
-  try {
-    await createUserWithEmailAndPassword(auth, correoDe(usuario), contrasena)
-    creada = true
-  } catch (e) {
-    if (!(e?.code || '').includes('email-already-in-use')) return { ok: false, error: mensajeError(e) }
-    try {
-      await signInWithEmailAndPassword(auth, correoDe(usuario), contrasena)
-    } catch {
-      return { ok: false, error: 'Ya hay alguien con ese nombre en este curso. Si sos vos, tocá "Entrar" con tu contraseña.' }
-    }
-  }
-
-  if ((await get(ref(db, 'alumnos/' + usuario))).exists()) return { ok: true, nuevo: false }
-
-  if (abierto !== true) {
-    if (creada) await auth.currentUser.delete().catch(() => {})
-    await signOut(auth)
-    return { ok: false, error: `Las inscripciones del curso "${codigo}" están cerradas. Hablá con el docente.` }
-  }
-
-  try {
-    const plantilla = (await get(ref(db, `cursos/${codigo}/plantilla`))).val()
-    const nombreLimpio = nombre.trim().replace(/\s+/g, ' ')
-    await update(ref(db), {
-      ['alumnos/' + usuario]: { curso: codigo, nombre: nombreLimpio, creado: Date.now() },
-      ['placas/' + usuario]: placaDesdePlantilla(plantilla),
-    })
-  } catch (e) {
-    if (creada) await auth.currentUser.delete().catch(() => {})
-    await signOut(auth)
-    return {
-      ok: false,
-      error: 'No se pudo completar el alta. Si el curso tiene una plantilla cargada, puede tener un error: avisale al docente. (' + mensajeError(e) + ')',
-    }
-  }
-  return { ok: true, nuevo: true }
 }
 
 export async function entrarDocente(correo, contrasena) {
@@ -358,7 +276,132 @@ export function escucharClase(curso, cb, onError) {
   return () => { a(); p() }
 }
 
-export const fijarAbierto = (curso, abierto) => set(ref(db, `cursos/${curso}/abierto`), abierto)
+export const crearCurso = (codigo, nombre) => set(ref(db, 'cursos/' + codigo), { nombre })
 
-export const borrarAlumno = (usuario) =>
-  update(ref(db), { ['alumnos/' + usuario]: null, ['placas/' + usuario]: null })
+// ===================================================================
+//  Cuentas de los alumnos (las administra el docente)
+// ===================================================================
+//
+// Firebase, sin servidor (plan Spark), no deja que alguien cree o cambie la
+// cuenta de OTRO. Se hace con una segunda instancia de Auth, en memoria: crea
+// la cuenta, entra como ese alumno cuando hace falta (para cambiarle o borrarle
+// la contraseña) y sale, sin tocar la sesión del docente. Por eso la contraseña
+// se guarda en credenciales/{usuario}, que solo lee el docente: sin ella no se
+// podría volver a entrar a esa cuenta para cambiarla.
+
+let authAltas = null
+function auxiliar() {
+  if (!authAltas) {
+    authAltas = initializeAuth(initializeApp(firebaseConfig, 'altas'), { persistence: inMemoryPersistence })
+    if (env.VITE_USAR_EMULADOR) connectAuthEmulator(authAltas, 'http://127.0.0.1:9099', { disableWarnings: true })
+  }
+  return authAltas
+}
+
+// Entra como el alumno en la instancia auxiliar, hace `fn(usuario de Auth)` y sale.
+async function comoAlumno(usuario, contrasena, fn) {
+  const aux = auxiliar()
+  const { user } = await signInWithEmailAndPassword(aux, correoDe(usuario), contrasena)
+  try {
+    return await fn(user)
+  } finally {
+    await signOut(aux).catch(() => {})
+  }
+}
+
+export const escucharCredenciales = (curso, cb, onError) => {
+  const prefijo = curso.toLowerCase() + '-'
+  return onValue(query(ref(db, 'credenciales'), orderByKey(), startAt(prefijo), endAt(prefijo + '\uf8ff')),
+    (s) => cb(s.val() || {}), onError)
+}
+
+// Crea una cuenta: {usuario, contrasena} o {usuario, error}. Si se cortó a
+// mitad de camino y se vuelve a intentar, sigue desde donde quedó: la
+// contraseña se guarda antes que nada, y con ella se reconoce la cuenta.
+async function crearUna(codigo, { nombre, usuario }, plantilla) {
+  const guardada = (await get(ref(db, 'credenciales/' + usuario))).val()
+  const contrasena = guardada?.contrasena || generarContrasena()
+  if (!guardada) await set(ref(db, 'credenciales/' + usuario), { contrasena, creado: Date.now() })
+
+  const aux = auxiliar()
+  try {
+    await createUserWithEmailAndPassword(aux, correoDe(usuario), contrasena)
+    await signOut(aux)
+  } catch (e) {
+    if (!(e?.code || '').includes('email-already-in-use')) {
+      if (!guardada) await remove(ref(db, 'credenciales/' + usuario)).catch(() => {})
+      return { usuario, nombre, error: mensajeError(e) }
+    }
+    // Ya existe en Auth: sirve solo si es nuestra (entra con la guardada).
+    try {
+      await comoAlumno(usuario, contrasena, async () => {})
+    } catch {
+      if (!guardada) await remove(ref(db, 'credenciales/' + usuario)).catch(() => {})
+      return {
+        usuario, nombre,
+        error: 'Ya hay una cuenta con ese usuario, de antes, con otra contraseña. Borrala en Firebase Console → Authentication y volvé a cargarlo.',
+      }
+    }
+  }
+
+  if (!(await get(ref(db, 'alumnos/' + usuario))).exists()) {
+    await update(ref(db), {
+      ['alumnos/' + usuario]: { curso: codigo, nombre, creado: Date.now() },
+      ['placas/' + usuario]: placaDesdePlantilla(plantilla),
+    })
+  }
+  return { usuario, nombre, contrasena }
+}
+
+// Crea las cuentas de la lista (de prepararLista, en cuentas.js), de a una:
+// Firebase frena si se crean muchas de golpe. `onPaso(hechas, total)`.
+export async function crearAlumnos(curso, lista, onPaso) {
+  const codigo = curso.toUpperCase()
+  const plantilla = (await get(ref(db, `cursos/${codigo}/plantilla`))).val()
+  const resultados = []
+  for (const [n, fila] of lista.entries()) {
+    onPaso?.(n, lista.length)
+    try {
+      resultados.push(await crearUna(codigo, fila, plantilla))
+    } catch (e) {
+      resultados.push({ ...fila, error: mensajeError(e) })
+    }
+  }
+  onPaso?.(lista.length, lista.length)
+  return resultados
+}
+
+// Cambia la contraseña por una nueva generada. Hace falta la guardada.
+export async function nuevaContrasena(usuario) {
+  const guardada = (await get(ref(db, 'credenciales/' + usuario))).val()
+  if (!guardada) throw new Error('No hay una contraseña guardada para esta cuenta: borrala en Firebase Console → Authentication y volvé a cargar al alumno.')
+  const nueva = generarContrasena()
+  try {
+    await comoAlumno(usuario, guardada.contrasena, (user) => updatePassword(user, nueva))
+  } catch (e) {
+    throw new Error('No se pudo entrar a la cuenta con la contraseña guardada (' + mensajeError(e) + '). Borrala en Firebase Console → Authentication y volvé a cargar al alumno.')
+  }
+  await set(ref(db, 'credenciales/' + usuario), { contrasena: nueva, creado: Date.now() })
+  return nueva
+}
+
+// Borra al alumno entero: la cuenta de Auth, su alta, su placa y su
+// contraseña. Si la cuenta no se pudo borrar (no había contraseña guardada),
+// igual borra los datos y lo avisa: `{cuentaBorrada: false}`.
+export async function borrarAlumno(usuario) {
+  const guardada = (await get(ref(db, 'credenciales/' + usuario))).val()
+  let cuentaBorrada = false
+  if (guardada) {
+    try {
+      await comoAlumno(usuario, guardada.contrasena, (user) => deleteUser(user))
+      cuentaBorrada = true
+    } catch {
+      // No se pudo entrar (la borraron a mano, o le cambiaron la contraseña
+      // desde la consola): se avisa para que la borren en Authentication.
+    }
+  }
+  await update(ref(db), {
+    ['alumnos/' + usuario]: null, ['placas/' + usuario]: null, ['credenciales/' + usuario]: null,
+  })
+  return { cuentaBorrada }
+}

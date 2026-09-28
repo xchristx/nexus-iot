@@ -7,7 +7,7 @@ import { MAX, errorCanal, errorRegla, errorPulsadorModo, errorAlerta, errorWidge
 import { textoRegla } from '../componentes/comunes.jsx'
 import {
   WIDGETS_ENTRADA, WIDGETS_SALIDA, COLORES, ICONOS, widgetDe,
-  WidgetEntrada, Interruptor, BotonSalida, Icono,
+  WidgetEntrada, Interruptor, BotonSalida, Icono, varColor,
 } from '../componentes/widgets.jsx'
 import { textoAlerta } from '../alertas.js'
 
@@ -243,7 +243,7 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
         <div className="colores" role="radiogroup" aria-label="Color">
           {COLORES.map(c => (
             <button key={c} type="button" role="radio" aria-checked={w.color === c} aria-label={c} title={c}
-                    className={'color' + (w.color === c ? ' activo' : '')} style={{ '--c': `var(--${c})` }}
+                    className={'color' + (w.color === c ? ' activo' : '')} style={{ '--c': varColor(c) }}
                     onClick={() => setW({ ...w, color: c })} />
           ))}
         </div>

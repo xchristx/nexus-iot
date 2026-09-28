@@ -12,9 +12,8 @@
     "cursos": {
       ".read": "auth != null && root.child('docentes').child(auth.uid).exists()",
       "$curso": {
-        ".read": "auth != null",
         ".write": "auth != null && root.child('docentes').child(auth.uid).exists()",
-        ".validate": "$curso.matches(/^[A-Z0-9]{3,12}$/) && newData.hasChildren(['nombre', 'abierto'])",
+        ".validate": "$curso.matches(/^[A-Z0-9]{3,12}$/) && newData.hasChildren(['nombre'])",
         "nombre":    { ".read": true, ".validate": "newData.isString() && newData.val().length <= 80" },
         "abierto":   { ".read": true, ".validate": "newData.isBoolean()" },
         "plantilla": { ".validate": true },
@@ -27,7 +26,7 @@
       ".indexOn": ["curso"],
       "$usuario": {
         ".read": "auth != null && auth.token.email === $usuario + '@nexus-iot.example.com'",
-        ".write": "auth != null && ((auth.token.email === $usuario + '@nexus-iot.example.com' && !data.exists() && root.child('cursos').child(newData.child('curso').val() + '').child('abierto').val() === true) || root.child('docentes').child(auth.uid).exists())",
+        ".write": "auth != null && root.child('docentes').child(auth.uid).exists()",
         ".validate": "newData.hasChildren(['curso', 'nombre', 'creado']) && $usuario.beginsWith(newData.child('curso').val().toLowerCase() + '-')",
         "curso":  { ".validate": "newData.isString()" },
         "nombre": { ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 40" },
@@ -36,11 +35,22 @@
       }
     },
 
+    "credenciales": {
+      ".read":  "auth != null && root.child('docentes').child(auth.uid).exists()",
+      ".write": "auth != null && root.child('docentes').child(auth.uid).exists()",
+      "$usuario": {
+        ".validate": "$usuario.matches(/^[a-z0-9]{3,12}-[a-z0-9_]{2,44}$/) && newData.hasChildren(['contrasena', 'creado'])",
+        "contrasena": { ".validate": "newData.isString() && newData.val().length >= 6 && newData.val().length <= 40" },
+        "creado":     { ".validate": "newData.isNumber()" },
+        "$otro":      { ".validate": false }
+      }
+    },
+
     "placas": {
       ".read": "auth != null && root.child('docentes').child(auth.uid).exists()",
       "$usuario": {
         ".read":  "auth != null && (auth.token.email === $usuario + '@nexus-iot.example.com' || root.child('docentes').child(auth.uid).exists())",
-        ".write": "auth != null && ((auth.token.email === $usuario + '@nexus-iot.example.com' && (root.child('alumnos').child($usuario).exists() || newData.parent().parent().child('alumnos').child($usuario).exists())) || root.child('docentes').child(auth.uid).exists())",
+        ".write": "auth != null && ((auth.token.email === $usuario + '@nexus-iot.example.com' && root.child('alumnos').child($usuario).exists()) || root.child('docentes').child(auth.uid).exists())",
 
         "config": {
           "entradas": {

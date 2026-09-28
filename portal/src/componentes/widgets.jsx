@@ -61,7 +61,10 @@ export function widgetDe(canal, tablero) {
   }
 }
 
-const estiloColor = (color) => ({ '--c': `var(--${color})` })
+// El color de un widget como variable CSS. ámbar y rojo tienen la suya propia
+// (--ambar-w, --rojo-w) para que el tema los separe de avisos y alertas.
+export const varColor = (color) => `var(--${color === 'ambar' || color === 'rojo' ? color + '-w' : color})`
+const estiloColor = (color) => ({ '--c': varColor(color) })
 const fraccion = (v, min, max) => Math.min(1, Math.max(0, (v - min) / (max - min)))
 const numero = (v) => (typeof v === 'number' ? Number(v).toFixed(1) : '—')
 
@@ -75,7 +78,7 @@ export function WidgetEntrada({ titulo, valor, unidad, w, alerta, children }) {
   const hay = typeof valor === 'number'
   const clase = 'widget w-' + w.widget + (alerta ? ' en-alerta' : '')
   return (
-    <div className={clase} style={estiloColor(alerta ? 'rojo' : w.color)}>
+    <div className={clase} style={alerta ? { '--c': 'var(--rojo)' } : estiloColor(w.color)}>
       <span className="widget-titulo">
         {w.icono && <Icono nombre={w.icono} tam={15} />}
         {titulo}

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Capacitor } from '@capacitor/core'
+import { useTema } from '../tema.js'
 
 export function Copiar({ texto, children }) {
   const [copiado, setCopiado] = useState(false)
@@ -58,4 +59,10 @@ export function BajarApp() {
   const url = import.meta.env.VITE_URL_APK
   if (!url || Capacitor.isNativePlatform()) return null
   return <a className="descargar-app" href={url} target="_blank" rel="noopener">Bajar la app para Android</a>
+}
+
+// El título de arriba: el que eligió cada uno en su tema.
+export function Titulo() {
+  const [tema] = useTema()
+  return <h1>{tema.titulo}</h1>
 }

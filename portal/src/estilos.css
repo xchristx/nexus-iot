@@ -20,20 +20,38 @@
   --azul: #60a5fa;
   --violeta: #a78bfa;
   --gris: #9ca3af;
+  --ambar-w: #fbbf24;
+  --rojo-w: #f87171;
+
+  /* Lo demás que cambia el tema (src/tema.js lo pisa en <html> con lo que
+     eligió cada uno; esto es el tema "Oscuro" de siempre). */
+  --boton: #21262f;
+  --fuente: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --redondeo: 1;
+  --espacio: 1;
+  --ancho: 720px;
+  --widget-min: 150px;
+  --numero: 1;
+  --sombra: none;
+  --degradado: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
+  min-height: 100vh;
   background: var(--fondo);
+  background-image: var(--degradado);
+  background-attachment: fixed;
   color: var(--texto);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 1rem/1.55 var(--fuente);
   -webkit-text-size-adjust: 100%;
 }
 
 main {
-  max-width: 720px;
+  max-width: var(--ancho);
   margin: 0 auto;
   padding: 20px 16px 64px;
 }
@@ -45,29 +63,30 @@ header {
   margin-bottom: 20px;
 }
 
-h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
-h2 { font-size: 18px; margin: 0 0 6px; }
-h3 { font-size: 15px; margin: 0; }
+h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 1.125rem; margin: 0 0 6px; }
+h3 { font-size: 0.9375rem; margin: 0; }
 
 code {
-  font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 0.8125rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: var(--texto);
 }
 
-.subtitulo { font-size: 13px; }
+.subtitulo { font-size: 0.8125rem; }
 .tenue     { color: var(--tenue); }
-.ayuda     { color: var(--tenue); font-size: 14px; margin: 6px 0 14px; }
-.error     { color: var(--rojo); font-size: 14px; margin: 10px 0; }
-.pie       { color: var(--tenue); font-size: 13px; text-align: center; margin-top: 18px; }
+.ayuda     { color: var(--tenue); font-size: 0.875rem; margin: 6px 0 14px; }
+.error     { color: var(--rojo); font-size: 0.875rem; margin: 10px 0; }
+.pie       { color: var(--tenue); font-size: 0.8125rem; text-align: center; margin-top: 18px; }
 
 /* --- tarjetas ------------------------------------------------------ */
 
 .tarjeta, .bloque {
   background: var(--tarjeta);
   border: 1px solid var(--borde);
-  border-radius: 12px;
-  padding: 18px;
-  margin-bottom: 14px;
+  border-radius: calc(12px * var(--redondeo));
+  padding: calc(18px * var(--espacio));
+  margin-bottom: calc(14px * var(--espacio));
+  box-shadow: var(--sombra);
 }
 
 .bloque-cab {
@@ -82,7 +101,7 @@ code {
 
 label {
   display: block;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--tenue);
   margin-bottom: 14px;
 }
@@ -94,16 +113,16 @@ input, select {
   padding: 11px 12px;
   background: var(--campo);
   border: 1px solid var(--borde);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--redondeo));
   color: var(--texto);
   font: inherit;
-  font-size: 16px;            /* 16px evita que iOS haga zoom al enfocar */
+  font-size: max(16px, 1rem); /* 16px como mínimo evita que iOS haga zoom al enfocar */
 }
 
 input:focus, select:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
 input:disabled { color: var(--tenue); }
 
-.ayuda-campo { display: block; margin-top: 5px; font-size: 12px; line-height: 1.45; }
+.ayuda-campo { display: block; margin-top: 5px; font-size: 0.75rem; line-height: 1.45; }
 
 .dos-columnas {
   display: grid;
@@ -119,7 +138,7 @@ input:disabled { color: var(--tenue); }
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--texto);
 }
 
@@ -139,9 +158,9 @@ input:disabled { color: var(--tenue); }
 button {
   font: inherit;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--redondeo));
   border: 1px solid var(--borde);
-  background: #21262f;
+  background: var(--boton);
   color: var(--texto);
   padding: 9px 14px;
 }
@@ -158,16 +177,18 @@ button:disabled { opacity: .5; cursor: default; }
   font-weight: 600;
 }
 
-.chico        { font-size: 12px; padding: 5px 10px; }
+.chico        { font-size: 0.75rem; padding: 5px 10px; }
 .chico.activo { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
 .peligro      { color: var(--rojo); }
-.copiar       { font-size: 12px; padding: 5px 11px; flex: none; }
-.salir        { font-size: 13px; padding: 5px 10px; color: var(--tenue); }
+.copiar       { font-size: 0.75rem; padding: 5px 11px; flex: none; }
+.salir        { font-size: 0.8125rem; padding: 5px 10px; color: var(--tenue); }
 
 /* --- pestañas ------------------------------------------------------ */
 
-nav { display: flex; gap: 8px; margin-bottom: 16px; }
-nav button { flex: 1; padding: 9px 6px; }
+/* Cuatro pestañas: sin cortar palabras. Si con letra grande no entran en una
+   fila, bajan a la siguiente en vez de partirse en dos renglones. */
+nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+nav button { flex: 1 1 auto; padding: 9px 10px; font-size: 0.9375rem; white-space: nowrap; }
 nav button.activo { background: var(--texto); color: var(--fondo); border-color: var(--texto); }
 
 /* --- estado de la placa -------------------------------------------- */
@@ -176,7 +197,7 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -187,14 +208,14 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
   flex: none;
 }
 
-.estado.viva   .punto    { background: var(--acento); box-shadow: 0 0 0 4px rgba(74, 222, 128, .15); }
+.estado.viva   .punto    { background: var(--acento); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acento) 15%, transparent); }
 .estado.muerta .pastilla { color: var(--tenue); }
 
 .datos { display: flex; flex-wrap: wrap; gap: 14px 26px; margin-top: 18px; }
 .dato  { display: flex; flex-direction: column; align-items: flex-start; }
-.dato-titulo { font-size: 12px; color: var(--tenue); text-transform: uppercase; letter-spacing: .05em; }
-.dato-valor  { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
-.dato-valor small { font-size: 15px; color: var(--tenue); margin-left: 3px; font-weight: 400; }
+.dato-titulo { font-size: 0.75rem; color: var(--tenue); text-transform: uppercase; letter-spacing: .05em; }
+.dato-valor  { font-size: calc(1.875rem * var(--numero)); font-weight: 600; letter-spacing: -0.02em; }
+.dato-valor small { font-size: 0.9375rem; color: var(--tenue); margin-left: 3px; font-weight: 400; }
 
 /* El error y los avisos de la placa son la razón de ser de esta pantalla:
    lo que evita que el alumno necesite el monitor serie. */
@@ -202,7 +223,7 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
 .problema h3       { color: var(--ambar); margin-bottom: 10px; }
 .atencion          { border-color: var(--borde-fuerte); }
 .atencion h3       { color: var(--ambar); margin-bottom: 8px; }
-.lista-avisos      { margin: 0; padding-left: 18px; font-size: 14px; color: var(--tenue); }
+.lista-avisos      { margin: 0; padding-left: 18px; font-size: 0.875rem; color: var(--tenue); }
 .lista-avisos li + li { margin-top: 6px; }
 
 /* --- salidas ------------------------------------------------------- */
@@ -218,9 +239,9 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
 }
 
 .interruptor { display: flex; gap: 6px; flex: none; }
-.interruptor button { padding: 6px 16px; font-size: 13px; }
+.interruptor button { padding: 6px 16px; font-size: 0.8125rem; }
 .interruptor .on.activo  { background: var(--c, var(--acento)); border-color: var(--c, var(--acento)); color: var(--sobre-acento); }
-.interruptor .off.activo { background: var(--borde-fuerte); border-color: #4b5261; }
+.interruptor .off.activo { background: var(--borde-fuerte); border-color: var(--borde-fuerte); }
 
 /* Lo que se pidió y la placa todavía no recogió: late, sin mover nada de lugar.
    El botón relleno sigue siendo lo que la placa informó. */
@@ -230,11 +251,11 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
 }
 
 @keyframes latir {
-  50% { background: rgba(74, 222, 128, .22); }
+  50% { background: color-mix(in srgb, var(--acento) 22%, transparent); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .interruptor button.pendiente { animation: none; background: rgba(74, 222, 128, .22); }
+  .interruptor button.pendiente { animation: none; background: color-mix(in srgb, var(--acento) 22%, transparent); }
 }
 
 .regla-linea {
@@ -242,7 +263,7 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--tenue);
 }
 
@@ -255,13 +276,13 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
   gap: 12px;
   padding: 12px 0;
   border-top: 1px solid var(--borde);
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .bloque-cab + .fila-canal, .ayuda + .fila-canal { border-top: none; }
 
 .acciones-fila { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex: none; }
-.detalle { font-size: 13px; margin-top: 3px; }
+.detalle { font-size: 0.8125rem; margin-top: 3px; }
 
 /* En un celular, tres botones al costado dejan el texto en renglones de dos
    palabras. Abajo del texto se lee mucho mejor. */
@@ -276,7 +297,7 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
   padding: 1px 7px;
   border: 1px solid var(--borde);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -291,18 +312,18 @@ nav button.activo { background: var(--texto); color: var(--fondo); border-color:
 .hardware {
   margin: 0;
   padding-left: 18px;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.8;
 }
 
 pre {
   background: var(--campo);
   border: 1px solid var(--borde);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--redondeo));
   padding: 12px;
   margin: 0;
   overflow-x: auto;
-  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   white-space: pre-wrap;
   word-break: break-all;      /* las URLs con la clave son larguísimas */
 }
@@ -331,7 +352,7 @@ pre {
   padding: 4px;
   color: var(--tenue);
   text-decoration: underline;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .sin-margen { margin: 4px 0 0; }
@@ -355,7 +376,7 @@ main.ancho { max-width: 900px; }
 /* --- v5: widgets, alertas y app Android ----------------------------- */
 
 /* Cada widget toma su color de --c, que pone widgets.jsx según lo elegido. */
-.datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--widget-min), 1fr)); gap: calc(12px * var(--espacio)); }
 
 .widget {
   display: flex;
@@ -364,7 +385,7 @@ main.ancho { max-width: 900px; }
   gap: 4px;
   padding: 12px;
   border: 1px solid var(--borde);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--redondeo));
   background: var(--campo);
   min-width: 0;
 }
@@ -373,7 +394,7 @@ main.ancho { max-width: 900px; }
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--tenue);
   text-transform: uppercase;
   letter-spacing: .05em;
@@ -381,7 +402,7 @@ main.ancho { max-width: 900px; }
 
 .widget .icono, .salida-nombre .icono { color: var(--c, var(--tenue)); flex: none; }
 .widget .dato-valor { color: var(--c); }
-.widget.en-alerta { border-color: var(--rojo); box-shadow: 0 0 0 3px rgba(248, 113, 113, .15); }
+.widget.en-alerta { border-color: var(--rojo); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rojo) 15%, transparent); }
 
 /* Los que dibujan una escala ocupan dos columnas: con una quedan diminutos. */
 .w-medidor, .w-barra { grid-column: span 2; }
@@ -394,18 +415,18 @@ main.ancho { max-width: 900px; }
 .medidor-valor { stroke: var(--c); transition: stroke-dasharray .4s ease; }
 .medidor-numero {
   position: absolute; left: 0; right: 0; top: 52%;
-  text-align: center; font-size: 26px; font-weight: 600; letter-spacing: -0.02em;
+  text-align: center; font-size: calc(1.625rem * var(--numero)); font-weight: 600; letter-spacing: -0.02em;
 }
-.medidor-numero small, .barra .dato-valor small { font-size: 14px; color: var(--tenue); margin-left: 3px; font-weight: 400; }
+.medidor-numero small, .barra .dato-valor small { font-size: 0.875rem; color: var(--tenue); margin-left: 3px; font-weight: 400; }
 
-.escala { display: flex; justify-content: space-between; width: 100%; font-size: 11px; color: var(--tenue); }
+.escala { display: flex; justify-content: space-between; width: 100%; font-size: 0.6875rem; color: var(--tenue); }
 .medidor .escala { padding: 0 4%; }
 
 .barra { width: 100%; display: flex; flex-direction: column; gap: 6px; }
 .barra-fondo { height: 10px; border-radius: 999px; background: var(--borde); overflow: hidden; }
 .barra-valor { height: 100%; background: var(--c); border-radius: 999px; transition: width .4s ease; }
 
-.indicador { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--tenue); margin-top: 4px; }
+.indicador { display: flex; align-items: center; gap: 8px; font-size: 0.9375rem; font-weight: 600; color: var(--tenue); margin-top: 4px; }
 .lampara { width: 18px; height: 18px; border-radius: 50%; background: var(--borde-fuerte); }
 .indicador.activo { color: var(--c); }
 .indicador.activo .lampara { background: var(--c); box-shadow: 0 0 12px var(--c); }
@@ -426,13 +447,13 @@ main.ancho { max-width: 900px; }
   gap: 10px;
   width: 100%;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: calc(12px * var(--redondeo));
   text-align: left;
   background: var(--campo);
 }
 .boton-salida .icono { color: var(--c); }
-.boton-salida-nombre { font-weight: 600; font-size: 16px; }
-.boton-salida-estado { font-size: 12px; letter-spacing: .05em; color: var(--tenue); }
+.boton-salida-nombre { font-weight: 600; font-size: 1rem; }
+.boton-salida-estado { font-size: 0.75rem; letter-spacing: .05em; color: var(--tenue); }
 .boton-salida.activo { background: var(--c); border-color: var(--c); color: var(--sobre-acento); }
 .boton-salida.activo .icono, .boton-salida.activo .boton-salida-estado { color: var(--sobre-acento); }
 .boton-salida.pendiente { border-color: var(--c); animation: latir 1s ease-in-out infinite; }
@@ -445,7 +466,7 @@ main.ancho { max-width: 900px; }
 
 /* Configurar: vista previa del widget y el selector de color. */
 .vista-previa { margin: 4px 0 16px; max-width: 320px; }
-.vista-previa .salida-fila { padding: 12px; border: 1px solid var(--borde); border-radius: 10px; background: var(--campo); }
+.vista-previa .salida-fila { padding: 12px; border: 1px solid var(--borde); border-radius: calc(10px * var(--redondeo)); background: var(--campo); }
 .colores { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .color {
   width: 32px; height: 32px; padding: 0;
@@ -460,7 +481,70 @@ main.ancho { max-width: 900px; }
 /* La app Android dibuja debajo de la barra de estado. */
 main { padding-top: max(20px, env(safe-area-inset-top)); }
 
-.descargar-app { display: block; text-align: center; margin-top: 14px; font-size: 14px; color: var(--acento); }
+.descargar-app { display: block; text-align: center; margin-top: 14px; font-size: 0.875rem; color: var(--acento); }
 .seccion { margin: 22px 0 10px; padding-top: 16px; border-top: 1px solid var(--borde); }
-.etiqueta-campo { font-size: 13px; color: var(--tenue); margin-bottom: 16px; }
+.etiqueta-campo { font-size: 0.8125rem; color: var(--tenue); margin-bottom: 16px; }
 .detalle.alerta-docente { color: var(--rojo); }
+
+/* --- tema ---------------------------------------------------------- */
+
+/* "Animaciones: no" en el tema: nada late ni se desliza. */
+:root[data-animaciones="no"] *, :root[data-animaciones="no"] *::before, :root[data-animaciones="no"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.tema-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 0.9375rem; }
+.tema-fila + .tema-fila { border-top: 1px solid var(--borde); }
+.tema-fila > span { min-width: 0; }
+.tema-fila input[type=color] { width: 52px; height: 36px; padding: 2px; margin: 0; flex: none; cursor: pointer; }
+.tema-fila input[type=range] { width: 50%; max-width: 220px; margin: 0; padding: 0; flex: none; accent-color: var(--acento); }
+.tema-fila select { width: auto; max-width: 55%; margin: 0; }
+.tema-fila .valor { color: var(--tenue); font-size: 0.8125rem; margin-left: 6px; }
+.presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+.preset {
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  padding: 8px; font-size: 0.8125rem; text-align: center;
+}
+.preset.activo { outline: 2px solid var(--acento); outline-offset: 1px; }
+.preset-muestra { display: flex; height: 26px; border-radius: calc(6px * var(--redondeo)); overflow: hidden; border: 1px solid var(--borde); }
+.preset-muestra span { flex: 1; }
+.tema-textarea {
+  display: block; width: 100%; min-height: 120px; margin-top: 8px; padding: 10px;
+  background: var(--campo); color: var(--texto); border: 1px solid var(--borde);
+  border-radius: calc(8px * var(--redondeo));
+  font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.aviso-contraste { color: var(--ambar); font-size: 0.8125rem; margin: 6px 0 0; }
+
+/* --- docente: cuentas y tarjetas ------------------------------------ */
+
+.contrasena { margin: 0 6px; }
+.lista-avisos li.error, .lista-avisos.error { color: var(--rojo); }
+
+/* Las tarjetas para repartir solo existen al imprimir, en blanco y negro
+   (sin importar el tema: se imprimen en cualquier impresora). */
+.tarjetas-imprimir { display: none; }
+
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff !important; }
+  body * { visibility: hidden; }
+  .tarjetas-imprimir, .tarjetas-imprimir * { visibility: visible; }
+  .tarjetas-imprimir {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6mm;
+    position: absolute; left: 0; top: 0; width: 100%;
+    color: #000; font: 11pt/1.4 system-ui, sans-serif;
+  }
+  .tarjeta-alumno {
+    display: flex; flex-direction: column; gap: 2mm;
+    padding: 5mm; border: 1px dashed #000; border-radius: 3mm;
+    break-inside: avoid;
+  }
+  .tarjeta-alumno strong { font-size: 13pt; }
+  .tarjeta-alumno .tenue { color: #444; font-size: 9pt; }
+  .tarjeta-alumno dl { display: grid; grid-template-columns: auto 1fr; gap: 1mm 4mm; margin: 1mm 0; }
+  .tarjeta-alumno dt { color: #444; }
+  .tarjeta-alumno dd { margin: 0; }
+  .tarjeta-alumno code { color: #000; font-size: 12pt; font-weight: 600; white-space: nowrap; }
+}

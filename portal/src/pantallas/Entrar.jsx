@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { entrar, registrar, entrarDocente, usuarioDe, normalizarNombre } from '../firebase.js'
+import { entrar, entrarDocente } from '../firebase.js'
 import { BajarApp } from '../componentes/comunes.jsx'
 
 export default function Entrar({ onInicio, onFin }) {
   const [docente, setDocente] = useState(false)
-  const [curso, setCurso] = useState('')
-  const [alumno, setAlumno] = useState('')
+  const [usuario, setUsuario] = useState('')
   const [correo, setCorreo] = useState('')
   const [contrasena, setContrasena] = useState('')
   const [error, setError] = useState(null)
@@ -24,19 +23,8 @@ export default function Entrar({ onInicio, onFin }) {
   function enviar(ev) {
     ev.preventDefault()
     if (docente) hacer('entrar', () => entrarDocente(correo, contrasena))
-    else hacer('entrar', () => entrar(curso, alumno, contrasena))
+    else hacer('entrar', () => entrar(usuario, contrasena))
   }
-
-  function primeraVez() {
-    // Los campos obligatorios los controla el navegador solo con el submit.
-    if (!curso.trim() || !alumno.trim() || !contrasena) {
-      setError('Completá el código del curso, tu nombre y una contraseña.')
-      return
-    }
-    hacer('registrar', () => registrar(curso, alumno, contrasena))
-  }
-
-  const usuario = curso.trim() && normalizarNombre(alumno) ? usuarioDe(curso, alumno) : null
 
   if (docente) {
     return (
@@ -63,43 +51,33 @@ export default function Entrar({ onInicio, onFin }) {
     <form className="tarjeta" onSubmit={enviar}>
       <h2>Entrar</h2>
       <p className="ayuda">
-        La primera vez tocá "Es mi primera vez": se crea tu cuenta con la
-        contraseña que elijas. Las siguientes, entrás con el mismo nombre y la
-        misma contraseña.
+        Con el usuario y la contraseña de la tarjeta que te dio el docente. Son los
+        mismos que vas a poner en tu placa y en tu app.
       </p>
 
       <label>
-        Código del curso
-        <input value={curso} onChange={e => setCurso(e.target.value)}
-               placeholder="IOT2026" autoCapitalize="characters" required />
+        Usuario
+        <input value={usuario} onChange={e => setUsuario(e.target.value)}
+               placeholder="iot2026-ana_perez" autoCapitalize="none" autoCorrect="off"
+               spellCheck={false} autoComplete="username" required />
       </label>
 
       <label>
-        Tu nombre y apellido
-        <input value={alumno} onChange={e => setAlumno(e.target.value)}
-               placeholder="Ana Pérez" autoComplete="name" required />
-        {usuario && <span className="ayuda-campo">Tu usuario va a ser <code>{usuario}</code></span>}
-      </label>
-
-      <label>
-        Contraseña (al menos 6 caracteres)
+        Contraseña
         <input value={contrasena} onChange={e => setContrasena(e.target.value)}
-               type="password" autoComplete="current-password" minLength={6} required />
+               type="password" autoComplete="current-password" required />
       </label>
-
-      <p className="ayuda">
-        Anotala: la vas a usar también en tu placa y en tu app. Si te la olvidás,
-        el docente te puede ayudar a crear una nueva sin perder lo que configuraste.
-      </p>
 
       {error && <p className="error">{error}</p>}
 
       <button className="principal" disabled={Boolean(yendo)}>
-        {yendo === 'entrar' ? 'Un momento…' : 'Entrar'}
+        {yendo ? 'Un momento…' : 'Entrar'}
       </button>
-      <button type="button" className="secundario" disabled={Boolean(yendo)} onClick={primeraVez}>
-        {yendo === 'registrar' ? 'Creando tu cuenta…' : 'Es mi primera vez'}
-      </button>
+
+      <p className="ayuda" style={{ marginTop: 14 }}>
+        ¿No tenés tarjeta o perdiste la contraseña? Pedísela al docente: él tiene
+        la lista y te puede dar una nueva.
+      </p>
 
       <p className="pie"><button type="button" className="enlace" onClick={() => { setDocente(true); setError(null) }}>Soy docente</button></p>
       <BajarApp />

@@ -44,40 +44,33 @@ beforeEach(async () => {
     await set(ref(ctx.database()), {
       docentes: { 'uid-docente': true },
       cursos: {
-        IOT2026: { nombre: 'IoT', abierto: true, plantilla: { entradas: [], salidas: [], reglas: [] } },
-        CERRADO: { nombre: 'Viejo', abierto: false },
+        IOT2026: { nombre: 'IoT', plantilla: { entradas: [], salidas: [], reglas: [] } },
       },
       alumnos: { 'iot2026-beto': { curso: 'IOT2026', nombre: 'Beto', creado: 1 } },
       placas: { 'iot2026-beto': KIT },
+      credenciales: { 'iot2026-beto': { contrasena: 'sol-4827', creado: 1 } },
     })
   })
 })
 
 after(async () => { await env?.cleanup() })
 
-// --- alta ------------------------------------------------------------
+// --- alta: la hace el docente ------------------------------------------
 
-test('alta en un curso abierto, junto con su placa', async () => {
+const ALTA = (usuario, nombre) => ({
+  ['alumnos/' + usuario]: { curso: 'IOT2026', nombre, creado: Date.now() },
+  ['placas/' + usuario]: KIT,
+  ['credenciales/' + usuario]: { contrasena: 'rana-3051', creado: Date.now() },
+})
+
+test('el docente da de alta a un alumno con su placa y su contraseña', async () => {
+  await assertSucceeds(update(ref(docente()), ALTA('iot2026-ana', 'Ana Pérez')))
+})
+
+test('un alumno no se puede dar de alta solo', async () => {
   const db = alumno('iot2026-ana')
-  await assertSucceeds(update(ref(db), {
-    'alumnos/iot2026-ana': { curso: 'IOT2026', nombre: 'Ana Pérez', creado: Date.now() },
-    'placas/iot2026-ana': KIT,
-  }))
-})
-
-test('no hay alta en un curso cerrado', async () => {
-  const db = alumno('cerrado-ana')
-  await assertFails(set(ref(db, 'alumnos/cerrado-ana'), { curso: 'CERRADO', nombre: 'Ana', creado: 1 }))
-})
-
-test('el usuario tiene que empezar con el curso', async () => {
-  const db = alumno('otro-ana')
-  await assertFails(set(ref(db, 'alumnos/otro-ana'), { curso: 'IOT2026', nombre: 'Ana', creado: 1 }))
-})
-
-test('no se puede registrar a nombre de otro', async () => {
-  const db = alumno('iot2026-ana')
-  await assertFails(set(ref(db, 'alumnos/iot2026-caro'), { curso: 'IOT2026', nombre: 'Caro', creado: 1 }))
+  await assertFails(update(ref(db), ALTA('iot2026-ana', 'Ana Pérez')))
+  await assertFails(set(ref(db, 'alumnos/iot2026-ana'), { curso: 'IOT2026', nombre: 'Ana Pérez', creado: 1 }))
 })
 
 test('sin alta en alumnos/ no se puede crear una placa', async () => {
@@ -85,16 +78,65 @@ test('sin alta en alumnos/ no se puede crear una placa', async () => {
   await assertFails(set(ref(db, 'placas/iot2026-ana'), KIT))
 })
 
-test('el alta no pisa a alguien que ya existe', async () => {
-  const db = alumno('iot2026-beto')
-  await assertFails(set(ref(db, 'alumnos/iot2026-beto'), { curso: 'IOT2026', nombre: 'Beto 2', creado: 2 }))
+test('el usuario tiene que empezar con el curso', async () => {
+  await assertFails(set(ref(docente(), 'alumnos/otro-ana'), { curso: 'IOT2026', nombre: 'Ana', creado: 1 }))
 })
 
-test('sin sesión se ve si el curso está abierto, pero no la plantilla', async () => {
+test('un alumno no puede tocar su alta ni la de otro', async () => {
+  const db = alumno('iot2026-beto')
+  await assertFails(set(ref(db, 'alumnos/iot2026-beto/nombre'), 'Beto Cambiado'))
+  await assertFails(set(ref(db, 'alumnos/iot2026-caro'), { curso: 'IOT2026', nombre: 'Caro', creado: 1 }))
+  await assertSucceeds(get(ref(db, 'alumnos/iot2026-beto')))
+})
+
+// --- contraseñas: solo el docente ---------------------------------------
+
+test('las contraseñas guardadas las lee y escribe solo el docente', async () => {
+  const beto = alumno('iot2026-beto')
+  await assertFails(get(ref(beto, 'credenciales/iot2026-beto')))
+  await assertFails(get(ref(beto, 'credenciales')))
+  await assertFails(set(ref(beto, 'credenciales/iot2026-beto'), { contrasena: 'mia-1234', creado: 2 }))
+  await assertFails(get(ref(env.unauthenticatedContext().database(), 'credenciales')))
+  const prof = docente()
+  await assertSucceeds(get(ref(prof, 'credenciales')))
+  await assertSucceeds(set(ref(prof, 'credenciales/iot2026-beto'), { contrasena: 'luna-9913', creado: 2 }))
+})
+
+test('una contraseña guardada tiene forma', async () => {
+  const prof = docente()
+  const c = (u, v) => set(ref(prof, 'credenciales/' + u), v)
+  await assertFails(c('iot2026-beto', { contrasena: 'corta', creado: 1 }))
+  await assertFails(c('iot2026-beto', { contrasena: 'sol-4827' }))
+  await assertFails(c('iot2026-beto', { contrasena: 'sol-4827', creado: 1, extra: 1 }))
+  await assertFails(c('NoValido', { contrasena: 'sol-4827', creado: 1 }))
+})
+
+test('borrar a un alumno se lleva su alta, su placa y su contraseña', async () => {
+  await assertSucceeds(update(ref(docente()), {
+    'alumnos/iot2026-beto': null, 'placas/iot2026-beto': null, 'credenciales/iot2026-beto': null,
+  }))
+})
+
+// --- cursos --------------------------------------------------------------
+
+test('sin sesión se ve el nombre del curso, pero no la plantilla ni la lista', async () => {
   const db = env.unauthenticatedContext().database()
-  await assertSucceeds(get(ref(db, 'cursos/IOT2026/abierto')))
+  await assertSucceeds(get(ref(db, 'cursos/IOT2026/nombre')))
   await assertFails(get(ref(db, 'cursos/IOT2026/plantilla')))
   await assertFails(get(ref(db, 'cursos')))
+})
+
+test('un alumno no lee la plantilla ni toca el curso', async () => {
+  const db = alumno('iot2026-beto')
+  await assertFails(get(ref(db, 'cursos/IOT2026/plantilla')))
+  await assertFails(set(ref(db, 'cursos/IOT2026/nombre'), 'Otro'))
+})
+
+test('el docente crea un curso nuevo', async () => {
+  const db = docente()
+  await assertSucceeds(set(ref(db, 'cursos/ROBOT26'), { nombre: 'Robótica' }))
+  await assertFails(set(ref(db, 'cursos/robot 26'), { nombre: 'Mal' }))
+  await assertFails(set(ref(db, 'cursos/SINNOMBRE'), { plantilla: { pulsador_modo: 25 } }))
 })
 
 // --- aislamiento -----------------------------------------------------
@@ -107,17 +149,11 @@ test('un alumno no lee ni escribe la placa de otro', async () => {
   await assertFails(get(ref(db, 'alumnos')))
 })
 
-test('el docente lee todo y abre o cierra el curso', async () => {
+test('el docente lee todo', async () => {
   const db = docente()
   await assertSucceeds(get(ref(db, 'placas')))
   await assertSucceeds(get(ref(db, 'alumnos')))
   await assertSucceeds(get(ref(db, 'cursos')))
-  await assertSucceeds(set(ref(db, 'cursos/IOT2026/abierto'), false))
-})
-
-test('un alumno no puede tocar el curso', async () => {
-  const db = alumno('iot2026-beto')
-  await assertFails(set(ref(db, 'cursos/IOT2026/abierto'), true))
 })
 
 // --- comandos y modo: como llegan desde Kodular ------------------------
@@ -236,7 +272,7 @@ test('tablero y alertas son privados de cada alumno', async () => {
 })
 
 test('el alta copia tablero y alertas de la plantilla', async () => {
-  const db = alumno('iot2026-ana')
+  const db = docente()
   await assertSucceeds(update(ref(db), {
     'alumnos/iot2026-ana': { curso: 'IOT2026', nombre: 'Ana Pérez', creado: Date.now() },
     'placas/iot2026-ana': {
