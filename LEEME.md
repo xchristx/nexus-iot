@@ -20,6 +20,7 @@ y salidas, y las reglas de su modo automático), y el docente ve toda la clase.
 | `src/`, `arduino/` | Firmware de referencia del ESP32 | el alumno que se traba |
 | `PROMPT.md` | Prompt para generar el firmware con IA | el alumno que lo genera |
 | `kodular/` | Proyecto Kodular (`.aia`) con los bloques para leer y comandar, y su guía | el alumno, como base de su app |
+| `alexa/` | Skill Smart Home de Alexa (opcional): la Lambda y su guía, [alexa/LEEME.md](alexa/LEEME.md) | quien la monta, una vez; después, alumnos y docente por voz |
 
 ## Cómo funciona
 
@@ -39,10 +40,12 @@ placas/<usuario>/
   estado/    lo que escribe la placa: los valores, "visto" (latido) y "aviso"
   tablero/   cómo se ve cada entrada y salida en el portal: {widget, color, icono, min, max}
   alertas/   una por entrada: {condicion, umbral, hist}; avisan, no prenden nada
+  alexa/     {desde} si el alumno vinculó Alexa (lo escribe la Lambda; borrarlo la desvincula)
 ```
 
-`tablero` y `alertas` los usan solo el portal y la app Android: la placa, el
-prompt y la app Kodular no los leen, así que se pueden cambiar sin tocar el firmware.
+`tablero`, `alertas` y `alexa` los usan solo el portal, la app Android y la Lambda
+de Alexa: la placa, el prompt y la app Kodular no los leen, así que se pueden
+cambiar sin tocar el firmware.
 
 **Una cuenta por alumno**, que usan el portal, la placa y la app. El alumno se da
 de alta con el código del curso, su nombre y una contraseña; su usuario es el
@@ -95,6 +98,21 @@ preferencia de quien mira, no un dato de la placa, y no gasta la cuota del plan
 gratuito. Todo lo que se lee pasa por `normalizar()` (`portal/src/tema.js`): un
 valor raro vuelve al de por defecto, así un tema roto o pegado a mano nunca deja el
 portal ilegible ni mete CSS. Las pruebas: `cd portal && npm test`.
+
+### Alexa (opcional)
+
+Una skill **Smart Home**: "Alexa, prende la bomba", "Alexa, ¿está prendida la luz?",
+"Alexa, prende el modo automático". Cada salida es un dispositivo de la app Alexa,
+el modo automático es otro y cada entrada en °C es un termómetro. Un alumno vincula
+su propia cuenta de Amazon con su placa; el docente puede vincular un **Echo del
+laboratorio** con un curso y elegir qué placas maneja ("Alexa, prende la bomba de
+Ana Pérez").
+
+Alexa escribe en `control/cmd` y `control/auto` como el portal, así que **la placa
+no cambia**. Con la placa desconectada, contesta que no responde (en vez de dejar
+el comando en cola), y en modo automático no toca una salida con regla. Sin
+`VITE_ALEXA_CLIENTE_ID`, el portal no muestra nada de esto. Cómo montarla:
+[alexa/LEEME.md](alexa/LEEME.md).
 
 ### Modo automático y control local
 
@@ -211,12 +229,25 @@ Netlify). Cualquiera de las tres se puede sumar después sin cambiar el modelo.
 sola interfaz, y cada arreglo llega a las dos. Se descartó React Native / Expo porque
 obligaba a reescribir todas las pantallas.
 
+**Alexa es una skill Smart Home en una Lambda de AWS, aparte de Firebase.** Smart
+Home ("Alexa, prende la bomba") en vez de una skill propia ("Alexa, pide a
+laboratorio que…"): no hay frase de invocación, los dispositivos aparecen en la
+app Alexa y sirven en rutinas. Amazon exige para eso una Lambda y OAuth; la Lambda
+hace también de servidor de OAuth y el portal pone la página de login, así que
+Firebase sigue en Spark y Netlify sin funciones. La clave de administrador de
+Firebase vive solo en la Lambda. Los tokens no se guardan: van firmados y tienen que
+coincidir con una marca en la base; desvincular borra esa marca y los corta a todos.
+
 ## Costos
 
 Todo entra en planes gratuitos (Firebase Spark y Netlify). El detalle de los
 límites está en [firebase/LEEME.md](firebase/LEEME.md#6-límites-del-plan-gratuito):
 lo que puede acercarse al techo son las 100 conexiones simultáneas, no la
 transferencia.
+
+Alexa (opcional) suma una cuenta de AWS, que pide tarjeta, pero la Lambda entra en
+la capa gratuita permanente (1 millón de pedidos por mes). Entra a la base por REST,
+así que no ocupa conexiones simultáneas.
 
 ## Firmware
 
@@ -270,6 +301,8 @@ Hay que tocar juntos:
 5. `firebase/pruebas/simular-placa.mjs`
    (y la app Android: `cd portal && npm run android`, recompilar y repartir)
 6. `kodular/generar-aia.mjs` y `kodular/GUIA.md` → y regenerar los `.aia`
+7. `alexa/lambda/placa.mjs` y `hogar.mjs` (y sus pruebas en `firebase/pruebas/alexa.test.mjs`),
+   si cambia algo de `config`, `control` o `estado` → y volver a subir el zip a la Lambda
 
 El dominio de los correos (`@nexus-iot.example.com`) está en las reglas, el portal,
 el prompt, el firmware, la placa simulada y el generador del `.aia`.
@@ -280,7 +313,9 @@ sale `PROMPT.md`) y las tablas de `src/main.cpp`.
 
 ## Lo que falta probar en el mundo real
 
-Verificado: las reglas de la base con 26 pruebas contra el emulador; el portal
+Verificado: las reglas de la base con 34 pruebas contra el emulador; la Lambda de
+Alexa con 15 (canje, Discovery, prender con la placa simulada, modo automático,
+placa desconectada, tokens, Echo del docente); el portal
 recorrido en un navegador contra los emuladores, con una placa simulada (alta,
 configurar, comandos, modo automático, pulsadores, vista del docente, widgets y
 alertas con histéresis); la app Android en un emulador de Android contra los de
@@ -300,3 +335,7 @@ puede probar desde ahí:
   prueba interna de Play Store: login, tiempo real, y hasta cuándo sigue llegando
   la notificación con la app minimizada (cada fabricante corta el segundo plano
   distinto).
+- **Alexa**, entera: crear la skill y la Lambda, vincular desde la app Alexa,
+  descubrir, prender con una placa real, qué dice en modo automático y con la placa
+  desenchufada, las frases del modo y de la temperatura en español, y el Echo del
+  laboratorio (ver [alexa/LEEME.md](alexa/LEEME.md)).

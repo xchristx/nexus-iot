@@ -23,5 +23,8 @@ await png('icon-foreground.png', 1024, 0.72)
 await png('icon-background.png', 1024, 0, FONDO)
 await png('splash.png', 2732, 0.3, FONDO)
 await png('splash-dark.png', 2732, 0.3, FONDO)
+// Los que pide la consola de Alexa para la skill (alexa/LEEME.md).
+await png('../../alexa/icono-108.png', 108, 1, FONDO)
+await png('../../alexa/icono-512.png', 512, 1, FONDO)
 await browser.close()
 console.log('listo')

@@ -19,7 +19,15 @@ polling (v1–v3, hasta 10 s de demora) → **v4: Firebase, en tiempo real**.
 personalizable** (widget por canal), **alertas en entradas** y **app Android propia**
 (el portal empaquetado con Capacitor, `portal/android/`), porque muchos alumnos no
 van a tener tiempo de hacer la app en Kodular. Todavía nadie la usó contra un
-Firebase real ni con una placa. Pedidos que motivaron v4:
+Firebase real ni con una placa.
+
+**Alexa (2026-10-01), opcional:** skill **Smart Home** ("Alexa, prende la bomba")
+en una Lambda de AWS (`alexa/`), implementada y verificada contra los emuladores.
+Alumno vincula su placa; docente vincula un "Echo del laboratorio" con un curso y
+elige placas. Solo algunos alumnos la van a usar: sin `VITE_ALEXA_CLIENTE_ID` el
+portal no muestra nada. Nada de Amazon se probó todavía.
+
+Pedidos que motivaron v4:
 
 - **Tiempo real** en vez de cada 5 s.
 - **Control local**: un pulsador por salida (alterna) y un **pulsador de modo**.
@@ -40,7 +48,8 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | Ruta | Qué es |
 |---|---|
 | `firebase/database.rules.json` | Reglas de RTDB: aislamiento por usuario, docente, validación de forma |
-| `firebase/pruebas/reglas.test.mjs` | 29 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
+| `firebase/pruebas/reglas.test.mjs` | 34 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
+| `firebase/pruebas/alexa.test.mjs` | 15 pruebas de la Lambda contra el emulador, con `simular-placa.mjs` de hijo (mismo `npm test`, archivos en serie: `--test-concurrency=1`) |
 | `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores |
 | `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
 | `firebase/LEEME.md` | Puesta en marcha en Firebase, recetas del docente, límites, emuladores |
@@ -59,6 +68,9 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | `NexusIoT-arduino.zip` | Lo que se reparte: el `.ino` + `arduino/LEEME.txt` |
 | `kodular/generar-aia.mjs` | Genera `NexusIoT.aia` (sin google-services) y `NexusIoT_curso.aia` (con `kodular/google-services.json`, en `.gitignore`). Node sin dependencias |
 | `kodular/GUIA.md` | Importar, compilar el APK (el Companion NO anda), usar los bloques, armarlo a mano |
+| `alexa/lambda/` | Lambda Smart Home, Node sin dependencias: `index` (enruta), `hogar` (directivas), `oauth` (canje por Function URL), `vinculo` (códigos y marcas), `placa` (placa → dispositivos, puro), `tokens` (HMAC), `rtdb` (REST como admin; `RTDB_EMULADOR` usa `Bearer owner`) |
+| `alexa/LEEME.md`, `skill.json`, `icono-*.png` | Puesta en marcha (AWS us-east-1, consola de Alexa, account linking, beta), manifiesto de referencia, íconos |
+| `portal/src/alexa.js`, `pantallas/AutorizarAlexa.jsx` | `/alexa` = Authorization URI: valida el pedido de Amazon (solo `pitangui`/`layla`/`alexa.amazon.co.jp`), genera el código y su SHA-256. Pruebas: `portal/pruebas/alexa.test.mjs` |
 | `README.md` | Portada de GitHub. Corta, sin duplicar `LEEME.md` |
 | `LEEME.md` | Documentación general, modelo, decisiones, firmware, qué falta probar |
 
@@ -79,6 +91,9 @@ que haga falta, y no los cites:
 - `portal/android/keystore.properties`, `*.jks`, `*.apk`, `*.aab`: la firma de la app
   y lo compilado (el APK lleva adentro las `VITE_FIREBASE_*` del `.env`).
 - `portal/android/app/src/main/assets/public`: copia del build web (gitignore de Capacitor).
+- Alexa: la **cuenta de servicio** de Firebase (`*firebase-adminsdk*.json`, acceso
+  total), `CLIENTE_SECRETO` y `SECRETO_TOKENS` van SOLO en las variables de la Lambda.
+  `alexa/*.zip` en `.gitignore`. `VITE_ALEXA_CLIENTE_ID` es público.
 
 ⚠️ El commit `1223146` ("labels renombrados", ya pusheado) tiene su contraseña de
 WiFi real en `src/main.cpp`. Se le avisó el 2026-09-24; reescribir el historial
@@ -104,6 +119,9 @@ placas/{usuario}/
   estado/{id}            número o 0/1; estado/visto (timestamp servidor); estado/aviso (texto)
   tablero/{id}           {widget, color, icono, min, max}  solo portal/app (v5)
   alertas/{entrada}      {condicion >|<, umbral, hist}     solo portal/app (v5)
+  alexa                  {desde}  vinculada; solo la Lambda escribe, alumno/docente BORRAN = desvincular
+cursos/{C}/alexa       {desde, docente}  Echo del laboratorio (Lambda); alumnos/{u}: true lo elige el docente
+alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo deja el portal, la Lambda lo canjea (10 min)
 ```
 
 - `tablero` y `alertas` están **fuera de `config` a propósito**: la placa, el prompt y
@@ -187,6 +205,16 @@ placas/{usuario}/
 12. **App Android = el portal con Capacitor** (no Expo/React Native: habría que
     reescribir la interfaz). Reparto: Play Store, prueba interna (el usuario tiene
     cuenta de desarrollador); plan B, un `.apk` en una release. Link en `VITE_URL_APK`.
+15. **Alexa = skill Smart Home en AWS Lambda** (2026-09-30, el usuario eligió Smart
+    Home sobre una custom skill "pide a laboratorio que…", y alumno + docente).
+    Smart Home exige Lambda (no Alexa-hosted) y OAuth: la misma Lambda es el token
+    endpoint (Function URL) y `/alexa` del portal es la página de autorización; así
+    Firebase sigue en Spark y Netlify sin funciones. Tokens **sin estado** (HMAC con
+    `g` = `desde` de la marca: borrar la marca revoca todo). Antes de un `cmd`:
+    placa desconectada → `ENDPOINT_UNREACHABLE` sin escribir (no queda en cola);
+    AUTO + regla → `NOT_SUPPORTED_IN_CURRENT_MODE` sin escribir; si no, escribe y
+    espera ≤ 3 s a `estado`. Sin eventos proactivos (`proactivelyReported: false`).
+    Reparto por **beta** (90 días, no se extiende; 500 testers). Sin es-AR: es-US/es-MX.
 
 Presupuesto: Spark gratis. Techo real = **100 conexiones simultáneas** (~3 por
 alumno: placa, app, portal). Descarga estimada 1,5–3 GB/mes de 10. RTDB no se
@@ -223,6 +251,9 @@ zip), `firebase/pruebas/simular-placa.mjs`, `kodular/generar-aia.mjs` y `GUIA.md
 (+ `node kodular/generar-aia.mjs`), y los `LEEME`. Si la placa suma una clave a
 `estado` que no es entrada ni salida, va en `RESERVADOS` (firebase.js), en las
 reglas y en `SISTEMA` del generador. El kit de ejemplo está en tres lugares iguales.
+La Lambda de Alexa lee `config`, `control`, `estado` y `tablero/{id}/icono`:
+`alexa/lambda/placa.mjs` (con `aBool`/`LATIDO_MAX`/`esTemperatura` copiados del
+portal) y `hogar.mjs`, + `npm test` y volver a subir el zip.
 
 Regenerar el `.ino`: comando en `LEEME.md`, sección Firmware (vacía WiFi y
 contraseña por si `main.cpp` tiene los del usuario).
@@ -233,11 +264,15 @@ el 5.1 escribe las rutas con `\`):
 
 ## Cómo se verificó (y cómo repetirlo)
 
-- **Java**: la máquina tiene Java 8; firebase-tools pide 21. Se usó un JDK 21
-  portable (Adoptium zip) en el scratchpad, con `JAVA_HOME` y `PATH` en formato
-  `/c/...` (con `C:/` los dos puntos rompen el PATH de bash).
-- **Reglas**: 26 pruebas. `cd firebase && npm test` (o `npx firebase emulators:start --project
-  demo-nexus` en segundo plano y `node --test pruebas/`).
+- **Java**: la máquina tiene Java 8; firebase-tools pide 21. Sirve el JDK 25 de
+  Android Studio: `export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"` y
+  `PATH="$JAVA_HOME/bin:$PATH"` (formato `/c/...`: con `C:/` los dos puntos rompen el
+  PATH de bash).
+- **Reglas y Lambda**: 34 + 15 pruebas, `cd firebase && npm test` (o `npx firebase
+  emulators:start --project demo-nexus` en segundo plano y `node --test
+  --test-concurrency=1 pruebas/`: en paralelo, `clearDatabase` de las reglas borra
+  lo que siembra la de Alexa). Un `creado: Date.now()` puede coincidir al ms con el
+  `now` del emulador: para probar "reloj del cliente" usá uno atrasado.
 - **Sembrar el emulador**: `curl` con `Authorization: Bearer owner` contra
   `http://127.0.0.1:9000/<ruta>.json?ns=demo-nexus-default-rtdb`; usuarios con
   `POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`
@@ -274,6 +309,14 @@ el 5.1 escribe las rutas con `\`):
   o CSS inyectado, presets, título, colores, contraste, letra, redondeo, degradado,
   persistencia al recargar, widget con el tono del tema, nada en Firebase, otra
   pestaña se sincroniza, importar con errores, restablecer, sin scroll horizontal).
+- **Alexa en el navegador**: 33 chequeos con dos builds (con y sin
+  `VITE_ALEXA_CLIENTE_ID`): sin ella no aparece nada; `/alexa?…` sin sesión → entrar
+  → Autorizar → la vuelta a `pitangui.amazon.com` (interceptada con `page.route`)
+  lleva `code` y `state`; el código se canjea importando `alexa/lambda/index.mjs`
+  en el mismo script; Mis datos vinculada/desvincular; cancelar → `access_denied`;
+  `redirect_uri` ajeno; docente elige alumnos, casillas en la clase, desvincular el
+  Echo conserva la elección; borrar alumno lo saca del Echo. Ojo: el portal pinta
+  el cambio antes de que confirme el servidor; esperar ~300 ms antes de leer por REST.
 - **Firmware**: `~/.platformio/penv/Scripts/pio.exe run`, y el `.ino` con
   `pio ci --project-conf platformio.ini arduino/NexusIoT/NexusIoT.ino`.
 
@@ -307,3 +350,10 @@ el 5.1 escribe las rutas con `\`):
 - El prompt (`PROMPT.md`) en dos IA distintas, compilando lo que salga sin retocar.
 - La app Android en un celular real, desde Play Store (prueba interna), contra el
   Firebase real; y cuánto sigue llegando la notificación minimizada.
+- Alexa entera (`alexa/LEEME.md`): Lambda en us-east-1 y skill en la consola,
+  account linking desde la app Alexa, Discovery, prender con la placa real, qué
+  dice Alexa con `NOT_SUPPORTED_IN_CURRENT_MODE` y con `ENDPOINT_UNREACHABLE`, la
+  frase en español para el modo automático (PowerController sobre "Modo automático")
+  y para la temperatura, el Echo del laboratorio, y la firma del token de Google con
+  una cuenta de servicio real (probada solo con una clave generada y `fetch` falso).
+  La app Android muestra el bloque de Alexa recién al recompilar con la variable.

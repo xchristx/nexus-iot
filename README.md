@@ -27,6 +27,8 @@ Corre entero sobre el plan gratuito de Firebase y Netlify.
   ([portal/ANDROID.md](portal/ANDROID.md)).
 - `src/`, `arduino/` — firmware de referencia del ESP32 (PlatformIO y Arduino IDE).
 - `kodular/` — proyecto `.aia` con los bloques para leer y comandar, y su guía.
+- `alexa/` — skill Smart Home de Alexa, opcional: "Alexa, prende la bomba"
+  ([alexa/LEEME.md](alexa/LEEME.md)).
 
 ## Claves
 
@@ -40,6 +42,9 @@ La configuración de Firebase (API key incluida) es pública por diseño y termi
 dentro del portal y de la app: identifica al proyecto, no da permisos. Lo que
 protege los datos son las reglas de la base
 ([firebase/database.rules.json](firebase/database.rules.json)).
+
+Alexa sí usa secretos (la cuenta de servicio de Firebase, el de OAuth y el que
+firma los tokens), pero viven solo en las variables de la Lambda en AWS.
 
 ## Licencia
 

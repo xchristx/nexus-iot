@@ -10,6 +10,7 @@ demás. Se hace una sola vez y lleva unos 20 minutos.
 | `curso-ejemplo.json` | Un curso vacío, para crear el primero |
 | `plantilla-kit-ejemplo.json` | El kit de ejemplo (DHT22 + bomba, ventilador y LED, con pulsadores), para cargárselo a un curso |
 | `pruebas/reglas.test.mjs` | Pruebas de las reglas contra el emulador (`npm test`) |
+| `pruebas/alexa.test.mjs` | Pruebas de la Lambda de Alexa (`alexa/`) contra el emulador, con la placa simulada (también `npm test`) |
 | `pruebas/simular-placa.mjs` | Una placa de mentira en Node, para probar sin ESP32 |
 
 ## 1. Crear el proyecto
@@ -24,8 +25,8 @@ demás. Se hace una sola vez y lleva unos 20 minutos.
 3. En la pestaña **Reglas**, borrá lo que hay, pegá el contenido de
    `database.rules.json` y tocá **Publicar**. **Cada vez que se actualiza el
    repo, repetí este paso**: si el portal nuevo escribe algo que las reglas
-   publicadas no conocen (en v5, `tablero` y `alertas`), Firebase lo rechaza con
-   `permission_denied`.
+   publicadas no conocen (en v5, `tablero` y `alertas`; con Alexa, `alexa/`),
+   Firebase lo rechaza con `permission_denied`.
 4. **Compilación → Authentication → Comenzar.** En **Método de acceso**, habilitá
    **Correo electrónico/contraseña** (solo el primer interruptor, sin "vínculo de
    correo electrónico").
@@ -174,7 +175,7 @@ Hace falta **Java 21 o más** en el PATH (el emulador de la base es un `.jar`).
 ```bash
 cd firebase
 npm install
-npm test                  # las pruebas de las reglas (levanta y baja los emuladores)
+npm test                  # las pruebas de las reglas y de la Lambda de Alexa (levanta y baja los emuladores)
 npm run emuladores        # los deja corriendo: auth en :9099, database en :9000
 ```
 

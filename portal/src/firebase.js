@@ -19,10 +19,11 @@ import {
 } from 'firebase/auth'
 import {
   getDatabase, connectDatabaseEmulator, ref, get, set, update, remove, onValue,
-  query, orderByChild, orderByKey, equalTo, startAt, endAt,
+  query, orderByChild, orderByKey, equalTo, startAt, endAt, serverTimestamp,
 } from 'firebase/database'
 
 import { generarContrasena } from './cuentas.js'
+import { nuevoCodigo, hashCodigo, urlDeVuelta } from './alexa.js'
 import { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo } from './nombres.js'
 export { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo }
 
@@ -178,6 +179,7 @@ export function aBinario(v) {
 //   reglas   [{salida, entrada, condicion, umbral, hist}]
 //   tablero  {id: {widget, color, icono, min, max}}  (lo que falta lo completa widgets.jsx)
 //   alertas  [{entrada, condicion, umbral, hist}]
+//   alexa    {desde} si el alumno la vinculó con su cuenta de Amazon, o null
 export function normalizarPlaca(p) {
   const config = p?.config || {}
   const control = p?.control || {}
@@ -195,6 +197,7 @@ export function normalizarPlaca(p) {
     estado: p?.estado || {},
     tablero: p?.tablero || {},
     alertas: Object.entries(p?.alertas || {}).map(([entrada, a]) => ({ ...a, entrada })),
+    alexa: p?.alexa || null,
   }
 }
 
@@ -402,6 +405,39 @@ export async function borrarAlumno(usuario) {
   }
   await update(ref(db), {
     ['alumnos/' + usuario]: null, ['placas/' + usuario]: null, ['credenciales/' + usuario]: null,
+    [`cursos/${usuario.split('-')[0].toUpperCase()}/alexa/alumnos/${usuario}`]: null,
   })
   return { cuentaBorrada }
 }
+
+// ===================================================================
+//  Alexa (opcional: solo con VITE_ALEXA_CLIENTE_ID, ver alexa.js)
+// ===================================================================
+//
+// El portal no habla con Amazon: deja un código de un solo uso en
+// alexa/codigos/{sha256} y se lo pasa a Amazon en la vuelta. La Lambda
+// (alexa/lambda/) lo canjea y marca el vínculo en placas/{u}/alexa (un
+// alumno) o cursos/{C}/alexa (el Echo del laboratorio, del docente).
+// Desvincular es borrar esa marca: los tokens de Alexa dejan de andar.
+
+// `dueno`: {usuario} o {curso, alumnos: [usuarios que maneja el Echo]}.
+// Devuelve la URL para volver a Amazon.
+export async function autorizarAlexa(pedido, dueno) {
+  const codigo = nuevoCodigo()
+  let datos
+  if (dueno.usuario) {
+    datos = { usuario: dueno.usuario }
+  } else {
+    datos = { curso: dueno.curso, docente: auth.currentUser.uid }
+    await set(ref(db, `cursos/${dueno.curso}/alexa/alumnos`), Object.fromEntries(dueno.alumnos.map(u => [u, true])))
+  }
+  await set(ref(db, 'alexa/codigos/' + await hashCodigo(codigo)), { ...datos, redirect: pedido.redirect, creado: serverTimestamp() })
+  return urlDeVuelta(pedido, { code: codigo })
+}
+
+export const desvincularAlexa = (usuario) => remove(ref(db, `placas/${usuario}/alexa`))
+// La elección de alumnos queda, para la próxima vez.
+export const desvincularAlexaCurso = (curso) => update(ref(db, `cursos/${curso}/alexa`), { desde: null, docente: null })
+export const elegirAlexa = (curso, usuario, si) =>
+  si ? set(ref(db, `cursos/${curso}/alexa/alumnos/${usuario}`), true)
+     : remove(ref(db, `cursos/${curso}/alexa/alumnos/${usuario}`))

@@ -1,5 +1,7 @@
-import { firebaseConfig } from '../firebase.js'
+import { useState } from 'react'
+import { firebaseConfig, desvincularAlexa, mensajeError } from '../firebase.js'
 import { generarPrompt } from '../prompt.js'
+import { CLIENTE_ALEXA, NOMBRE_SKILL } from '../alexa.js'
 import { Bloque, Copiar, textoRegla, BajarApp } from '../componentes/comunes.jsx'
 
 export default function MisDatos({ usuario, placa }) {
@@ -68,6 +70,8 @@ export default function MisDatos({ usuario, placa }) {
 
       <BajarApp />
 
+      {CLIENTE_ALEXA && <Alexa usuario={usuario} placa={placa} />}
+
       <Bloque
         titulo="Tu sketch del ESP32"
         ayuda="Si ya tenés el sketch, estas son las líneas de la configuración. La contraseña completala vos en el código."
@@ -95,5 +99,48 @@ export default function MisDatos({ usuario, placa }) {
         </div>
       )}
     </>
+  )
+}
+
+// Opcional: solo aparece si el portal tiene Alexa configurada.
+function Alexa({ usuario, placa }) {
+  const [yendo, setYendo] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function desvincular() {
+    if (!window.confirm('¿Desvincular Alexa? Deja de manejar tu placa. En la app Alexa, desactivá la skill para que desaparezcan los dispositivos.')) return
+    setYendo(true)
+    setError(null)
+    try {
+      await desvincularAlexa(usuario)
+    } catch (e) {
+      setError(mensajeError(e))
+    }
+    setYendo(false)
+  }
+
+  if (placa.alexa) {
+    const salida = placa.canales.find(c => c.tipo === 'salida')
+    const ejemplo = salida ? (salida.nombre || salida.id.replace(/_/g, ' ')).toLowerCase() : 'la bomba'
+    return (
+      <Bloque
+        titulo="Alexa"
+        ayuda={`Vinculada desde el ${new Date(placa.alexa.desde).toLocaleDateString('es-AR')}. Probá: "Alexa, prende ${ejemplo}". ` +
+               'Si cambiás entradas o salidas, decile "Alexa, descubre dispositivos".'}>
+        {error && <p className="error">{error}</p>}
+        <button className="chico peligro" disabled={yendo} onClick={desvincular}>Desvincular</button>
+      </Bloque>
+    )
+  }
+
+  return (
+    <Bloque titulo="Alexa (opcional)" ayuda="Para manejar tu placa por voz, desde un Echo o desde la app Alexa del celular:">
+      <ol className="lista-avisos">
+        <li>Pasale al docente el correo de tu cuenta de Amazon, para que te invite a la skill {NOMBRE_SKILL}.</li>
+        <li>Aceptá la invitación que te llega por mail. La app Alexa tiene que estar en español de Estados Unidos o de México.</li>
+        <li>En la app Alexa, activá la skill: se abre este portal. Entrá con tu usuario y tocá Autorizar.</li>
+        <li>Decile "Alexa, descubre dispositivos". Después, "Alexa, prende…" con el nombre de tu salida.</li>
+      </ol>
+    </Bloque>
   )
 }

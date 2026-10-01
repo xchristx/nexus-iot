@@ -1,0 +1,58 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "es-US": {
+          "name": "Nexus IoT",
+          "summary": "Maneja por voz la placa ESP32 de tu proyecto de clase.",
+          "description": "Prende y apaga las salidas de tu placa, activa el modo automático y consulta la temperatura. Para alumnos y docentes de un curso de Nexus IoT: se vincula con el usuario de la tarjeta que entrega el docente.",
+          "examplePhrases": [
+            "Alexa, prende la bomba",
+            "Alexa, apaga la luz",
+            "Alexa, ¿está prendida la bomba?"
+          ],
+          "keywords": ["placa", "ESP32", "clase", "IoT"],
+          "smallIconUri": "file://icono-108.png",
+          "largeIconUri": "file://icono-512.png"
+        },
+        "es-MX": {
+          "name": "Nexus IoT",
+          "summary": "Maneja por voz la placa ESP32 de tu proyecto de clase.",
+          "description": "Prende y apaga las salidas de tu placa, activa el modo automático y consulta la temperatura. Para alumnos y docentes de un curso de Nexus IoT: se vincula con el usuario de la tarjeta que entrega el docente.",
+          "examplePhrases": [
+            "Alexa, prende la bomba",
+            "Alexa, apaga la luz",
+            "Alexa, ¿está prendida la bomba?"
+          ],
+          "keywords": ["placa", "ESP32", "clase", "IoT"],
+          "smallIconUri": "file://icono-108.png",
+          "largeIconUri": "file://icono-512.png"
+        }
+      },
+      "category": "SMART_HOME",
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["US", "MX"],
+      "testingInstructions": "Cuenta de prueba: la que entregue el docente (usuario y contraseña de su tarjeta)."
+    },
+    "apis": {
+      "smartHome": {
+        "endpoint": {
+          "uri": "arn:aws:lambda:us-east-1:TU_CUENTA_AWS:function:nexus-alexa"
+        },
+        "protocolVersion": "3"
+      }
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "es-US": { "privacyPolicyUrl": "https://TU-PORTAL.netlify.app/privacidad.html" },
+        "es-MX": { "privacyPolicyUrl": "https://TU-PORTAL.netlify.app/privacidad.html" }
+      }
+    }
+  }
+}

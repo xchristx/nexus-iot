@@ -20,6 +20,12 @@ src/main.local.cpp
 kodular/google-services.json
 kodular/NexusIoT_curso.aia
 
+# Alexa: el zip que se sube a la Lambda, y la clave de la cuenta de servicio de
+# Firebase (acceso total al proyecto: solo va en las variables de la Lambda).
+alexa/*.zip
+*firebase-adminsdk*.json
+alexa/cuenta-servicio*.json
+
 # Firebase: dependencias de las pruebas y logs de los emuladores
 firebase/node_modules
 firebase/*-debug.log

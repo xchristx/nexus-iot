@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { test, before, beforeEach, after } from 'node:test'
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing'
-import { ref, set, update, get, remove } from 'firebase/database'
+import { ref, set, update, get, remove, serverTimestamp } from 'firebase/database'
 
 const DOMINIO = '@nexus-iot.example.com'
 let env
@@ -111,9 +111,11 @@ test('una contraseña guardada tiene forma', async () => {
   await assertFails(c('NoValido', { contrasena: 'sol-4827', creado: 1 }))
 })
 
-test('borrar a un alumno se lleva su alta, su placa y su contraseña', async () => {
+test('borrar a un alumno se lleva su alta, su placa, su contraseña y su lugar en el Echo', async () => {
+  await assertSucceeds(set(ref(docente(), 'cursos/IOT2026/alexa/alumnos/iot2026-beto'), true))
   await assertSucceeds(update(ref(docente()), {
     'alumnos/iot2026-beto': null, 'placas/iot2026-beto': null, 'credenciales/iot2026-beto': null,
+    'cursos/IOT2026/alexa/alumnos/iot2026-beto': null,
   }))
 })
 
@@ -305,4 +307,77 @@ test('la placa publica valores, visto y aviso', async () => {
   await assertFails(set(ref(db, 'placas/iot2026-beto/estado/t'), 'caliente'))
   await assertFails(set(ref(db, 'placas/iot2026-beto/estado/visto'), 'ayer'))
   await assertFails(set(ref(db, 'placas/iot2026-beto/estado/T'), 1))
+})
+
+// --- Alexa: el portal deja un código, la Lambda (sin reglas) lo canjea -----
+
+const HASH = (c) => c.repeat(64)
+const REDIRECT = 'https://pitangui.amazon.com/api/skill/link/M2AAAAAAAAAAAA'
+const codigo = (extra) => ({ redirect: REDIRECT, creado: serverTimestamp(), ...extra })
+
+test('un alumno deja un código de Alexa para su placa, no para la de otro', async () => {
+  const beto = alumno('iot2026-beto')
+  await assertSucceeds(set(ref(beto, 'alexa/codigos/' + HASH('a')), codigo({ usuario: 'iot2026-beto' })))
+  await assertFails(set(ref(beto, 'alexa/codigos/' + HASH('b')), codigo({ usuario: 'iot2026-ana' })))
+  // con cuenta pero sin alta
+  await assertFails(set(ref(alumno('iot2026-ana'), 'alexa/codigos/' + HASH('c')), codigo({ usuario: 'iot2026-ana' })))
+  await assertFails(set(ref(env.unauthenticatedContext().database(), 'alexa/codigos/' + HASH('d')), codigo({ usuario: 'iot2026-beto' })))
+})
+
+test('los códigos de Alexa no se leen, no se pisan y tienen forma', async () => {
+  const beto = alumno('iot2026-beto')
+  const c = (h, v) => set(ref(beto, 'alexa/codigos/' + h), v)
+  await assertSucceeds(c(HASH('a'), codigo({ usuario: 'iot2026-beto' })))
+  await assertFails(get(ref(beto, 'alexa/codigos/' + HASH('a'))))
+  await assertFails(get(ref(docente(), 'alexa/codigos')))
+  await assertFails(c(HASH('a'), codigo({ usuario: 'iot2026-beto' })))
+  await assertFails(remove(ref(beto, 'alexa/codigos/' + HASH('a'))))
+  await assertFails(c('NOHEX', codigo({ usuario: 'iot2026-beto' })))
+  // con el reloj del celular (atrasado: el del emulador es el de esta máquina)
+  await assertFails(c(HASH('b'), { usuario: 'iot2026-beto', redirect: REDIRECT, creado: Date.now() - 60000 }))
+  await assertFails(c(HASH('c'), codigo({ usuario: 'iot2026-beto', curso: 'IOT2026' })))
+  await assertFails(c(HASH('d'), codigo({ usuario: 'iot2026-beto', extra: 1 })))
+  await assertFails(c(HASH('e'), { usuario: 'iot2026-beto', creado: serverTimestamp() }))
+  await assertFails(c(HASH('f'), codigo({ usuario: 'iot2026-beto', redirect: 'x'.repeat(301) })))
+})
+
+test('el docente deja un código de Alexa para un curso que existe', async () => {
+  const prof = docente()
+  await assertSucceeds(set(ref(prof, 'alexa/codigos/' + HASH('a')), codigo({ curso: 'IOT2026', docente: 'uid-docente' })))
+  await assertFails(set(ref(prof, 'alexa/codigos/' + HASH('b')), codigo({ curso: 'NOEXISTE', docente: 'uid-docente' })))
+  await assertFails(set(ref(prof, 'alexa/codigos/' + HASH('c')), codigo({ curso: 'IOT2026', docente: 'otro-uid' })))
+  await assertFails(set(ref(alumno('iot2026-beto'), 'alexa/codigos/' + HASH('d')),
+    codigo({ curso: 'IOT2026', docente: 'uid-iot2026-beto' })))
+})
+
+test('el vínculo con Alexa lo escribe la Lambda: alumno y docente lo leen y lo borran', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await set(ref(ctx.database(), 'placas/iot2026-beto/alexa'), { desde: 1 })
+    await set(ref(ctx.database(), 'cursos/IOT2026/alexa'), { desde: 1, docente: 'uid-docente' })
+  })
+  const beto = alumno('iot2026-beto')
+  await assertSucceeds(get(ref(beto, 'placas/iot2026-beto/alexa')))
+  await assertFails(set(ref(beto, 'placas/iot2026-beto/alexa/desde'), 2))
+  await assertFails(set(ref(beto, 'placas/iot2026-beto/alexa'), { desde: 2 }))
+  // con el vínculo puesto, el resto de la placa se sigue escribiendo
+  await assertSucceeds(set(ref(beto, 'placas/iot2026-beto/control/cmd/bomba'), 1))
+  await assertSucceeds(remove(ref(beto, 'placas/iot2026-beto/alexa')))
+  await assertFails(get(ref(alumno('iot2026-ana'), 'placas/iot2026-beto/alexa')))
+
+  const prof = docente()
+  await assertSucceeds(get(ref(prof, 'cursos/IOT2026/alexa')))
+  await assertFails(set(ref(prof, 'cursos/IOT2026/alexa/desde'), 2))
+  await assertFails(set(ref(prof, 'cursos/IOT2026/alexa/docente'), 'uid-docente'))
+  await assertSucceeds(update(ref(prof, 'cursos/IOT2026/alexa'), { desde: null, docente: null }))
+})
+
+test('el docente elige qué placas maneja el Echo del laboratorio', async () => {
+  const prof = docente()
+  const elegir = (u, v) => set(ref(prof, 'cursos/IOT2026/alexa/alumnos/' + u), v)
+  await assertSucceeds(elegir('iot2026-beto', true))
+  await assertFails(elegir('iot2026-beto', 1))
+  await assertFails(elegir('iot2026-zoe', true))      // no está en el curso
+  await assertFails(set(ref(prof, 'cursos/IOT2026/alexa/otra'), true))
+  await assertFails(set(ref(alumno('iot2026-beto'), 'cursos/IOT2026/alexa/alumnos/iot2026-beto'), true))
+  await assertSucceeds(remove(ref(prof, 'cursos/IOT2026/alexa/alumnos/iot2026-beto')))
 })

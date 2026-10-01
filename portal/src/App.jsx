@@ -9,10 +9,16 @@ import Configurar from './pantallas/Configurar.jsx'
 import MisDatos from './pantallas/MisDatos.jsx'
 import Clase from './pantallas/Clase.jsx'
 import Tema from './pantallas/Tema.jsx'
+import AutorizarAlexa, { AvisoAlexa } from './pantallas/AutorizarAlexa.jsx'
+import { leerPedido } from './alexa.js'
 import { Titulo } from './componentes/comunes.jsx'
 
 // La sesión la guarda Firebase Auth en el navegador: al volver a abrir el
 // portal se entra solo. La contraseña no se guarda nunca.
+
+// La app Alexa abre /alexa para vincular la skill (alexa.js). Es la misma
+// página: el redirect de netlify.toml sirve el index para cualquier ruta.
+const pedidoAlexa = window.location.pathname === '/alexa' ? leerPedido(window.location.search) : null
 
 export default function App() {
   const [sesion, setSesion] = useState(undefined)     // undefined = todavía no se sabe
@@ -43,6 +49,8 @@ export default function App() {
     )
   }
 
+  if (pedidoAlexa?.error) return <AutorizarAlexa pedido={pedidoAlexa} />
+
   if (sesion === undefined || (sesion && !rol && !entrando)) {
     return <main><div className="tarjeta"><p className="ayuda">Cargando…</p></div></main>
   }
@@ -51,10 +59,15 @@ export default function App() {
     return (
       <main>
         <header><Titulo /></header>
+        {pedidoAlexa && <AvisoAlexa />}
         <Entrar onInicio={() => setEntrando(true)}
                 onFin={() => setEntrando(false)} />
       </main>
     )
+  }
+
+  if (pedidoAlexa && rol !== 'ninguno') {
+    return <AutorizarAlexa pedido={pedidoAlexa} rol={rol} usuario={usuarioDeCorreo(sesion.email)} />
   }
 
   if (rol === 'docente') return <Docente />

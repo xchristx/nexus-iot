@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import {
   escucharCursos, escucharClase, escucharCredenciales, escucharDesfase, crearCurso,
   crearAlumnos, nuevaContrasena, borrarAlumno, normalizarPlaca, aBinario, mensajeError,
+  desvincularAlexaCurso, elegirAlexa,
 } from '../firebase.js'
 import { prepararLista, listaParaCopiar } from '../cuentas.js'
 import { cruza, textoAlerta } from '../alertas.js'
-import { Titulo, Copiar } from '../componentes/comunes.jsx'
+import { CLIENTE_ALEXA, NOMBRE_SKILL, MAX_DISPOSITIVOS, dispositivosDe } from '../alexa.js'
+import { Titulo, Copiar, Etiqueta } from '../componentes/comunes.jsx'
 
 // Lo que el docente mira antes y durante la clase: quién tiene la placa
 // conectada, qué manda y si algo avisa. Y las cuentas: los alumnos no se
@@ -83,6 +85,15 @@ export default function Clase({ onSalir, onTema }) {
         .sort((x, y) => x.nombre.localeCompare(y.nombre))
     : []
   const conectadas = filas.filter(f => estaConectada(f.placa, ahora + desfase)).length
+  const alexa = cursos?.[curso]?.alexa
+
+  async function cambiarEcho(usuario, si) {
+    try {
+      await elegirAlexa(curso, usuario, si)
+    } catch (e) {
+      setError(mensajeError(e, 'alexa'))
+    }
+  }
 
   return (
     <main className="ancho">
@@ -143,10 +154,16 @@ export default function Clase({ onSalir, onTema }) {
           {filas.length === 0 && <p className="ayuda">Todavía no hay alumnos: cargá la lista arriba.</p>}
           {filas.map(f => (
             <FilaAlumno key={f.usuario} f={f} ahora={ahora + desfase}
+                        echo={CLIENTE_ALEXA ? Boolean(alexa?.alumnos?.[f.usuario]) : undefined}
+                        onEcho={(si) => cambiarEcho(f.usuario, si)}
                         onBorrar={() => borrar(f.usuario, f.nombre)}
                         onRegenerar={() => regenerar(f.usuario, f.nombre)} />
           ))}
         </div>
+      )}
+
+      {clase && CLIENTE_ALEXA && (
+        <EchoLaboratorio curso={curso} alexa={alexa} filas={filas} onError={setError} />
       )}
 
       {clase && (
@@ -292,7 +309,7 @@ function estaConectada(p, ahora) {
   return typeof p.estado.visto === 'number' && ahora - p.estado.visto <= LATIDO_MAX
 }
 
-function FilaAlumno({ f, ahora, onBorrar, onRegenerar }) {
+function FilaAlumno({ f, ahora, echo, onEcho, onBorrar, onRegenerar }) {
   const [ver, setVer] = useState(false)
   const [yendo, setYendo] = useState(false)
   const p = f.placa
@@ -312,6 +329,7 @@ function FilaAlumno({ f, ahora, onBorrar, onRegenerar }) {
     <div className={'fila-canal alumno ' + (viva ? 'viva' : 'muerta')}>
       <div>
         <span className="punto" /> {f.nombre} <code className="tenue">{f.usuario}</code>
+        {p.alexa && <Etiqueta>Alexa propia</Etiqueta>}
         <div className="detalle">
           Contraseña:{' '}
           {f.contrasena
@@ -330,11 +348,61 @@ function FilaAlumno({ f, ahora, onBorrar, onRegenerar }) {
           <div key={a.entrada} className="detalle alerta-docente">⚠ alerta: {a.entrada} {textoAlerta(a)}</div>
         ))}
         {typeof p.estado.aviso === 'string' && p.estado.aviso && <div className="detalle aviso">{p.estado.aviso}</div>}
+        {echo !== undefined && (
+          <label className="casilla chica">
+            <input type="checkbox" checked={echo} onChange={e => onEcho(e.target.checked)} />
+            en el Echo del laboratorio
+          </label>
+        )}
       </div>
       <div className="acciones-fila">
         {f.contrasena && <button className="chico" disabled={yendo} onClick={con(onRegenerar)}>Nueva contraseña</button>}
         <button className="chico peligro" disabled={yendo} onClick={con(onBorrar)}>Borrar</button>
       </div>
+    </div>
+  )
+}
+
+// ===================================================================
+//  Alexa: el Echo del laboratorio (opcional, ver alexa.js)
+// ===================================================================
+
+// El docente vincula un Echo desde la app Alexa (entrando como docente en la
+// página que abre la skill) y elige acá qué placas maneja, con la casilla de
+// cada alumno. Los alumnos que quieran Alexa en su casa la vinculan solos.
+function EchoLaboratorio({ curso, alexa, filas, onError }) {
+  const elegidas = filas.filter(f => alexa?.alumnos?.[f.usuario])
+  const total = elegidas.reduce((s, f) => s + dispositivosDe(f.placa), 0)
+  const propias = filas.filter(f => f.placa.alexa).length
+
+  async function desvincular() {
+    if (!window.confirm('¿Desvincular el Echo del laboratorio? Deja de manejar las placas de este curso.')) return
+    try {
+      await desvincularAlexaCurso(curso)
+    } catch (e) {
+      onError(mensajeError(e))
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <div className="bloque-cab">
+        <h3>
+          Echo del laboratorio
+          <span className="tenue"> · {alexa?.desde ? 'vinculado' : 'sin vincular'}</span>
+        </h3>
+        {alexa?.desde && <button className="chico peligro" onClick={desvincular}>Desvincular</button>}
+      </div>
+      <p className="ayuda sin-margen">
+        {alexa?.desde
+          ? `Vinculado desde el ${new Date(alexa.desde).toLocaleDateString('es-AR')}. Maneja ${elegidas.length} ` +
+            `placa${elegidas.length === 1 ? '' : 's'} (${total} dispositivo${total === 1 ? '' : 's'}` +
+            `${total > MAX_DISPOSITIVOS ? `: Alexa acepta hasta ${MAX_DISPOSITIVOS}` : ''}): las marcadas "en el Echo" en la lista. ` +
+            'Después de cambiar algo, decile "Alexa, descubre dispositivos".'
+          : `Para que un Echo maneje placas de este curso: en la app Alexa de la cuenta del Echo, activá la skill ` +
+            `${NOMBRE_SKILL}, entrá como docente y elegí el curso y los alumnos.`}
+        {propias > 0 && ` ${propias} alumno${propias === 1 ? ' vinculó' : 's vincularon'} Alexa con su propia cuenta.`}
+      </p>
     </div>
   )
 }

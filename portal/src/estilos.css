@@ -548,3 +548,11 @@ main { padding-top: max(20px, env(safe-area-inset-top)); }
   .tarjeta-alumno dd { margin: 0; }
   .tarjeta-alumno code { color: #000; font-size: 12pt; font-weight: 600; white-space: nowrap; }
 }
+
+/* --- Alexa (opcional) ---------------------------------------------- */
+
+/* La lista de placas que maneja el Echo del laboratorio: más juntas que un
+   formulario. */
+.casillas .casilla { margin-bottom: 8px; }
+.casillas .bloque-cab { margin-bottom: 10px; }
+.casilla.chica { font-size: 0.8125rem; color: var(--tenue); gap: 6px; margin: 6px 0 0; }

@@ -17,7 +17,31 @@
         "nombre":    { ".read": true, ".validate": "newData.isString() && newData.val().length <= 80" },
         "abierto":   { ".read": true, ".validate": "newData.isBoolean()" },
         "plantilla": { ".validate": true },
+        "alexa": {
+          "desde":   { ".validate": false },
+          "docente": { ".validate": false },
+          "alumnos": {
+            "$usuario": { ".validate": "newData.val() === true && root.child('alumnos').child($usuario).child('curso').val() === $curso" }
+          },
+          "$otro": { ".validate": false }
+        },
         "$otro":     { ".validate": false }
+      }
+    },
+
+    "alexa": {
+      "codigos": {
+        ".indexOn": ["creado"],
+        "$hash": {
+          ".write": "auth != null && !data.exists() && newData.exists() && ((newData.child('usuario').isString() && auth.token.email === newData.child('usuario').val() + '@nexus-iot.example.com' && root.child('alumnos').child(newData.child('usuario').val()).exists()) || (root.child('docentes').child(auth.uid).exists() && newData.child('docente').val() === auth.uid))",
+          ".validate": "$hash.matches(/^[0-9a-f]{64}$/) && newData.hasChildren(['redirect', 'creado']) && ((newData.hasChild('usuario') && !newData.hasChild('curso') && !newData.hasChild('docente')) || (!newData.hasChild('usuario') && newData.hasChildren(['curso', 'docente'])))",
+          "usuario":  { ".validate": "newData.isString()" },
+          "curso":    { ".validate": "newData.isString() && root.child('cursos').child(newData.val()).exists()" },
+          "docente":  { ".validate": "newData.val() === auth.uid" },
+          "redirect": { ".validate": "newData.isString() && newData.val().length <= 300" },
+          "creado":   { ".validate": "newData.val() === now" },
+          "$otro":    { ".validate": false }
+        }
       }
     },
 
@@ -124,6 +148,8 @@
             "$otro":     { ".validate": false }
           }
         },
+
+        "alexa": { ".validate": false },
 
         "estado": {
           "$id": {
