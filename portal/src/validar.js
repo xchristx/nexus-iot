@@ -13,7 +13,7 @@ const FLASH = [6, 7, 8, 9, 10, 11]
 function errorGpio(pin, que, max) {
   if (!Number.isInteger(pin) || pin < 0 || pin > 39) return `El GPIO de ${que} tiene que ser un número entre 0 y 39.`
   if (FLASH.includes(pin)) return `GPIO ${pin} es de la memoria flash de la placa: no se puede usar para ${que}.`
-  if (pin > max) return `GPIO ${pin} solo sirve como entrada y no tiene resistencia interna: para ${que} usá uno entre 0 y ${max}.`
+  if (pin > max) return `GPIO ${pin} solo sirve como entrada y no tiene resistencia interna: para ${que} usa uno entre 0 y ${max}.`
   return null
 }
 
@@ -32,10 +32,10 @@ function ocupados(canales, pulsadorModo, sinId) {
 export function errorCanal(c, { canales, pulsadorModo, nuevo }) {
   if (!/^[a-z][a-z0-9_]{0,14}$/.test(c.id || ''))
     return 'El id va en minúsculas: empieza con una letra y sigue con letras, números o _, hasta 15 caracteres (por ejemplo "suelo" o "luz_2").'
-  if (RESERVADOS.includes(c.id)) return `"${c.id}" está reservado: elegí otro id.`
-  if (nuevo && canales.some(x => x.id === c.id)) return `Ya tenés algo que se llama "${c.id}".`
+  if (RESERVADOS.includes(c.id)) return `"${c.id}" está reservado: elige otro id.`
+  if (nuevo && canales.some(x => x.id === c.id)) return `Ya tienes algo que se llama "${c.id}".`
   if (nuevo && canales.filter(x => x.tipo === c.tipo).length >= MAX)
-    return `Ya tenés ${MAX} ${c.tipo === 'salida' ? 'salidas' : 'entradas'}, que es el máximo.`
+    return `Ya tienes ${MAX} ${c.tipo === 'salida' ? 'salidas' : 'entradas'}, que es el máximo.`
 
   const usados = ocupados(canales, pulsadorModo, c.id)
   if (c.tipo === 'salida') {
@@ -66,7 +66,7 @@ export function errorPulsadorModo(pin, canales) {
 }
 
 export function errorRegla(g) {
-  if (!g.entrada) return 'Elegí la entrada que decide.'
+  if (!g.entrada) return 'Elige la entrada que decide.'
   if (!Number.isFinite(g.umbral)) return 'El umbral tiene que ser un número.'
   if (!Number.isFinite(g.hist) || g.hist < 0) return 'La histéresis tiene que ser un número mayor o igual a 0.'
   return null
@@ -81,7 +81,7 @@ export function errorAlerta(a) {
 // El medidor y la barra necesitan saber de dónde a dónde va la escala.
 export function errorWidget(w) {
   if (w.widget !== 'medidor' && w.widget !== 'barra') return null
-  if (!Number.isFinite(w.min) || !Number.isFinite(w.max)) return 'Completá el mínimo y el máximo de la escala.'
+  if (!Number.isFinite(w.min) || !Number.isFinite(w.max)) return 'Completa el mínimo y el máximo de la escala.'
   if (w.min >= w.max) return 'El mínimo tiene que ser menor que el máximo.'
   return null
 }

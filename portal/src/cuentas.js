@@ -31,7 +31,7 @@ export function generarContrasena() {
 
 export function errorNombre(nombre) {
   const limpio = (nombre || '').trim().replace(/\s+/g, ' ')
-  if (limpio.length < 3 || normalizarNombre(nombre).length < 2) return 'muy corto: poné nombre y apellido'
+  if (limpio.length < 3 || normalizarNombre(nombre).length < 2) return 'muy corto: pon nombre y apellido'
   if (limpio.length > 40) return 'muy largo: hasta 40 letras'
   return null
 }

@@ -28,7 +28,7 @@ Expo Push o una Netlify Function programada (ver `LEEME.md`, Decisiones).
 ## Compilar
 
 La app lleva adentro la config de Firebase de `portal/.env` (las mismas
-`VITE_FIREBASE_*` del portal). Revisá que estén bien **antes** de compilar: si
+`VITE_FIREBASE_*` del portal). Revisa que estén bien **antes** de compilar: si
 cambian, hay que compilar y repartir de nuevo.
 
 ```bash
@@ -47,7 +47,7 @@ Nada de lo compilado (`.apk`, `.aab`) va al repo: está en `.gitignore`.
 ## Firma (una sola vez)
 
 Play Store pide que todas las versiones se firmen con la misma clave. Si se
-pierde, no se puede actualizar la app: **guardala junto con sus contraseñas fuera
+pierde, no se puede actualizar la app: **guárdala junto con sus contraseñas fuera
 del repo** (un gestor de contraseñas o un pendrive).
 
 ```bash
@@ -55,7 +55,7 @@ del repo** (un gestor de contraseñas o un pendrive).
   -alias nexus-iot -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Y creá `portal/android/keystore.properties` (está en `.gitignore`):
+Y crea `portal/android/keystore.properties` (está en `.gitignore`):
 
 ```properties
 storeFile=C:/claves/nexus-iot.jks
@@ -79,29 +79,29 @@ personales nuevas). Para una clase, alcanza y sobra.
    IoT", app, gratuita.
 2. **Política de privacidad**: `https://<tu-sitio>.netlify.app/privacidad.html`
    (es `portal/public/privacidad.html`, se publica sola con el portal).
-3. Completá los cuestionarios de **Contenido de la app**:
+3. Completa los cuestionarios de **Contenido de la app**:
    - seguridad de los datos: nombre y contraseña para la cuenta, sin compartir con
      terceros, borrado a pedido;
    - sin anuncios;
    - público: mayores de 13 o la edad del curso.
-4. **Pruebas → Prueba interna → Crear versión** → subí el `.aab`. Play Console
+4. **Pruebas → Prueba interna → Crear versión** → sube el `.aab`. Play Console
    te va a ofrecer que Google administre la clave de la app (*Play App Signing*):
-   aceptá, y la tuya queda como clave de subida.
-5. **Testers**: una lista con los correos de Gmail de los alumnos. Copiales el
+   acepta, y la tuya queda como clave de subida.
+5. **Testers**: una lista con los correos de Gmail de los alumnos. Cópiales el
    **link de participación**: lo abren desde el celular y instalan desde Play Store.
-6. Poné ese link en la variable `VITE_URL_APK` de Netlify: el portal muestra
+6. Pon ese link en la variable `VITE_URL_APK` de Netlify: el portal muestra
    "Bajar la app para Android" en la pantalla de entrada y en Mis datos.
 
 ### Plan B: el `.apk` suelto
 
-`npm run apk`, subí `app-release.apk` a una *release* de GitHub y usá ese link en
+`npm run apk`, sube `app-release.apk` a una *release* de GitHub y usa ese link en
 `VITE_URL_APK`. Al instalarlo, Android pide permitir "orígenes desconocidos".
 
 ## Publicar una versión nueva
 
-1. En `android/app/build.gradle`, subí `versionCode` (1 → 2 → 3…; Play lo exige) y
+1. En `android/app/build.gradle`, sube `versionCode` (1 → 2 → 3…; Play lo exige) y
    `versionName` ("1.1").
-2. `npm run aab` y subila en Play Console, en la misma pista de prueba interna.
+2. `npm run aab` y súbela en Play Console, en la misma pista de prueba interna.
 
 Si lo único que cambió es la web (`portal/src/`), igual hay que recompilar: la app
 no descarga el portal, lo lleva adentro. Eso permite que abra sin internet (aunque
@@ -109,7 +109,7 @@ sin internet no hay datos).
 
 ## Ícono
 
-Sale de `portal/assets/icono.svg`. Si lo cambiás:
+Sale de `portal/assets/icono.svg`. Si lo cambias:
 
 ```bash
 cd portal/assets && node generar-iconos.mjs <ruta a playwright-core>
@@ -133,7 +133,7 @@ adb reverse tcp:9000 tcp:9000 && adb reverse tcp:9099 tcp:9099   # el 127.0.0.1 
 Con la app debug abierta, `chrome://inspect` en Chrome o Edge muestra su WebView
 para ver la consola.
 
-**Después, recompilá con el `.env` real** (`npm run android`) antes de repartir: la
+**Después, recompila con el `.env` real** (`npm run android`) antes de repartir: la
 build de emuladores no anda con el proyecto de verdad.
 
 ## Detalles técnicos
@@ -146,5 +146,5 @@ build de emuladores no anda con el proyecto de verdad.
 - `targetSdk 36`: Play Store exige apuntar a la versión de Android del año.
 - El tema (`android/app/src/main/res/values/styles.xml`) es oscuro, porque desde
   Android 15 la app se dibuja detrás de las barras del sistema.
-- Si la API key de Firebase tiene restricción por *referrer* HTTP, agregá
+- Si la API key de Firebase tiene restricción por *referrer* HTTP, agrega
   `https://localhost` (el origen de la app).

@@ -57,7 +57,7 @@ export default function Clase({ onSalir, onTema }) {
       const { cuentaBorrada } = await borrarAlumno(usuario)
       if (!cuentaBorrada) {
         setAviso(`Se borraron los datos de ${usuario}, pero no su cuenta (no había contraseña guardada o no coincidía). ` +
-          'Borrala a mano en Firebase Console → Authentication, o no vas a poder volver a cargar a alguien con ese nombre.')
+          'Bórrala a mano en Firebase Console → Authentication, o no vas a poder volver a cargar a alguien con ese nombre.')
       }
     } catch (e) {
       setError(mensajeError(e))
@@ -124,7 +124,7 @@ export default function Clase({ onSalir, onTema }) {
             <label>
               Curso
               <select value={curso || ''} onChange={e => setCurso(e.target.value || null)}>
-                <option value="">Elegí uno</option>
+                <option value="">Elige uno</option>
                 {Object.entries(cursos).map(([c, d]) => <option key={c} value={c}>{c} — {d.nombre}</option>)}
               </select>
             </label>
@@ -151,7 +151,7 @@ export default function Clase({ onSalir, onTema }) {
               </span>
             )}
           </div>
-          {filas.length === 0 && <p className="ayuda">Todavía no hay alumnos: cargá la lista arriba.</p>}
+          {filas.length === 0 && <p className="ayuda">Todavía no hay alumnos: carga la lista arriba.</p>}
           {filas.map(f => (
             <FilaAlumno key={f.usuario} f={f} ahora={ahora + desfase}
                         echo={CLIENTE_ALEXA ? Boolean(alexa?.alumnos?.[f.usuario]) : undefined}
@@ -170,7 +170,7 @@ export default function Clase({ onSalir, onTema }) {
         <div className="tarjeta">
           <h3>Si alguien se olvidó la contraseña</h3>
           <p className="ayuda sin-margen">
-            Tocá "ver" en su fila y dictásela, o "nueva contraseña" para darle otra.
+            Toca "ver" en su fila y díctasela, o "nueva contraseña" para darle otra.
             Si le das una nueva, la tiene que cambiar también en su sketch y en su app.
             Sus entradas, salidas y reglas no se pierden.
           </p>
@@ -198,7 +198,7 @@ function NuevoCurso({ cursos, onCreado }) {
     const c = codigo.trim().toUpperCase()
     if (!/^[A-Z0-9]{3,12}$/.test(c)) { setError('El código son de 3 a 12 letras o números, sin espacios (por ejemplo IOT2026).'); return }
     if (cursos[c]) { setError(`Ya existe el curso ${c}.`); return }
-    if (!nombre.trim()) { setError('Poné un nombre para el curso.'); return }
+    if (!nombre.trim()) { setError('Pon un nombre para el curso.'); return }
     try {
       await crearCurso(c, nombre.trim().slice(0, 80))
       setAbierto(false); setCodigo(''); setNombre(''); setError(null)
@@ -211,7 +211,7 @@ function NuevoCurso({ cursos, onCreado }) {
   if (!abierto) return <button className="enlace" onClick={() => setAbierto(true)}>+ crear otro curso</button>
   return (
     <form onSubmit={crear}>
-      {vacio && <p className="ayuda">Todavía no hay cursos. Creá el primero:</p>}
+      {vacio && <p className="ayuda">Todavía no hay cursos. Crea el primero:</p>}
       <div className="dos-columnas">
         <label>
           Código
@@ -226,7 +226,7 @@ function NuevoCurso({ cursos, onCreado }) {
       </div>
       <span className="ayuda-campo">
         El código va al principio de cada usuario (iot2026-ana_perez). Para que los
-        alumnos arranquen con un kit, cargale una plantilla desde Firebase Console
+        alumnos arranquen con un kit, cárgale una plantilla desde Firebase Console
         (firebase/LEEME.md).
       </span>
       {error && <p className="error">{error}</p>}
@@ -259,7 +259,7 @@ function CargarLista({ curso, existentes, onAviso }) {
     if (r.every(x => !x.error)) setTexto('')
     else setTexto(r.filter(x => x.error).map(x => x.nombre).join('\n'))
     const bien = r.filter(x => !x.error).length
-    if (bien) onAviso(`Se ${bien === 1 ? 'creó 1 cuenta' : `crearon ${bien} cuentas`}. Imprimí las tarjetas o copiá la lista para repartirlas.`)
+    if (bien) onAviso(`Se ${bien === 1 ? 'creó 1 cuenta' : `crearon ${bien} cuentas`}. Imprime las tarjetas o copia la lista para repartirlas.`)
   }
 
   return (
@@ -395,12 +395,12 @@ function EchoLaboratorio({ curso, alexa, filas, onError }) {
       </div>
       <p className="ayuda sin-margen">
         {alexa?.desde
-          ? `Vinculado desde el ${new Date(alexa.desde).toLocaleDateString('es-AR')}. Maneja ${elegidas.length} ` +
+          ? `Vinculado desde el ${new Date(alexa.desde).toLocaleDateString('es-BO')}. Maneja ${elegidas.length} ` +
             `placa${elegidas.length === 1 ? '' : 's'} (${total} dispositivo${total === 1 ? '' : 's'}` +
             `${total > MAX_DISPOSITIVOS ? `: Alexa acepta hasta ${MAX_DISPOSITIVOS}` : ''}): las marcadas "en el Echo" en la lista. ` +
-            'Después de cambiar algo, decile "Alexa, descubre dispositivos".'
-          : `Para que un Echo maneje placas de este curso: en la app Alexa de la cuenta del Echo, activá la skill ` +
-            `${NOMBRE_SKILL}, entrá como docente y elegí el curso y los alumnos.`}
+            'Después de cambiar algo, dile "Alexa, descubre dispositivos".'
+          : `Para que un Echo maneje placas de este curso: en la app Alexa de la cuenta del Echo, activa la skill ` +
+            `${NOMBRE_SKILL}, entra como docente y elige el curso y los alumnos.`}
         {propias > 0 && ` ${propias} alumno${propias === 1 ? ' vinculó' : 's vincularon'} Alexa con su propia cuenta.`}
       </p>
     </div>
@@ -423,9 +423,9 @@ function Tarjetas({ curso, nombreCurso, filas }) {
           <span className="tenue">{curso}{nombreCurso ? ` — ${nombreCurso}` : ''}</span>
           <dl>
             <dt>Usuario</dt><dd><code>{f.usuario}</code></dd>
-            <dt>Contraseña</dt><dd><code>{f.contrasena || '(pedísela al docente)'}</code></dd>
+            <dt>Contraseña</dt><dd><code>{f.contrasena || '(pídesela al docente)'}</code></dd>
           </dl>
-          <span className="tenue">Entrá en {portal}. Usá los mismos datos en tu placa y en tu app. No se los pases a nadie.</span>
+          <span className="tenue">Entra en {portal}. Usa los mismos datos en tu placa y en tu app. No se los pases a nadie.</span>
         </div>
       ))}
     </section>

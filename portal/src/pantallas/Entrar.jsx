@@ -75,7 +75,7 @@ export default function Entrar({ onInicio, onFin }) {
       </button>
 
       <p className="ayuda" style={{ marginTop: 14 }}>
-        ¿No tenés tarjeta o perdiste la contraseña? Pedísela al docente: él tiene
+        ¿No tienes tarjeta o perdiste la contraseña? Pídesela al docente: él tiene
         la lista y te puede dar una nueva.
       </p>
 

@@ -37,7 +37,7 @@ export function AvisoAlexa() {
     <div className="tarjeta">
       <h2>Vincular Alexa</h2>
       <p className="ayuda sin-margen">
-        La app Alexa te trajo acá para conectar la skill {NOMBRE_SKILL}. Entrá con el
+        La app Alexa te trajo acá para conectar la skill {NOMBRE_SKILL}. Entra con el
         usuario y la contraseña de tu tarjeta (o como docente, para el Echo del
         laboratorio) y después vas a poder autorizarla.
       </p>
@@ -86,7 +86,7 @@ function ParaAlumno({ pedido, usuario }) {
         <li>activar y desactivar el modo automático</li>
         <li>decirte la temperatura de tus entradas en °C</li>
       </ul>
-      <p className="ayuda">Lo cortás cuando quieras desde el portal, en Mis datos → Alexa.</p>
+      <p className="ayuda">Lo cortas cuando quieras desde el portal, en Mis datos → Alexa.</p>
       {error && <p className="error">{error}</p>}
       <Botones pedido={pedido} yendo={yendo} onAutorizar={() => autorizar({ usuario })} />
     </div>
@@ -145,7 +145,7 @@ function ParaDocente({ pedido }) {
         <label>
           Curso
           <select value={curso || ''} onChange={e => setCurso(e.target.value || null)}>
-            <option value="">Elegí uno</option>
+            <option value="">Elige uno</option>
             {Object.entries(cursos).map(([c, d]) => <option key={c} value={c}>{c} — {d.nombre}</option>)}
           </select>
         </label>

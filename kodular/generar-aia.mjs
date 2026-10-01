@@ -68,7 +68,7 @@ const COMPONENTES = [
     ['PasswordTextBox', 'TextBoxContrasena', { Hint: 'tu contraseña', Width: '-2' }],
     ['Button', 'BotonEntrar', { Text: 'Entrar' }],
   ]],
-  ['Label', 'LabelConexion', { FontBold: 'True', FontSize: '18', Text: 'Entrá con tu usuario.' }],
+  ['Label', 'LabelConexion', { FontBold: 'True', FontSize: '18', Text: 'Entra con tu usuario.' }],
   ['VerticalArrangement', 'ArregloPlaca', { Width: '-2', Visible: 'False' }, [
     ['Label', 'LabelDatos', { FontSize: '16' }],
     ['Label', 'LabelModo', { FontSize: '16', Text: 'Modo automático: ?' }],
@@ -282,9 +282,9 @@ function programa() {
     comentar(declararGlobal('DOMINIO', texto(DOMINIO)),
       'Se agrega al usuario para armar el correo de Firebase. No lo cambies: es el mismo para todo el curso.'),
     comentar(declararGlobal('USUARIO', texto('')),
-      'Tu usuario, por ejemplo iot2026-ana_perez. Dejalo vacío: la app lo pide y lo guarda.'),
+      'Tu usuario, por ejemplo iot2026-ana_perez. Déjalo vacío: la app lo pide y lo guarda.'),
     comentar(declararGlobal('CONTRASENA', texto('')),
-      'Tu contraseña. Dejala vacía: la app la pide y la guarda en el teléfono.'),
+      'Tu contraseña. Déjala vacía: la app la pide y la guarda en el teléfono.'),
     comentar(declararGlobal('AUTO', booleano(false)),
       'El modo automático, tal como llega de Firebase. Leelo con la función autoActivo.'),
   ]
@@ -317,7 +317,7 @@ function programa() {
     cuando('FirebaseAuth', 'LoginFailed', sec(
       fijar('ArregloLogin', 'Visible', booleano(true)),
       fijar('ArregloPlaca', 'Visible', booleano(false)),
-      llamar('mostrarError', texto('No se pudo entrar. Revisá tu usuario y tu contraseña: son los mismos del portal.')))),
+      llamar('mostrarError', texto('No se pudo entrar. Revisa tu usuario y tu contraseña: son los mismos del portal.')))),
 
     comentar(cuando('DBEstado', 'DataChanged', guardarDato()),
       'Llega cada vez que la placa cambia algo: tag es el id ("t", "bomba", "visto"...) y value su valor.'),
@@ -398,7 +398,7 @@ function programa() {
       fijar('TextBoxContrasena', 'Text', texto('')),
       fijar('ArregloPlaca', 'Visible', booleano(false)),
       fijar('ArregloLogin', 'Visible', booleano(true)),
-      fijar('LabelConexion', 'Text', texto('Entrá con tu usuario.')))),
+      fijar('LabelConexion', 'Text', texto('Entra con tu usuario.')))),
 
     comentar(procedimiento('mostrarEstado', sec(
       si([[comparar(llamarFuncion('valor', texto('visto')), 'EQ', numero(0)),
@@ -421,8 +421,8 @@ function programa() {
       si([[comparar(llamarFuncion('valor', texto('bomba')), 'EQ', numero(1)),
            fijar('LabelBomba', 'Text', texto('Bomba: prendida'))]],
          fijar('LabelBomba', 'Text', texto('Bomba: apagada'))))),
-      'ESTE ES TUYO. Se llama cada vez que llega un dato nuevo. Cambialo para mostrar tus entradas y salidas: '
-      + 'el ejemplo usa una salida "bomba"; poné el id de la tuya.'),
+      'ESTE ES TUYO. Se llama cada vez que llega un dato nuevo. Cámbialo para mostrar tus entradas y salidas: '
+      + 'el ejemplo usa una salida "bomba"; pon el id de la tuya.'),
 
     cuando('BotonModo', 'Click', llamar('modoAuto', no(llamarFuncion('autoActivo')))),
     cuando('BotonPrender', 'Click', llamar('enviarComando', texto('bomba'), numero(1))),

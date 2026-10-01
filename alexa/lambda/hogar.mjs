@@ -52,7 +52,7 @@ export async function atender({ header, endpoint, payload }) {
     if (header.namespace === 'Alexa.Authorization' && header.name === 'AcceptGrant') return r.permiso()
 
     const datos = abrir(endpoint?.scope?.token ?? payload?.scope?.token)
-    if (!datos || datos.t !== 'a') return r.error('INVALID_AUTHORIZATION_CREDENTIAL', 'Vinculá de nuevo la cuenta en la app Alexa.')
+    if (!datos || datos.t !== 'a') return r.error('INVALID_AUTHORIZATION_CREDENTIAL', 'Vincula de nuevo la cuenta en la app Alexa.')
     if (!(datos.exp > Date.now())) return r.error('EXPIRED_AUTHORIZATION_CREDENTIAL', 'El token venció.')
 
     if (header.namespace === 'Alexa.Discovery' && header.name === 'Discover') {
@@ -68,7 +68,7 @@ export async function atender({ header, endpoint, payload }) {
     if (!carga) return r.error('INVALID_AUTHORIZATION_CREDENTIAL', 'La cuenta ya no está vinculada.')
     const p = carga.placas[usuario]
     const d = p && dispositivosDe(usuario, p.placa, p.alumno).find(x => x.endpointId === endpoint.endpointId)
-    if (!d) return r.error('NO_SUCH_ENDPOINT', 'Ese dispositivo ya no existe: decile "Alexa, descubre dispositivos".')
+    if (!d) return r.error('NO_SUCH_ENDPOINT', 'Ese dispositivo ya no existe: dile "Alexa, descubre dispositivos".')
 
     if (header.namespace === 'Alexa.PowerController' && (header.name === 'TurnOn' || header.name === 'TurnOff')) {
       return await encender(r, usuario, d, p.placa, header.name === 'TurnOn')

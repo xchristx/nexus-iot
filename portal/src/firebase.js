@@ -66,16 +66,16 @@ if (configurado) {
 // es que el proyecto tenga publicadas las reglas de antes, que no las conocen.
 export function mensajeError(e, rama) {
   const codigo = e?.code || ''
-  if (codigo.includes('network-request-failed')) return 'No se pudo conectar. Revisá tu internet.'
+  if (codigo.includes('network-request-failed')) return 'No se pudo conectar. Revisa tu internet.'
   if (codigo.includes('invalid-credential') || codigo.includes('wrong-password') || codigo.includes('user-not-found') || codigo.includes('invalid-login'))
     return 'El usuario o la contraseña no coinciden. Están en la tarjeta que te dio el docente.'
-  if (codigo.includes('too-many-requests')) return 'Demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.'
+  if (codigo.includes('too-many-requests')) return 'Demasiados intentos seguidos. Espera unos minutos y prueba de nuevo.'
   if (codigo.includes('weak-password')) return 'La contraseña tiene que tener al menos 6 caracteres.'
-  if (codigo.includes('invalid-email')) return 'Ese usuario no existe: revisá cómo está escrito en tu tarjeta.'
-  if (codigo.includes('user-disabled')) return 'Tu cuenta está deshabilitada. Hablá con el docente.'
+  if (codigo.includes('invalid-email')) return 'Ese usuario no existe: revisa cómo está escrito en tu tarjeta.'
+  if (codigo.includes('user-disabled')) return 'Tu cuenta está deshabilitada. Habla con el docente.'
   if (/permission.denied|PERMISSION_DENIED/i.test(codigo + ' ' + (e?.message || ''))) {
     if (rama) return `Firebase no acepta "${rama}": seguramente el proyecto tiene publicadas reglas viejas. ` +
-      'Avisale al docente que publique de nuevo firebase/database.rules.json (Realtime Database → Reglas).'
+      'Avísale al docente que publique de nuevo firebase/database.rules.json (Realtime Database → Reglas).'
     return 'Firebase rechazó el cambio: algún dato no cumple las reglas.'
   }
   return e?.message || String(e)
@@ -103,7 +103,7 @@ export async function entrar(usuarioTipeado, contrasena) {
   const alta = await get(ref(db, 'alumnos/' + usuario)).catch(() => null)
   if (!alta?.exists()) {
     await signOut(auth)
-    return { ok: false, error: 'Tu cuenta existe pero no está en ningún curso. Hablá con el docente.' }
+    return { ok: false, error: 'Tu cuenta existe pero no está en ningún curso. Habla con el docente.' }
   }
   return { ok: true }
 }
@@ -342,7 +342,7 @@ async function crearUna(codigo, { nombre, usuario }, plantilla) {
       if (!guardada) await remove(ref(db, 'credenciales/' + usuario)).catch(() => {})
       return {
         usuario, nombre,
-        error: 'Ya hay una cuenta con ese usuario, de antes, con otra contraseña. Borrala en Firebase Console → Authentication y volvé a cargarlo.',
+        error: 'Ya hay una cuenta con ese usuario, de antes, con otra contraseña. Bórrala en Firebase Console → Authentication y vuelve a cargarlo.',
       }
     }
   }
@@ -377,12 +377,12 @@ export async function crearAlumnos(curso, lista, onPaso) {
 // Cambia la contraseña por una nueva generada. Hace falta la guardada.
 export async function nuevaContrasena(usuario) {
   const guardada = (await get(ref(db, 'credenciales/' + usuario))).val()
-  if (!guardada) throw new Error('No hay una contraseña guardada para esta cuenta: borrala en Firebase Console → Authentication y volvé a cargar al alumno.')
+  if (!guardada) throw new Error('No hay una contraseña guardada para esta cuenta: bórrala en Firebase Console → Authentication y vuelve a cargar al alumno.')
   const nueva = generarContrasena()
   try {
     await comoAlumno(usuario, guardada.contrasena, (user) => updatePassword(user, nueva))
   } catch (e) {
-    throw new Error('No se pudo entrar a la cuenta con la contraseña guardada (' + mensajeError(e) + '). Borrala en Firebase Console → Authentication y volvé a cargar al alumno.')
+    throw new Error('No se pudo entrar a la cuenta con la contraseña guardada (' + mensajeError(e) + '). Bórrala en Firebase Console → Authentication y vuelve a cargar al alumno.')
   }
   await set(ref(db, 'credenciales/' + usuario), { contrasena: nueva, creado: Date.now() })
   return nueva

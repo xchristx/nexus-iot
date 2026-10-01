@@ -143,7 +143,7 @@ el comando en cola), y en modo automático no toca una salida con regla. Sin
 
 ## Puesta en marcha (una sola vez)
 
-1. **Firebase:** seguir [firebase/LEEME.md](firebase/LEEME.md). Al terminar tenés
+1. **Firebase:** seguir [firebase/LEEME.md](firebase/LEEME.md). Al terminar tienes
    la config de la app web, el `google-services.json` de la app Android, el primer
    curso y tu cuenta de docente.
 2. **Portal:**
@@ -159,20 +159,20 @@ el comando en cola), y en modo automático no toca una salida con regla. Sin
    `VITE_FIREBASE_…` van en **Site settings > Environment variables**.
    `netlify.toml` (en la raíz, porque ahí lo busca Netlify) ya tiene el resto.
 3. **Kodular:** `node kodular/generar-aia.mjs` con `kodular/google-services.json`
-   en su lugar. Importá `kodular/NexusIoT_curso.aia` en Kodular, compilá el APK y
-   probalo una vez con una placa antes de repartirlo.
+   en su lugar. Importa `kodular/NexusIoT_curso.aia` en Kodular, compila el APK y
+   pruébalo una vez con una placa antes de repartirlo.
 4. **Repartir:**
 
    ```text
-   1. Entrá a <tu-portal>.netlify.app con el usuario y la contraseña de tu
-      tarjeta. Guardala: la vas a usar en el portal, en tu placa y en tu app.
-   2. En "Configurar" declará tus entradas (lo que tu placa mide o lee), tus
+   1. Entra a <tu-portal>.netlify.app con el usuario y la contraseña de tu
+      tarjeta. Guárdala: la vas a usar en el portal, en tu placa y en tu app.
+   2. En "Configurar" declara tus entradas (lo que tu placa mide o lee), tus
       salidas (lo que prende y apaga), sus pulsadores y las reglas del modo
       automático.
-   3. En "Mis datos" copiá el prompt y pegalo en una IA para generar el código
-      del ESP32. Completá tu WiFi y tu contraseña en el código.
-   4. Importá NexusIoT_curso.aia en Kodular y compilá el APK (el Companion no
-      funciona con Firebase). Entrá con tu usuario y tu contraseña.
+   3. En "Mis datos" copia el prompt y pégalo en una IA para generar el código
+      del ESP32. Completa tu WiFi y tu contraseña en el código.
+   4. Importa NexusIoT_curso.aia en Kodular y compila el APK (el Companion no
+      funciona con Firebase). Entra con tu usuario y tu contraseña.
    ```
 
 ## Decisiones que conviene conocer antes de tocar nada
@@ -265,16 +265,21 @@ Los structs van arriba de todo, antes de cualquier función: el Arduino IDE agre
 las declaraciones de las funciones antes de la primera, y si un tipo está más
 abajo, no compila.
 
-Si tocás `src/main.cpp`, regenerá el `.ino` y el zip que se reparte:
+Si tocas `src/main.cpp`, regenera el `.ino` y el zip que se reparte:
 
 ```bash
-# 1. el sketch de Arduino IDE (desde la raíz del repo). Las últimas tres
-#    expresiones vacían el WiFi y la contraseña, por si src/main.cpp tiene los tuyos.
+# 1. el sketch de Arduino IDE (desde la raíz del repo). La primera expresión
+#    saca el bloque de src/secretos.h (el .ino no lo necesita); las últimas seis
+#    ponen los marcadores, por si alguien escribió sus datos en src/main.cpp.
 cat arduino/cabecera.txt src/main.cpp \
-  | sed -e 's/^#define USAR_DHT 1$/#define USAR_DHT 0/' \
+  | sed -e '/secretos\.h/d' \
+        -e 's/^#define USAR_DHT 1\(\r\?\)$/#define USAR_DHT 0\1/' \
         -e 's/^const char \*WIFI_SSID = "[^"]*";/const char *WIFI_SSID = "";/' \
         -e 's/^const char \*WIFI_PASS = "[^"]*";/const char *WIFI_PASS = "";/' \
         -e 's/^const char \*CONTRASENA   = "[^"]*";/const char *CONTRASENA   = "";/' \
+        -e 's#^const char \*API_KEY      = "[^"]*";#const char *API_KEY      = "PEGA_ACA_LA_API_KEY";#' \
+        -e 's#^const char \*DATABASE_URL = "[^"]*";#const char *DATABASE_URL = "https://TUPROYECTO-default-rtdb.firebaseio.com";#' \
+        -e 's#^const char \*USUARIO      = "[^"]*";#const char *USUARIO      = "PEGA_ACA_TU_USUARIO";#' \
   > arduino/NexusIoT/NexusIoT.ino
 ```
 

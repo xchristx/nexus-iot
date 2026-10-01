@@ -30,7 +30,7 @@ export const conectada = (placa, ahora = Date.now()) =>
 
 export const esTemperatura = (unidad) => /^\s*[°º]?\s*c\s*$/i.test(unidad || '')
 
-// El ícono del tablero dice qué es: una luz se apaga con "Alexa, apagá las luces".
+// El ícono del tablero dice qué es: una luz se apaga con "Alexa, apaga las luces".
 const CATEGORIA = { foco: 'LIGHT', ventilador: 'FAN', enchufe: 'SMARTPLUG' }
 
 const ordenados = (mapa) =>

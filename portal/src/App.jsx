@@ -41,8 +41,8 @@ export default function App() {
       <main>
         <div className="tarjeta">
           <p className="error">
-            Faltan las variables VITE_FIREBASE_… (ver portal/.env.example). Cargalas en
-            las variables de entorno de Netlify y volvé a desplegar.
+            Faltan las variables VITE_FIREBASE_… (ver portal/.env.example). Cárgalas en
+            las variables de entorno de Netlify y vuelve a desplegar.
           </p>
         </div>
       </main>
@@ -109,7 +109,7 @@ function Alumno({ usuario }) {
         <div className="tarjeta">
           <p className="error">
             Tu cuenta existe pero no está en ningún curso (el docente la puede
-            haber borrado). Hablá con el docente.
+            haber borrado). Habla con el docente.
           </p>
           <button onClick={salir}>Salir</button>
         </div>

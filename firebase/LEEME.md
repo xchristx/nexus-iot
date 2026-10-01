@@ -15,19 +15,19 @@ demás. Se hace una sola vez y lleva unos 20 minutos.
 
 ## 1. Crear el proyecto
 
-1. Entrá a <https://console.firebase.google.com> y creá un proyecto. Google
+1. Entra a <https://console.firebase.google.com> y crea un proyecto. Google
    Analytics no hace falta.
 2. **Compilación → Realtime Database → Crear una base de datos.**
    - Ubicación: la que quieras. Con **Estados Unidos (us-central1)** la URL
      termina en `firebaseio.com`; con otras, en `firebasedatabase.app`. Las dos
      funcionan.
-   - Arrancá en **modo bloqueado**.
-3. En la pestaña **Reglas**, borrá lo que hay, pegá el contenido de
-   `database.rules.json` y tocá **Publicar**. **Cada vez que se actualiza el
-   repo, repetí este paso**: si el portal nuevo escribe algo que las reglas
+   - Arranca en **modo bloqueado**.
+3. En la pestaña **Reglas**, borra lo que hay, pega el contenido de
+   `database.rules.json` y toca **Publicar**. **Cada vez que se actualiza el
+   repo, repite este paso**: si el portal nuevo escribe algo que las reglas
    publicadas no conocen (en v5, `tablero` y `alertas`; con Alexa, `alexa/`),
    Firebase lo rechaza con `permission_denied`.
-4. **Compilación → Authentication → Comenzar.** En **Método de acceso**, habilitá
+4. **Compilación → Authentication → Comenzar.** En **Método de acceso**, habilita
    **Correo electrónico/contraseña** (solo el primer interruptor, sin "vínculo de
    correo electrónico").
 
@@ -35,8 +35,8 @@ demás. Se hace una sola vez y lleva unos 20 minutos.
 
 En **Configuración del proyecto** (el engranaje) → **General** → **Tus apps**:
 
-**App web, para el portal.** Tocá `</>`, ponele un nombre (por ejemplo "portal") y
-registrala; Hosting no hace falta. Firebase te muestra un `firebaseConfig`: esos
+**App web, para el portal.** Toca `</>`, ponle un nombre (por ejemplo "portal") y
+regístrala; Hosting no hace falta. Firebase te muestra un `firebaseConfig`: esos
 valores van en `portal/.env` (copiando `portal/.env.example`) y en las variables de
 entorno de Netlify:
 
@@ -52,13 +52,13 @@ Estos valores no son secretos: terminan dentro del portal publicado, y la API ke
 de Firebase identifica al proyecto, no da permisos. Lo que protege los datos son
 las reglas.
 
-**App Android, para Kodular.** Tocá el ícono de Android:
+**App Android, para Kodular.** Toca el ícono de Android:
 
 1. Nombre del paquete: `io.nexusiot.app` (o el que quieras; es el `package` de la
    app de los alumnos). El SHA-1 no hace falta.
-2. Descargá `google-services.json` y guardalo como `kodular/google-services.json`
+2. Descarga `google-services.json` y guárdalo como `kodular/google-services.json`
    (está en `.gitignore`: no se sube).
-3. Corré `node kodular/generar-aia.mjs`: genera `kodular/NexusIoT_curso.aia` con
+3. Corre `node kodular/generar-aia.mjs`: genera `kodular/NexusIoT_curso.aia` con
    ese archivo adentro y el mismo package. Ese `.aia` es el que se reparte.
 
 ## 3. La cuenta del docente
@@ -67,14 +67,14 @@ Es la única cuenta que se crea a mano, y se hace una sola vez. Con ella se entr
 al portal como docente, y desde ahí se crean los cursos y las cuentas de los
 alumnos.
 
-1. **Compilación → Authentication → Usuarios → Agregar usuario.** Poné tu correo
-   (el real, el de todos los días) y una contraseña de al menos 6 caracteres. Tocá
+1. **Compilación → Authentication → Usuarios → Agregar usuario.** Pon tu correo
+   (el real, el de todos los días) y una contraseña de al menos 6 caracteres. Toca
    **Agregar usuario**.
 2. En la lista aparece tu correo con una columna **UID de usuario** (una cadena
-   larga como `Xk3pQ9…`). Pasá el mouse por encima y tocá el ícono de copiar.
-3. **Compilación → Realtime Database → Datos.** Pasá el mouse sobre la raíz (la
-   primera línea, con la URL de la base) y tocá **+**:
-   - **Clave:** `docentes`, y sin escribir valor tocá el **+** de al lado para
+   larga como `Xk3pQ9…`). Pasa el mouse por encima y toca el ícono de copiar.
+3. **Compilación → Realtime Database → Datos.** Pasa el mouse sobre la raíz (la
+   primera línea, con la URL de la base) y toca **+**:
+   - **Clave:** `docentes`, y sin escribir valor toca el **+** de al lado para
      agregarle un hijo;
    - **Clave del hijo:** el UID que copiaste; **valor:** `true` (sin comillas).
    - **Agregar.** Tiene que quedar así:
@@ -119,10 +119,10 @@ cambie la contraseña a otro.
 Por defecto cada alumno arranca sin entradas, salidas ni reglas. Para que arranquen
 con un kit, **antes de cargar la lista**:
 
-1. En **Realtime Database → Datos**, abrí `cursos/IOT2026`, tocá **+** y creá un
+1. En **Realtime Database → Datos**, abre `cursos/IOT2026`, toca **+** y crea un
    hijo `plantilla` con cualquier valor (por ejemplo `0`): la consola solo
    importa en un nodo que ya existe.
-2. Hacé clic en `plantilla` para entrar a ese nodo (arriba tiene que decir
+2. Haz clic en `plantilla` para entrar a ese nodo (arriba tiene que decir
    `…/cursos/IOT2026/plantilla`).
 3. Menú `⋮` → **Importar JSON** → `plantilla-kit-ejemplo.json` (o uno tuyo con la
    misma forma). Reemplaza el `0`.
@@ -146,7 +146,7 @@ que cambiar también en su sketch y en su app). No pierde nada de lo que configu
 **Borrar a un alumno** (se cargó con el nombre mal escrito, dejó el curso): en el
 portal, **Borrar** en su fila. Se lleva su cuenta, su hardware, sus reglas y su
 contraseña. Si el portal avisa que no pudo borrar la cuenta (una creada a mano, o
-de antes de este sistema), borrala en **Authentication → Usuarios**.
+de antes de este sistema), bórrala en **Authentication → Usuarios**.
 
 **Cortarle el acceso a uno solo:** en **Authentication**, menú `⋮` del usuario →
 **Inhabilitar cuenta**.

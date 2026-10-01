@@ -82,7 +82,7 @@ node -e "console.log(JSON.stringify(require('./TU-CLAVE-firebase-adminsdk.json')
 | ------------------- | ------------------------------------------------------------------------------------------------ |
 | `CLIENTE_ID`      | Un nombre cualquiera, por ejemplo`nexus-alexa`. No es secreto: también va en Netlify          |
 | `CLIENTE_SECRETO` | Uno al azar:`node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`   |
-| `SECRETO_TOKENS`  | Otro al azar, igual que el anterior (32 caracteres o más). Si lo cambiás, se desvinculan todos |
+| `SECRETO_TOKENS`  | Otro al azar, igual que el anterior (32 caracteres o más). Si lo cambias, se desvinculan todos |
 
 ## 3. La Lambda (AWS, región us-east-1)
 
@@ -91,7 +91,7 @@ node -e "console.log(JSON.stringify(require('./TU-CLAVE-firebase-adminsdk.json')
    ```powershell
    Compress-Archive -Path alexa\lambda\* -DestinationPath alexa\nexus-alexa.zip -Force
    ```
-2. En la consola de AWS, arriba a la derecha, elegí la región **US East (N.
+2. En la consola de AWS, arriba a la derecha, elige la región **US East (N.
    Virginia) us-east-1**: es la que atiende a Alexa en español de Estados Unidos y
    de México.
 3. **Lambda → Create function → Author from scratch**: nombre `nexus-alexa`, runtime
@@ -105,9 +105,9 @@ node -e "console.log(JSON.stringify(require('./TU-CLAVE-firebase-adminsdk.json')
    paso 1), `CLIENTE_ID`, `CLIENTE_SECRETO` y `SECRETO_TOKENS`. Entre todas tienen
    que pesar menos de 4 KB: la clave ocupa unos 2,4.
 7. **Configuration → Function URL → Create**: Auth type **NONE** (el canje se protege
-   con `CLIENTE_SECRETO`). Copiá la URL (`https://….lambda-url.us-east-1.on.aws/`):
+   con `CLIENTE_SECRETO`). Copia la URL (`https://….lambda-url.us-east-1.on.aws/`):
    es la **Access Token URI** del paso 4.
-8. Arriba, copiá el **ARN** de la función (`arn:aws:lambda:us-east-1:…:function:nexus-alexa`).
+8. Arriba, copia el **ARN** de la función (`arn:aws:lambda:us-east-1:…:function:nexus-alexa`).
 
 ## 4. La skill
 
@@ -115,7 +115,7 @@ En [https://developer.amazon.com/alexa/console/ask](https://developer.amazon.com
 
 1. **Create Skill**: nombre **Nexus IoT**, idioma **Spanish (US)**, modelo **Smart
    Home** (no Custom), hosting **Provision your own**.
-2. En la página **Smart Home** de la skill, copiá el **Skill ID**
+2. En la página **Smart Home** de la skill, copia el **Skill ID**
    (`amzn1.ask.skill.…`). Todavía no guardes el endpoint: la consola rechaza un ARN
    que no tenga el disparador del paso 3.
 3. En AWS, en la Lambda: **Agregar desencadenador → Alexa → Alexa Smart Home**, con
@@ -141,15 +141,15 @@ En [https://developer.amazon.com/alexa/console/ask](https://developer.amazon.com
 6. **Distribution**: los textos están en `skill.json`; los íconos, `icono-108.png` e
    `icono-512.png`; la política de privacidad, `https://TU-PORTAL.netlify.app/privacidad.html`
    (ya explica qué pasa con Alexa).
-7. **Netlify**: agregá `VITE_ALEXA_CLIENTE_ID` = `CLIENTE_ID` en las variables de
-   entorno y volvé a desplegar. Recién ahí el portal muestra Alexa. La app Android
+7. **Netlify**: agrega `VITE_ALEXA_CLIENTE_ID` = `CLIENTE_ID` en las variables de
+   entorno y vuelve a desplegar. Recién ahí el portal muestra Alexa. La app Android
    lo muestra cuando se recompila con esa variable en `portal/.env`.
 
 ## 5. Probarla
 
 Con la cuenta de desarrollador: en la app Alexa, **Más → Skills y juegos → Tus skills
-→ Desarrollo → Nexus IoT → Activar**. Se abre el portal: entrá con un usuario de
-prueba, tocá **Autorizar** y después decile **"Alexa, descubre dispositivos"**.
+→ Desarrollo → Nexus IoT → Activar**. Se abre el portal: entra con un usuario de
+prueba, toca **Autorizar** y después dile **"Alexa, descubre dispositivos"**.
 
 Si algo falla, los registros están en AWS: **Lambda → Monitor → View CloudWatch
 logs**. Cada pedido deja una línea (`Alexa.PowerController TurnOn iot2026-ana:bomba`)
@@ -159,14 +159,14 @@ nunca.
 ## 6. Los alumnos: prueba beta
 
 La skill no se publica: se reparte como **beta**. En **Distribution → Availability →
-Beta Test**, cargá los correos de las cuentas de Amazon de los alumnos que la quieran.
+Beta Test**, carga los correos de las cuentas de Amazon de los alumnos que la quieran.
 Les llega una invitación con el link para activarla.
 
 - Hasta 500 personas. **La beta dura 90 días y no se puede extender**: después hay
   que crear otra e invitarlos de nuevo.
 - Un Echo registrado en la cuenta de desarrollador (el del laboratorio, por
   ejemplo) la usa sin beta y sin vencimiento.
-- **Alexa no tiene español de Argentina**: el Echo o la app tienen que estar en
+- **Alexa no tiene español de Bolivia**: el Echo o la app tienen que estar en
   español de Estados Unidos o de México.
 
 ## El día a día
@@ -175,10 +175,14 @@ Les llega una invitación con el link para activarla.
   el botón **Desvincular**. Si cambia sus entradas o salidas: "Alexa, descubre
   dispositivos". Los nombres son los que puso en Configurar, y en la app Alexa los
   puede cambiar.
-- **Docente, Echo del laboratorio:** en la app Alexa de la cuenta del Echo, activá la
-  skill y entrá **como docente**: elegís el curso y las placas. Después se cambia
+- **Docente, Echo del laboratorio:** en la app Alexa de la cuenta del Echo, activa la
+  skill y entra **como docente**: eliges el curso y las placas. Después se cambia
   desde la lista del curso en el portal (casilla "en el Echo del laboratorio") y se
   le dice "Alexa, descubre dispositivos". Los nombres son "Bomba de Ana Pérez".
+- **Temperatura en Fahrenheit:** la Lambda manda Celsius, pero Alexa en español de
+  Estados Unidos convierte a Fahrenheit. Se cambia en la app Alexa, por aparato
+  (cada Echo y "Alexa en este teléfono"): **Más → Configuración → Configuración del
+  dispositivo → el aparato → Unidades de medida → Temperatura → Celsius**.
 - **Límite:** Alexa acepta hasta 300 dispositivos por cuenta. El portal los cuenta;
   si se pasa, quedan afuera primero los termómetros y después los modos.
 

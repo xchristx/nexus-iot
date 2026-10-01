@@ -6,8 +6,8 @@
 // que las tablas de src/main.cpp, para que PROMPT.md muestre un prompt
 // completo.
 //
-// Si cambiás el kit, cambialo en los tres lugares (tablero y alertas, solo
-// en este y en el .json: el firmware no los usa) y regenerá PROMPT.md con
+// Si cambias el kit, cámbialo en los tres lugares (tablero y alertas, solo
+// en este y en el .json: el firmware no los usa) y regenera PROMPT.md con
 // `npm run prompt`.
 
 export const plantillaEjemplo = {

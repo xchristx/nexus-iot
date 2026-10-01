@@ -47,7 +47,7 @@ PASO 3 - CONFIGURAR
 PASO 4 - QUE TU SKETCH COINCIDA CON TU PORTAL
   El sketch trae un kit de EJEMPLO: entradas "t" y "h" (un DHT22), salidas
   "bomba", "vent" y "luz", pulsadores en GPIO 32 y 33 y el de modo en 25.
-  Cambialo por lo que declaraste en el portal (Configurar):
+  Cámbialo por lo que declaraste en el portal (Configurar):
 
     Una entrada -> lo que la placa mide o lee (un sensor, un boton...).
                    Seccion "2. Entradas": una funcion de lectura y una fila

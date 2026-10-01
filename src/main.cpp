@@ -26,7 +26,7 @@
  * volver la conexión, la placa publica cómo quedó todo.
  *
  * Las filas de las tablas son un EJEMPLO (DHT22 + bomba, ventilador y LED):
- * cambialas por tu hardware, con los mismos ids que declaraste en el portal.
+ * cámbialas por tu hardware, con los mismos ids que declaraste en el portal.
  */
 
 #define ENABLE_USER_AUTH
@@ -42,16 +42,22 @@
 //  1. CONFIGURACIÓN
 // ===================================================================
 
-const char *WIFI_SSID = "HS";           // tu red de 2.4 GHz (el ESP32 no ve las de 5 GHz)
-const char *WIFI_PASS = "hannita1610";
+// Quien mantiene el repo compila con sus datos reales en src/secretos.h, que  // secretos.h
+// no se sube (.gitignore); sin ese archivo se usan los de abajo.               // secretos.h
+#if __has_include("secretos.h")
+#include "secretos.h"
+#else   // secretos.h
+const char *WIFI_SSID = "";           // tu red de 2.4 GHz (el ESP32 no ve las de 5 GHz)
+const char *WIFI_PASS = "";
 
 // API_KEY y DATABASE_URL son del proyecto: los mismos para toda la clase, y
-// no son secretos. Los sacás del portal, en "Mis datos".
-// USUARIO y CONTRASENA son los tuyos, los mismos con los que entrás al portal.
-const char *API_KEY      = "AIzaSyB1nBPyHbGdL4YO2WHod0LS6Kk9i0a_Q3s";
-const char *DATABASE_URL = "https://nexus-iot-b0c95-default-rtdb.firebaseio.com";
-const char *USUARIO      = "iot2026-chris";
-const char *CONTRASENA   = "12345678";
+// no son secretos. Los sacas del portal, en "Mis datos".
+// USUARIO y CONTRASENA son los tuyos, los mismos con los que entras al portal.
+const char *API_KEY      = "PEGA_ACA_LA_API_KEY";
+const char *DATABASE_URL = "https://TUPROYECTO-default-rtdb.firebaseio.com";
+const char *USUARIO      = "PEGA_ACA_TU_USUARIO";
+const char *CONTRASENA   = "";
+#endif  // secretos.h
 
 // Firebase pide un correo: se arma con el usuario y este dominio, que no
 // existe ni recibe mails. No lo cambies.
@@ -178,7 +184,7 @@ Pulsador pulsadorModo = { PIN_PULSADOR_MODO, true, true, 0 };
 // buzzer. Viaja como 1 o 0.
 //
 // GPIO 26, 27 y 25 son salidas "limpias": no hacen nada raro durante el
-// arranque. Evitá 0, 12, 14 y 15: emiten pulsos al encender la placa y un
+// arranque. Evita 0, 12, 14 y 15: emiten pulsos al encender la placa y un
 // relé haría un clic en cada reinicio. 6 a 11 son de la flash interna y 34 a
 // 39 solo sirven para entradas.
 //

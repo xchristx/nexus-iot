@@ -1,6 +1,6 @@
 # Nexus IoT — contexto para una conversación nueva
 
-Respondé en español rioplatense (voseo), que es como escribe el usuario.
+Responde en español de Bolivia (tuteo, sin voseo), que es como escribe el usuario.
 
 ## Qué es y para quién
 
@@ -40,6 +40,11 @@ Pedidos que motivaron v4:
 Vocabulario (pedido del usuario, 2026-09-23): **entradas** (lo que la placa mide o
 lee) y **salidas** (lo que prende y apaga), nunca "sensores"/"relés" salvo como
 ejemplo de componente físico ("módulo de relés", "DHT sensor library").
+
+Idioma (pedido del usuario, 2026-10-01): **todos los textos en español de Bolivia**,
+con tuteo ("toca", "tienes", "bórralo"), nunca voseo ("tocá", "tenés", "borralo"):
+portal, app, prompt, Kodular, firmware, guías y comentarios. Ojo con las formas
+cortas (`usá`, `leé`) y las de raíz que cambia (`elige`, `vuelve`, `prueba`, `pídele`).
 
 Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 
@@ -84,7 +89,8 @@ commitee, ni copies sus datos a documentación, prompts o al `.ino`/zip.
 Sus datos reales viven en archivos que están en `.gitignore` — no los leas salvo
 que haga falta, y no los cites:
 
-- `src/main.local.cpp` — su copia del firmware con datos cargados.
+- `src/secretos.h` — sus seis constantes reales; `main.cpp` lo usa si existe.
+- `src/main.local.cpp` — una copia vieja del firmware con datos (de antes de `secretos.h`).
 - `portal/.env` — hoy todavía tiene las variables VIEJAS de Supabase; hay que
   cambiarlas por las `VITE_FIREBASE_*` (ver `portal/.env.example`).
 - `kodular/google-services.json` y `kodular/NexusIoT_curso.aia`.
@@ -99,8 +105,18 @@ que haga falta, y no los cites:
 WiFi real en `src/main.cpp`. Se le avisó el 2026-09-24; reescribir el historial
 es decisión suya.
 
+⚠️ Entre `f60a15a` ("firebase version") y `846bd6c` (v7), `src/main.cpp` se
+pusheó con TODOS sus datos reales (WiFi, API key, URL de la base, usuario y
+contraseña de una cuenta de alumno): siguen en el historial. Se le avisó el
+2026-10-01 (cambiar las contraseñas; reescribir el historial es decisión suya).
+Desde entonces `main.cpp` vuelve a tener marcadores y **sus datos viven en
+`src/secretos.h`** (gitignore): `main.cpp` lo incluye con `#if
+__has_include("secretos.h")`, así `pio run` compila con sus datos sin tocar
+`main.cpp`. Las líneas de ese bloque llevan `// secretos.h` y el comando del
+`.ino` (`LEEME.md`) las borra y pone los seis marcadores. Nunca citar los valores.
+
 Antes de cualquier `git add`, si tocaste `src/main.cpp`, el `.ino` o el `.aia`,
-verificá que sigan con los marcadores.
+verifica que sigan con los marcadores.
 
 ## Modelo de datos (RTDB)
 
@@ -214,7 +230,7 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
     placa desconectada → `ENDPOINT_UNREACHABLE` sin escribir (no queda en cola);
     AUTO + regla → `NOT_SUPPORTED_IN_CURRENT_MODE` sin escribir; si no, escribe y
     espera ≤ 3 s a `estado`. Sin eventos proactivos (`proactivelyReported: false`).
-    Reparto por **beta** (90 días, no se extiende; 500 testers). Sin es-AR: es-US/es-MX.
+    Reparto por **beta** (90 días, no se extiende; 500 testers). Alexa no tiene es-BO: es-US/es-MX.
 
 Presupuesto: Spark gratis. Techo real = **100 conexiones simultáneas** (~3 por
 alumno: placa, app, portal). Descarga estimada 1,5–3 GB/mes de 10. RTDB no se
@@ -272,7 +288,7 @@ el 5.1 escribe las rutas con `\`):
   emulators:start --project demo-nexus` en segundo plano y `node --test
   --test-concurrency=1 pruebas/`: en paralelo, `clearDatabase` de las reglas borra
   lo que siembra la de Alexa). Un `creado: Date.now()` puede coincidir al ms con el
-  `now` del emulador: para probar "reloj del cliente" usá uno atrasado.
+  `now` del emulador: para probar "reloj del cliente" usa uno atrasado.
 - **Sembrar el emulador**: `curl` con `Authorization: Bearer owner` contra
   `http://127.0.0.1:9000/<ruta>.json?ns=demo-nexus-default-rtdb`; usuarios con
   `POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`
@@ -323,18 +339,18 @@ el 5.1 escribe las rutas con `\`):
 ## Trampas del entorno (Windows + Git Bash)
 
 - **Las tildes se rompen en argumentos de línea de comando** (`curl -d`, `node -e`
-  con acentos). Pasá texto con acentos por archivo o por stdin.
+  con acentos). Pasa texto con acentos por archivo o por stdin.
 - **No hay Python.** Para ediciones con script, `node -e`.
 - Heredocs largos con comillas simples adentro pueden romper el parseo de bash:
-  usá la herramienta de escritura de archivos.
+  usa la herramienta de escritura de archivos.
 - `vite preview` escucha en `localhost` (IPv6), no en `127.0.0.1`.
 - Playwright `getByRole({name})` busca por substring ("DESACTIVADO" contiene
-  "ACTIVADO"): usá `exact: true`.
+  "ACTIVADO"): usa `exact: true`.
 - **Node 20**: Capacitor 8 pide Node 22, por eso se usa Capacitor 7.
 - **Un plugin de Capacitor no se puede devolver desde un `.then()`** ni un `async`:
   es un proxy que responde a `then` ("LocalNotifications.then() is not
   implemented"). Se devuelve el módulo (`avisar.js`).
-- En `node -e` con `s.replace(a, b)`, un `$'` o `$&` en `b` se interpreta: usá
+- En `node -e` con `s.replace(a, b)`, un `$'` o `$&` en `b` se interpreta: usa
   `replace(a, () => b)`. Y en XML de Android, `--` no puede ir en un comentario.
 - Un `max` en un `<input type=number>` hace que el navegador bloquee el submit con
   su propio aviso antes de nuestras validaciones: en los GPIO no se usa.

@@ -63,9 +63,9 @@ ${salidas.map(lineaSalida).join('\n') || '(ninguna por ahora)'}
 
 Pulsador de modo automático: ${pulsadorModo != null
     ? `GPIO ${pulsadorModo} (entre el GPIO y GND). Cada pulsación activa o desactiva el modo automático.`
-    : 'no hay. Dejá la constante PIN_PULSADOR_MODO en -1.'}
+    : 'no hay. Deja la constante PIN_PULSADOR_MODO en -1.'}
 
-Definí las entradas y las salidas como **tablas**, para que agregar una sea
+Define las entradas y las salidas como **tablas**, para que agregar una sea
 agregar una fila:
 
 - entradas: un arreglo de structs {id, función de lectura, último valor,
@@ -73,10 +73,10 @@ agregar una fila:
   anterior.
 - salidas: un arreglo de structs {id, pin, nivel activo, pulsador, encendida,
   momento del último cambio}. Cada salida tiene su propia polaridad (LOW o
-  HIGH): resolvela por salida, no con una constante global. El pulsador es un
+  HIGH): resuélvela por salida, no con una constante global. El pulsador es un
   GPIO o -1 si no tiene.
 
-Declará todos los structs arriba, antes de la primera función: el Arduino IDE
+Declara todos los structs arriba, antes de la primera función: el Arduino IDE
 agrega las declaraciones de las funciones antes de la primera, y si un struct
 que usan está más abajo, no compila.
 
@@ -89,8 +89,8 @@ GPIO 34 a 39 solo sirven para entradas.`)
 - **FirebaseClient de Mobizt, versión 2.2 o mayor** (\`#include <FirebaseClient.h>\`).
   **No uses** "Firebase ESP32 Client" ni "Firebase Arduino Client Library for
   ESP8266 and ESP32" (Firebase_ESP_Client.h, FirebaseESP32.h): están
-  discontinuadas y tienen otra API. Si no conocés bien FirebaseClient 2.x,
-  copiá el esqueleto de abajo tal cual.
+  discontinuadas y tienen otra API. Si no conoces bien FirebaseClient 2.x,
+  copia el esqueleto de abajo tal cual.
 - ArduinoJson (versión 7), para leer y armar los JSON.
 - WiFi.h, WiFiClientSecure.h y Preferences.h, que vienen con el ESP32.${librerias.length ? `\n- Para las entradas: ${librerias.join('; ')}.` : ''}
 
@@ -128,13 +128,13 @@ La placa entra a Firebase con un usuario y contraseña, y trabaja SOLO dentro de
 
 **Los valores de "auto" y de "cmd" pueden llegar como booleano, como número o
 como texto** ("1", "true", "on", e incluso con comillas adentro: "\\"1\\""),
-porque la app de Kodular a veces los guarda así. Escribí una función que
+porque la app de Kodular a veces los guarda así. Escribe una función que
 acepte todas esas formas.`)
 
   s.push(`## Cómo conectarse (esqueleto de FirebaseClient 2.x)
 
-Usá dos clientes: uno queda abierto escuchando \`control\` (el stream) y el
-otro es para leer y escribir. Esta es la parte de Firebase; respetala:
+Usa dos clientes: uno queda abierto escuchando \`control\` (el stream) y el
+otro es para leer y escribir. Esta es la parte de Firebase; respétala:
 
 \`\`\`cpp
 #define ENABLE_USER_AUTH
@@ -191,34 +191,34 @@ Database.remove(cliente, RAIZ + "/control/cmd/" + id, alResultado, "borrar_cmd")
 Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo");
 \`\`\`
 
-- **Ante cualquier evento del stream, no interpretes lo que trae**: marcá
+- **Ante cualquier evento del stream, no interpretes lo que trae**: marca
   \`pedirControl = true\` y en el loop, si está marcado (y \`app.ready()\`),
-  leé \`control\` completo con \`Database.get\` y procesalo entero. Así no hay
+  lee \`control\` completo con \`Database.get\` y procésalo entero. Así no hay
   que interpretar rutas parciales.
-- \`control\` puede venir "null" si todavía está vacío: tratalo como vacío.
-- Para "visto", mandá \`{"visto": {".sv": "timestamp"}}\` dentro del mismo
+- \`control\` puede venir "null" si todavía está vacío: trátalo como vacío.
+- Para "visto", manda \`{"visto": {".sv": "timestamp"}}\` dentro del mismo
   update: la hora la pone el servidor.
-- Si el pedido "entrar" da error, imprimí que se revisen USUARIO y CONTRASENA
+- Si el pedido "entrar" da error, imprime que se revisen USUARIO y CONTRASENA
   (son los mismos del portal). Al arrancar, el stream puede dar un error de
   permisos antes de terminar de entrar: es normal y se reconecta solo.
-- **Armá los JSON con ArduinoJson (JsonDocument y serializeJson), no
+- **Arma los JSON con ArduinoJson (JsonDocument y serializeJson), no
   concatenando strings.**`)
 
   s.push(`## Qué hacer con "control"
 
-Procesalo en este orden:
+Procésalo en este orden:
 
-1. **"auto"**: activá o desactivá el modo automático. Excepción: si el
-   pulsador de modo lo cambió y todavía no se pudo escribir en Firebase, ignorá
+1. **"auto"**: activa o desactiva el modo automático. Excepción: si el
+   pulsador de modo lo cambió y todavía no se pudo escribir en Firebase, ignora
    el valor que llega (es viejo).
 2. **"reglas"**: reemplazan completas a las anteriores (si no hay, no hay
-   ninguna regla). Guardalas en Preferences como el texto JSON recibido,
-   **solo si cambió**, y cargalas al arrancar.
-3. **"cmd"**: por cada salida, aplicá el comando como una acción manual (ver
-   "Modo automático") y borralo de la base. Si nombra una salida que la placa
-   no tiene, avisá y borralo igual.
+   ninguna regla). Guárdalas en Preferences como el texto JSON recibido,
+   **solo si cambió**, y cárgalas al arrancar.
+3. **"cmd"**: por cada salida, aplica el comando como una acción manual (ver
+   "Modo automático") y bórralo de la base. Si nombra una salida que la placa
+   no tiene, avisa y bórralo igual.
 
-Después, evaluá las reglas.`)
+Después, evalúa las reglas.`)
 
   s.push(`## Modo automático y control local
 
@@ -234,15 +234,15 @@ para que sobreviva a un reinicio.
 ${hayPulsadores ? `
 Pulsadores (todos entre el GPIO y GND):
 
-- Configuralos con \`pinMode(pin, INPUT_PULLUP)\`: suelto lee HIGH, apretado lee LOW.
+- Configúralos con \`pinMode(pin, INPUT_PULLUP)\`: suelto lee HIGH, apretado lee LOW.
 - **Antirrebote obligatorio**: la lectura tiene que quedarse igual 50 ms antes
-  de tomarla como cambio. Actuá una sola vez por pulsación, al apretar.
+  de tomarla como cambio. Actúa una sola vez por pulsación, al apretar.
 - El pulsador de una salida la alterna (si estaba prendida la apaga y
   viceversa), como acción manual.
 - El pulsador de modo alterna el modo automático, lo guarda en Preferences, y
   lo escribe en \`control/auto\` (apenas haya conexión, si no la hay). Mientras
   no se haya escrito, el "auto" que llega de Firebase se ignora.
-- Revisá los pulsadores en CADA vuelta del loop, con o sin internet.
+- Revisa los pulsadores en CADA vuelta del loop, con o sin internet.
 ` : ''}
 Cada regla es:
 
@@ -261,40 +261,40 @@ Si no se cumple ninguna de las dos, la salida queda como está. Esa franja del
 medio es la histéresis, y es obligatoria: sin ella, con el valor oscilando
 alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
 
-- Guardá hasta 10 reglas en un arreglo de structs {salida, entrada, condicion,
+- Guarda hasta 10 reglas en un arreglo de structs {salida, entrada, condicion,
   umbral, hist}.
 - Si una regla nombra una entrada o una salida que la placa no tiene, o la
-  entrada todavía no tiene ninguna lectura buena, ignorala.
+  entrada todavía no tiene ninguna lectura buena, ignórala.
 - Una misma salida no puede cambiar de estado por una regla más de una vez cada
   30 segundos.`)
 
   s.push(`## Cuándo publicar el estado
 
-- Leé las entradas y evaluá las reglas una vez por segundo (con millis()).
+- Lee las entradas y evalúa las reglas una vez por segundo (con millis()).
 - Una salida que cambia (por regla, comando o pulsador) se publica enseguida.
 - Una entrada se publica cuando cambió al menos 0,1 respecto de lo último
   publicado, y como mucho una vez por segundo.
-- Aunque nada cambie, publicá cada 15 segundos: es el latido ("visto") con el
+- Aunque nada cambie, publica cada 15 segundos: es el latido ("visto") con el
   que el portal sabe que la placa está conectada.
-- Al conectarse (o reconectarse) a Firebase, publicá todo enseguida.
+- Al conectarse (o reconectarse) a Firebase, publica todo enseguida.
 - El "aviso" se manda en la siguiente publicación, y a los 20 segundos se
   borra mandando "aviso": "".`)
 
   s.push(`## Robustez
 
-- **El WiFi no puede bloquear el loop.** Al arrancar, esperá la conexión como
-  mucho 15 segundos y seguí. Si se cae, reintentá con WiFi.reconnect() cada 10
+- **El WiFi no puede bloquear el loop.** Al arrancar, espera la conexión como
+  mucho 15 segundos y sigue. Si se cae, reintenta con WiFi.reconnect() cada 10
   segundos, sin esperar. Mientras no hay WiFi no llames a app.loop(), pero se
   siguen leyendo entradas, evaluando reglas y atendiendo los pulsadores.
 - **No uses delay()** en el loop: con un delay los pulsadores no responden.
-- Guardá en Preferences el estado de cada salida (una clave por id) y
-  restauralo al arrancar, así un corte de luz no las deja en cualquier
-  posición. Usá espacios de nombres separados para las salidas, las reglas y
+- Guarda en Preferences el estado de cada salida (una clave por id) y
+  restáuralo al arrancar, así un corte de luz no las deja en cualquier
+  posición. Usa espacios de nombres separados para las salidas, las reglas y
   el modo.`)
 
   s.push(`## Configuración
 
-Dejá arriba de todo, bien visibles, estas constantes, con estos nombres:
+Deja arriba de todo, bien visibles, estas constantes, con estos nombres:
 
 \`\`\`cpp
 const char *WIFI_SSID    = "";    // la red de 2.4 GHz de casa
@@ -306,14 +306,14 @@ const char *CONTRASENA   = "";    // la completo yo: es la misma del portal
 const int PIN_PULSADOR_MODO = ${pulsadorModo ?? -1};
 \`\`\`
 
-Agregá un modo de prueba (una constante #define) que, cuando está activo,
+Agrega un modo de prueba (una constante #define) que, cuando está activo,
 invente los valores de las entradas con funciones seno en vez de leerlos, así
 puedo probar sin cablear nada.`)
 
-  s.push(`## Qué quiero de vos
+  s.push(`## Qué quiero de ti
 
 El sketch completo en un solo archivo, que compile tal cual, con comentarios en
-español explicando las partes que no son obvias. Imprimí por serie a 115200 lo
+español explicando las partes que no son obvias. Imprime por serie a 115200 lo
 que va pasando (conexión, comandos, cambios de salidas, modo, avisos), para
 poder seguirlo desde el monitor.`)
 

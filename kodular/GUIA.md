@@ -25,21 +25,21 @@ Hay dos maneras de tenerlo:
 `NexusIoT_curso.aia` no se sube al repo: se genera a partir de
 `kodular/google-services.json` (ver sección 6 y `firebase/LEEME.md`).
 
-Antes de repartirlo, importalo vos, compilalo y probalo una vez con una placa.
+Antes de repartirlo, impórtalo tú, compílalo y pruébalo una vez con una placa.
 
 ## 2. Importar y probar
 
-1. En Kodular Creator, en la lista de proyectos, elegí **Import project** y subí el
-   `.aia`. Si ya tenés un proyecto con ese nombre, poné otro en el diálogo.
+1. En Kodular Creator, en la lista de proyectos, elige **Import project** y sube el
+   `.aia`. Si ya tienes un proyecto con ese nombre, pon otro en el diálogo.
 2. Solo con `NexusIoT.aia`:
-   - En **Media**, subí el `google-services.json` de la app Android de tu
+   - En **Media**, sube el `google-services.json` de la app Android de tu
      proyecto Firebase.
-   - En **Project Properties**, poné en **Package Name** el mismo package que
+   - En **Project Properties**, pon en **Package Name** el mismo package que
      registraste en Firebase (`io.nexusiot.app` si seguiste `firebase/LEEME.md`).
      Si no coinciden, no compila.
-3. Compilá el APK e instalalo en el teléfono.
-4. Escribí tu usuario (el del portal, por ejemplo `iot2026-ana_perez`) y tu
-   contraseña, y tocá **Entrar**. Quedan guardados en el teléfono.
+3. Compila el APK e instálalo en el teléfono.
+4. Escribe tu usuario (el del portal, por ejemplo `iot2026-ana_perez`) y tu
+   contraseña, y toca **Entrar**. Quedan guardados en el teléfono.
 
 Con la placa andando, la pantalla muestra "Placa conectada", la lista de valores
 (`t: 24.5`, `bomba: 0`, ...), el modo automático y el estado de la bomba. Los
@@ -65,7 +65,7 @@ En el editor de bloques hay dos columnas:
 | `modoAuto(activar)` | Activa (`true`) o desactiva (`false`) el modo automático. | `modoAuto(true)` |
 | `autoActivo()` | Verdadero si el modo automático está activado. | cambiar el texto de un botón |
 | `conectada()` | Verdadero si la placa mandó noticias en el último minuto. | |
-| `mostrarEstado` | **Lo escribís vos.** Se llama solo cada vez que llega un dato. | poner valores en labels |
+| `mostrarEstado` | **Lo escribes tú.** Se llama solo cada vez que llega un dato. | poner valores en labels |
 | `mostrarError(mensaje)` | Muestra un error arriba. | |
 
 Los `id` son los que cada alumno declaró en el portal (**Configurar**): sus
@@ -73,12 +73,12 @@ entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 
 ### Ejemplo: sumar otra salida (un ventilador, `vent`)
 
-1. **Designer:** adentro de `ArregloPlaca`, agregá un Label `LabelVent` y dos
+1. **Designer:** adentro de `ArregloPlaca`, agrega un Label `LabelVent` y dos
    botones, `BotonPrenderVent` y `BotonApagarVent`.
 2. **Blocks:** `when BotonPrenderVent.Click` → `call enviarComando` con
    `salida = "vent"` y `prender = 1`. Lo mismo con 0 para apagar.
-3. En `mostrarEstado`, duplicá el `if` de la bomba (clic derecho → **Duplicate**)
-   y cambiá `"bomba"` por `"vent"` y `LabelBomba` por `LabelVent`.
+3. En `mostrarEstado`, duplica el `if` de la bomba (clic derecho → **Duplicate**)
+   y cambia `"bomba"` por `"vent"` y `LabelBomba` por `LabelVent`.
 
 ### Lo que conviene saber
 
@@ -102,8 +102,8 @@ entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 
 ## 4. Pasar los bloques a otro proyecto
 
-1. **En el proyecto destino, creá primero los componentes** con estos nombres
-   exactos, y subí el `google-services.json` en Media. Si falta uno, los bloques
+1. **En el proyecto destino, crea primero los componentes** con estos nombres
+   exactos, y sube el `google-services.json` en Media. Si falta uno, los bloques
    que lo usan aparecen en rojo.
 
    | Componente | Nombre | Para qué |
@@ -120,10 +120,10 @@ entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 
 2. **En el proyecto de origen**, clic derecho sobre cada bloque →
    **Download Blocks as PNG**. La imagen lleva los bloques adentro.
-3. **Arrastrá cada PNG** al editor de bloques del proyecto destino y los bloques
+3. **Arrastra cada PNG** al editor de bloques del proyecto destino y los bloques
    aparecen.
 
-Pasá también las variables globales `DOMINIO`, `USUARIO`, `CONTRASENA`, `AUTO` y
+Pasa también las variables globales `DOMINIO`, `USUARIO`, `CONTRASENA`, `AUTO` y
 `SISTEMA`. La **mochila** (Backpack) sirve para lo mismo, pero solo entre tus
 propios proyectos.
 
@@ -163,7 +163,7 @@ cuando FirebaseAuth.LoginSuccess
   mostrarEstado
 
 cuando FirebaseAuth.LoginFailed
-  mostrarError("No se pudo entrar. Revisá tu usuario y tu contraseña…")
+  mostrarError("No se pudo entrar. Revisa tu usuario y tu contraseña…")
 
 cuando DBEstado.DataChanged(tag, value)     y también DBEstado.GotValue(tag, value)
   TinyDBEstado.StoreValue(tag, value) ; mostrarEstado
@@ -212,5 +212,5 @@ App Inventor). Lo que el generador evita a propósito:
   arma con el usuario que escribió el alumno, que es la clave de su rama.
 
 **Si la placa suma una clave a `estado` que no es una entrada ni una salida**
-(hoy `visto` y `aviso`), agregala a `SISTEMA` en el generador y en esta guía. Si
+(hoy `visto` y `aviso`), agrégala a `SISTEMA` en el generador y en esta guía. Si
 no, `mostrarEstado` la muestra como si fuera una entrada.

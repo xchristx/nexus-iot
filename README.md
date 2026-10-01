@@ -10,7 +10,7 @@ Corre entero sobre el plan gratuito de Firebase y Netlify.
 
 ## Por dónde empezar
 
-| Si querés… | Leé |
+| Si quieres… | Lee |
 |---|---|
 | entender el proyecto y las decisiones | [LEEME.md](LEEME.md) |
 | montarlo en tu propio Firebase | [firebase/LEEME.md](firebase/LEEME.md) |

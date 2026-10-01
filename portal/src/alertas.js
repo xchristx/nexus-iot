@@ -1,4 +1,4 @@
-// Alertas de las entradas: "avisame si t supera 35". Las evalúa el portal (o
+// Alertas de las entradas: "avísame si t supera 35". Las evalúa el portal (o
 // la app Android) mientras está abierto, no la placa: no hay servidor que
 // mande avisos con todo cerrado (plan Spark, sin Cloud Functions).
 //

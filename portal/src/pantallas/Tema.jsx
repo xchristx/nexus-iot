@@ -34,7 +34,7 @@ function VistaPrevia({ tema }) {
   return (
     <div className="tarjeta">
       <h3>Vista previa</h3>
-      <p className="ayuda">Así se ve con el tema actual. Todo el portal cambia a medida que tocás.</p>
+      <p className="ayuda">Así se ve con el tema actual. Todo el portal cambia a medida que tocas.</p>
       <div className="datos">
         <WidgetEntrada titulo="Temperatura" valor={27.4} unidad="°C"
                        w={{ widget: 'medidor', color: 'ambar', icono: 'termometro', min: 0, max: 50 }} />
@@ -81,7 +81,7 @@ export default function Tema() {
     try {
       datos = JSON.parse(importar)
     } catch {
-      setResultado({ ok: false, textos: ['Eso no es un JSON válido: copiá el tema entero, con las llaves { }.'] })
+      setResultado({ ok: false, textos: ['Eso no es un JSON válido: copia el tema entero, con las llaves { }.'] })
       return
     }
     const { tema: t, problemas } = normalizar(datos)
@@ -102,8 +102,8 @@ export default function Tema() {
     <>
       <p className="ayuda">
         El tema se guarda <strong>solo en este dispositivo</strong>: no cambia lo que
-        ven tus compañeros ni el docente, y si entrás desde otro celular o navegador
-        arranca con el de siempre. Para llevarlo, usá Compartir (abajo).
+        ven tus compañeros ni el docente, y si entras desde otro celular o navegador
+        arranca con el de siempre. Para llevarlo, usa Compartir (abajo).
       </p>
       {!guardado && (
         <div className="tarjeta atencion">
@@ -211,7 +211,7 @@ export default function Tema() {
           <Copiar texto={JSON.stringify(tema, null, 2)}>copiar tema</Copiar>
         </div>
         <p className="ayuda">
-          Copiá tu tema para pasarlo a otro dispositivo o a un compañero, o pegá uno acá.
+          Copia tu tema para pasarlo a otro dispositivo o a un compañero, o pega uno acá.
         </p>
         <textarea className="tema-textarea" value={importar} placeholder='{ "titulo": "…", "colores": { … } }'
                   aria-label="Tema para importar" onChange={e => { setImportar(e.target.value); setResultado(null) }} />

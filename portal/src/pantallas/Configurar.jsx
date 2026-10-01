@@ -68,7 +68,8 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
   const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
   const esSalida = f.tipo === 'salida'
   const opciones = esSalida ? WIDGETS_SALIDA : WIDGETS_ENTRADA
-  // Si cambió el tipo, el widget elegido puede no corresponder.
+  // El tipo lo fija el botón ("+ Agregar" de Entradas o de Salidas), pero el
+  // tablero guardado podría traer un widget del otro tipo.
   const widget = opciones.some(x => x.id === w.widget) ? w.widget : opciones[0].id
   const conEscala = widget === 'medidor' || widget === 'barra'
 
@@ -128,13 +129,11 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
       <h2>{nuevo ? 'Agregar' : 'Editar'} {esSalida ? 'salida' : 'entrada'}</h2>
 
       {nuevo && (
-        <label>
-          Tipo
-          <select value={f.tipo} onChange={campo('tipo')}>
-            <option value="entrada">Entrada (la placa la mide o la lee: un sensor, un botón)</option>
-            <option value="salida">Salida (se prende y se apaga: un relé, un LED)</option>
-          </select>
-        </label>
+        <p className="ayuda">
+          {esSalida
+            ? 'Lo que tu placa prende y apaga: un relé, un LED, un buzzer.'
+            : 'Lo que tu placa mide o lee y manda como número: un sensor, un botón, un potenciómetro.'}
+        </p>
       )}
 
       <label>
@@ -144,7 +143,7 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
         <span className="ayuda-campo">
           {nuevo
             ? 'El nombre que usan tu sketch y tu app: minúsculas, números y _, hasta 15 caracteres. Tiene que ser igual en los tres lados.'
-            : 'El id no se puede cambiar, porque es el nombre que usan tu sketch y tu app. Para renombrarlo, borralo y crealo de nuevo.'}
+            : 'El id no se puede cambiar, porque es el nombre que usan tu sketch y tu app. Para renombrarlo, bórralo y créalo de nuevo.'}
         </span>
       </label>
 
@@ -300,7 +299,7 @@ function FormRegla({ usuario, salida, entradas, inicial, onListo, onCancelar }) 
     return (
       <div className="tarjeta">
         <h2>Regla de "{salida}"</h2>
-        <p className="ayuda">Para armar una regla primero necesitás al menos una entrada.</p>
+        <p className="ayuda">Para armar una regla primero necesitas al menos una entrada.</p>
         <button onClick={onCancelar}>Volver</button>
       </div>
     )
@@ -477,8 +476,8 @@ function PulsadorModo({ usuario, placa }) {
       <h3>Pulsador de modo automático</h3>
       <p className="ayuda">
         Opcional. Un pulsador entre ese GPIO y GND activa y desactiva el modo
-        automático desde la placa, igual que el botón de la app. Dejalo vacío si
-        no usás uno.
+        automático desde la placa, igual que el botón de la app. Déjalo vacío si
+        no usas uno.
       </p>
       <div className="fila-guardar">
         <input value={pin} onChange={ev => { setPin(ev.target.value); setMensaje(null) }}

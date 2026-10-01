@@ -11,8 +11,10 @@ portal/.env
 portal/.env.local
 
 # El sketch versionado lleva solo marcadores (WIFI_PASS y CONTRASENA vacios,
-# "PEGA_ACA_TU_USUARIO"). Si alguna vez guardas una copia con tus datos
-# reales para no reescribirlos, llamala asi y no se sube.
+# "PEGA_ACA_TU_USUARIO"). Tus datos reales van en src/secretos.h: main.cpp lo
+# usa si existe, y asi compilas sin tocar main.cpp. main.local.cpp es una copia
+# vieja con datos, de antes de secretos.h.
+src/secretos.h
 src/main.local.cpp
 
 # La app Android del proyecto Firebase, y el proyecto Kodular del curso que se

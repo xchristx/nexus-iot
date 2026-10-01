@@ -13,7 +13,7 @@ const DOMINIO = '@nexus-iot.example.com'
 let env
 
 const alumno = (usuario) => env.authenticatedContext('uid-' + usuario, { email: usuario + DOMINIO }).database()
-const docente = () => env.authenticatedContext('uid-docente', { email: 'profe@escuela.edu.ar' }).database()
+const docente = () => env.authenticatedContext('uid-docente', { email: 'profe@escuela.edu.bo' }).database()
 
 const KIT = {
   config: {

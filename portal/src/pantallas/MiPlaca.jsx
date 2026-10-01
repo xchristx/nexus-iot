@@ -197,7 +197,7 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
         <div className="tarjeta">
           <div className="salida-fila">
             <p className="ayuda sin-margen">
-              Tenés alertas configuradas. Activá los avisos para que suenen y te
+              Tienes alertas configuradas. Activa los avisos para que suenen y te
               lleguen como notificación mientras {esApp ? 'la app' : 'el portal'} esté abierto.
             </p>
             <button className="chico" onClick={activarAvisos}>Activar avisos</button>
@@ -218,7 +218,7 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
           <ul className="lista-avisos">
             {faltan.map(id => (
               <li key={id}>
-                No llega ningún valor de "{id}". Revisá que en el sketch se llame
+                No llega ningún valor de "{id}". Revisa que en el sketch se llame
                 exactamente "{id}" y, si es un sensor, que esté leyendo bien.
               </li>
             ))}
@@ -230,9 +230,9 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
 
       {vacio && (
         <div className="tarjeta">
-          <h3>Todavía no tenés entradas ni salidas</h3>
+          <h3>Todavía no tienes entradas ni salidas</h3>
           <p className="ayuda">
-            Declaralas en Configurar, o conectá tu placa: lo que mande va a aparecer
+            Decláralas en Configurar, o conecta tu placa: lo que mande va a aparecer
             acá para agregarlo con un clic.
           </p>
           <button onClick={onConfigurar}>Ir a Configurar</button>
@@ -246,8 +246,8 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
               <h3>Modo automático</h3>
               <p className="ayuda sin-margen">
                 {auto
-                  ? 'Las salidas con regla las maneja la placa. Para manejarlas a mano, apagá el modo automático.'
-                  : 'Todo se maneja a mano. Prendelo para que la placa aplique las reglas.'}
+                  ? 'Las salidas con regla las maneja la placa. Para manejarlas a mano, apaga el modo automático.'
+                  : 'Todo se maneja a mano. Préndelo para que la placa aplique las reglas.'}
                 {pulsadorModo != null && ` También se cambia con el pulsador de GPIO ${pulsadorModo}.`}
               </p>
             </div>
@@ -262,7 +262,7 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
         <div className="tarjeta">
           <h3>Salidas</h3>
           <p className="ayuda">
-            Probalas desde acá para confirmar que tu ESP32 responde, antes de buscar
+            Pruébalas desde acá para confirmar que tu ESP32 responde, antes de buscar
             el problema en la app. Con la placa conectada, el cambio se ve en menos de
             un segundo.
           </p>

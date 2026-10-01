@@ -17,7 +17,7 @@ export default function MisDatos({ usuario, placa }) {
     'const char *API_KEY      = "' + firebaseConfig.apiKey + '";\n' +
     'const char *DATABASE_URL = "' + firebaseConfig.databaseURL + '";\n' +
     'const char *USUARIO      = "' + usuario + '";\n' +
-    'const char *CONTRASENA   = "";   // la misma con la que entrás acá'
+    'const char *CONTRASENA   = "";   // la misma con la que entras acá'
 
   const rutas =
     'placas/' + usuario + '/estado       lo que manda la placa (se lee)\n' +
@@ -28,7 +28,7 @@ export default function MisDatos({ usuario, placa }) {
     <>
       <Bloque
         titulo="Tu usuario"
-        ayuda="Con este usuario y tu contraseña entran tu placa y tu app. La contraseña es la misma que usás acá: no se la pases a nadie ni la pegues en la IA."
+        ayuda="Con este usuario y tu contraseña entran tu placa y tu app. La contraseña es la misma que usas acá: no se la pases a nadie ni la pegues en la IA."
         texto={usuario} />
 
       <Bloque titulo="Tu hardware" ayuda="Lo que declaraste en Configurar. Los ids son los nombres que usan tu sketch y tu app.">
@@ -63,9 +63,9 @@ export default function MisDatos({ usuario, placa }) {
 
       <Bloque
         titulo="Tu app de Kodular"
-        ayuda={'Importá el proyecto NexusIoT_curso.aia que te pasó el docente. Al abrir la app, ' +
-               'escribís tu usuario y tu contraseña. Para probarla tenés que compilar el APK: el ' +
-               'Companion no funciona con Firebase. Si armás tus propios bloques, estas son las rutas:'}
+        ayuda={'Importa el proyecto NexusIoT_curso.aia que te pasó el docente. Al abrir la app, ' +
+               'escribes tu usuario y tu contraseña. Para probarla tienes que compilar el APK: el ' +
+               'Companion no funciona con Firebase. Si armas tus propios bloques, estas son las rutas:'}
         texto={rutas} />
 
       <BajarApp />
@@ -74,13 +74,13 @@ export default function MisDatos({ usuario, placa }) {
 
       <Bloque
         titulo="Tu sketch del ESP32"
-        ayuda="Si ya tenés el sketch, estas son las líneas de la configuración. La contraseña completala vos en el código."
+        ayuda="Si ya tienes el sketch, estas son las líneas de la configuración. La contraseña complétala tú en el código."
         texto={sketch} />
 
       {!prompt ? (
         <Bloque titulo="Prompt para generar tu código con IA">
           <p className="ayuda">
-            Primero declará tus entradas y salidas en Configurar: el prompt se
+            Primero declara tus entradas y salidas en Configurar: el prompt se
             arma con ese hardware.
           </p>
         </Bloque>
@@ -92,8 +92,8 @@ export default function MisDatos({ usuario, placa }) {
           </div>
           <p className="ayuda">
             Ya viene con tu usuario y tu hardware, pero NO con tu contraseña: esa la
-            escribís vos en el código que te devuelva la IA. Si cambiás tu hardware,
-            volvé a copiarlo.
+            escribes tú en el código que te devuelva la IA. Si cambias tu hardware,
+            vuelve a copiarlo.
           </p>
           <pre className="prompt">{prompt}</pre>
         </div>
@@ -108,7 +108,7 @@ function Alexa({ usuario, placa }) {
   const [error, setError] = useState(null)
 
   async function desvincular() {
-    if (!window.confirm('¿Desvincular Alexa? Deja de manejar tu placa. En la app Alexa, desactivá la skill para que desaparezcan los dispositivos.')) return
+    if (!window.confirm('¿Desvincular Alexa? Deja de manejar tu placa. En la app Alexa, desactiva la skill para que desaparezcan los dispositivos.')) return
     setYendo(true)
     setError(null)
     try {
@@ -125,8 +125,8 @@ function Alexa({ usuario, placa }) {
     return (
       <Bloque
         titulo="Alexa"
-        ayuda={`Vinculada desde el ${new Date(placa.alexa.desde).toLocaleDateString('es-AR')}. Probá: "Alexa, prende ${ejemplo}". ` +
-               'Si cambiás entradas o salidas, decile "Alexa, descubre dispositivos".'}>
+        ayuda={`Vinculada desde el ${new Date(placa.alexa.desde).toLocaleDateString('es-BO')}. Prueba: "Alexa, prende ${ejemplo}". ` +
+               'Si cambias entradas o salidas, dile "Alexa, descubre dispositivos".'}>
         {error && <p className="error">{error}</p>}
         <button className="chico peligro" disabled={yendo} onClick={desvincular}>Desvincular</button>
       </Bloque>
@@ -136,10 +136,10 @@ function Alexa({ usuario, placa }) {
   return (
     <Bloque titulo="Alexa (opcional)" ayuda="Para manejar tu placa por voz, desde un Echo o desde la app Alexa del celular:">
       <ol className="lista-avisos">
-        <li>Pasale al docente el correo de tu cuenta de Amazon, para que te invite a la skill {NOMBRE_SKILL}.</li>
-        <li>Aceptá la invitación que te llega por mail. La app Alexa tiene que estar en español de Estados Unidos o de México.</li>
-        <li>En la app Alexa, activá la skill: se abre este portal. Entrá con tu usuario y tocá Autorizar.</li>
-        <li>Decile "Alexa, descubre dispositivos". Después, "Alexa, prende…" con el nombre de tu salida.</li>
+        <li>Pásale al docente el correo de tu cuenta de Amazon, para que te invite a la skill {NOMBRE_SKILL}.</li>
+        <li>Acepta la invitación que te llega por mail. La app Alexa tiene que estar en español de Estados Unidos o de México.</li>
+        <li>En la app Alexa, activa la skill: se abre este portal. Entra con tu usuario y toca Autorizar.</li>
+        <li>Dile "Alexa, descubre dispositivos". Después, "Alexa, prende…" con el nombre de tu salida.</li>
       </ol>
     </Bloque>
   )
