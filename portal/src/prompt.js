@@ -68,9 +68,9 @@ Pulsador de modo automático: ${pulsadorModo != null
 Define las entradas y las salidas como **tablas**, para que agregar una sea
 agregar una fila:
 
-- entradas: un arreglo de structs {id, función de lectura, último valor,
-  último valor publicado}. Si una lectura falla (NaN), se conserva el valor
-  anterior.
+- entradas: un arreglo de structs {id, función de lectura, umbral de cambio,
+  último valor, último valor publicado}. Si una lectura falla (NaN), se
+  conserva el valor anterior.
 - salidas: un arreglo de structs {id, pin, nivel activo, pulsador, encendida,
   momento del último cambio}. Cada salida tiene su propia polaridad (LOW o
   HIGH): resuélvela por salida, no con una constante global. El pulsador es un
@@ -81,8 +81,8 @@ agrega las declaraciones de las funciones antes de la primera, y si un struct
 que usan está más abajo, no compila.
 
 No uses GPIO 0, 12, 14 ni 15 para salidas: emiten pulsos durante el arranque y
-un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna y
-GPIO 34 a 39 solo sirven para entradas.`)
+un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna,
+GPIO 34 a 39 solo sirven para entradas y GPIO 20, 24 y 28 a 31 no existen.`)
 
   s.push(`## Librerías a usar
 
@@ -94,7 +94,10 @@ GPIO 34 a 39 solo sirven para entradas.`)
 - ArduinoJson (versión 7), para leer y armar los JSON.
 - WiFi.h, WiFiClientSecure.h y Preferences.h, que vienen con el ESP32.${librerias.length ? `\n- Para las entradas: ${librerias.join('; ')}.` : ''}
 
-No uses ninguna otra.`)
+Si una entrada necesita una librería que no nombré, usa la más conocida para
+ese sensor (una que esté en el Gestor de librerías del Arduino IDE) y, al
+principio de tu respuesta, dime su nombre exacto para instalarla. Fuera de
+eso, no uses ninguna otra.`)
 
   s.push(`## Dónde están los datos
 
@@ -236,7 +239,9 @@ Pulsadores (todos entre el GPIO y GND):
 
 - Configúralos con \`pinMode(pin, INPUT_PULLUP)\`: suelto lee HIGH, apretado lee LOW.
 - **Antirrebote obligatorio**: la lectura tiene que quedarse igual 50 ms antes
-  de tomarla como cambio. Actúa una sola vez por pulsación, al apretar.
+  de tomarla como cambio. Actúa una sola vez por pulsación, al apretar:
+  guarda el último estado estable de cada pulsador y actúa cuando pasa de HIGH
+  a LOW. Nada de un \`while\` que espere a que lo suelten.
 - El pulsador de una salida la alterna (si estaba prendida la apaga y
   viceversa), como acción manual.
 - El pulsador de modo alterna el modo automático, lo guarda en Preferences, y
@@ -272,8 +277,19 @@ alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
 
 - Lee las entradas y evalúa las reglas una vez por segundo (con millis()).
 - Una salida que cambia (por regla, comando o pulsador) se publica enseguida.
-- Una entrada se publica cuando cambió al menos 0,1 respecto de lo último
-  publicado, y como mucho una vez por segundo.
+- Una entrada se publica cuando cambió al menos su umbral respecto de lo
+  último publicado, y como mucho una vez por segundo: no esperes al latido
+  para mandarla. El umbral va en la tabla de entradas:
+  - 0,1 para un sensor digital, que ya da un valor estable (DS18B20, BME280,
+    DHT…);
+  - alrededor del 1 % de su escala para una lectura analógica (potenciómetro,
+    LDR, humedad de suelo; todo lo que use analogRead): 1 si va de 0 a 100.
+
+  Compara con float (\`fabs(valor - publicado) >= umbral\`); un 0.1 guardado
+  en un entero vale 0.
+- El ADC del ESP32 tiene ruido: cada lectura analógica es el promedio de 16
+  analogRead seguidos. Sin promedio ni un umbral acorde, el valor cambia en
+  cada lectura y la placa publica cada segundo para siempre.
 - Aunque nada cambie, publica cada 15 segundos: es el latido ("visto") con el
   que el portal sabe que la placa está conectada.
 - Al conectarse (o reconectarse) a Firebase, publica todo enseguida.
@@ -286,7 +302,21 @@ alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
   mucho 15 segundos y sigue. Si se cae, reintenta con WiFi.reconnect() cada 10
   segundos, sin esperar. Mientras no hay WiFi no llames a app.loop(), pero se
   siguen leyendo entradas, evaluando reglas y atendiendo los pulsadores.
-- **No uses delay()** en el loop: con un delay los pulsadores no responden.
+- **No uses delay()** en el loop, ni un \`while\` que espere algo (que suelten
+  un pulsador, una respuesta): mientras espera, nada más responde.
+- **Leer un sensor tampoco puede frenar el loop.** Algunas librerías esperan
+  por dentro: un DS18B20 tarda unos 750 ms por lectura (usa
+  \`setWaitForConversion(false)\`: pide la conversión y lee el resultado en la
+  lectura siguiente), un \`pulseIn\` (HC-SR04) necesita un tiempo máximo (30000
+  µs alcanza), y un DHT no se lee más de una vez cada 2 segundos.
+- **Los pedidos a Firebase son asíncronos**: \`update\`, \`get\`, \`set\` y
+  \`remove\` vuelven enseguida y la respuesta llega después a \`alResultado\`.
+  Al mandar una publicación, anota \`millis()\` y baja las banderas en ese
+  mismo momento, no en \`alResultado\`; para escribir el modo, usa una bandera
+  "enviando" que se baja con la respuesta. Si no, el loop repite el pedido en
+  cada vuelta hasta que llega la respuesta, llena la cola de FirebaseClient
+  (20 pedidos) y la librería **descarta sin avisar** los que siguen, entre
+  ellos la lectura de control y el borrado de los cmd.
 - Guarda en Preferences el estado de cada salida (una clave por id) y
   restáuralo al arrancar, así un corte de luz no las deja en cualquier
   posición. Usa espacios de nombres separados para las salidas, las reglas y
@@ -304,18 +334,17 @@ const char *DATABASE_URL = "${databaseURL}";
 const char *USUARIO      = "${usuario}";
 const char *CONTRASENA   = "";    // la completo yo: es la misma del portal
 const int PIN_PULSADOR_MODO = ${pulsadorModo ?? -1};
-\`\`\`
-
-Agrega un modo de prueba (una constante #define) que, cuando está activo,
-invente los valores de las entradas con funciones seno en vez de leerlos, así
-puedo probar sin cablear nada.`)
+\`\`\``)
 
   s.push(`## Qué quiero de ti
 
 El sketch completo en un solo archivo, que compile tal cual, con comentarios en
 español explicando las partes que no son obvias. Imprime por serie a 115200 lo
 que va pasando (conexión, comandos, cambios de salidas, modo, avisos), para
-poder seguirlo desde el monitor.`)
+poder seguirlo desde el monitor.
+
+Es para usarlo con todo conectado: lee siempre las entradas de verdad. No
+agregues un modo de prueba ni valores inventados.`)
 
   return s.join('\n\n')
 }

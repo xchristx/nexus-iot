@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { enviarComando, fijarAuto, escucharDesfase, aBinario, mensajeError, RESERVADOS } from '../firebase.js'
+import { enviarComando, fijarAuto, quitarDetectado, escucharDesfase, aBinario, mensajeError, RESERVADOS } from '../firebase.js'
 import { Etiqueta, textoRegla, esBinario } from '../componentes/comunes.jsx'
 import { WidgetEntrada, Interruptor, BotonSalida, Icono, widgetDe } from '../componentes/widgets.jsx'
 import { useAlertas, textoAlerta } from '../alertas.js'
@@ -77,6 +77,26 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
     }
   }
 
+  async function quitar(id) {
+    setAviso(null)
+    try {
+      await quitarDetectado(usuario, id)
+    } catch (e) {
+      setAviso(mensajeError(e))
+    }
+  }
+
+  // Lo que la placa mandó sin estar declarado: agregarlo, o quitarlo si quedó
+  // de un sketch anterior.
+  const botonesDetectado = (id, tipo) => (
+    <>
+      <button className="chico" onClick={() => onAgregar({ id, tipo })}>no declarado · agregar</button>
+      <button className="chico" title="Si tu placa lo sigue mandando, vuelve a aparecer" onClick={() => quitar(id)}>
+        quitar
+      </button>
+    </>
+  )
+
   async function alternarModo() {
     setCambiandoModo(true)
     setAviso(null)
@@ -107,11 +127,7 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
     }
     const etiquetas = (
       <>
-        {noDeclarado && (
-          <button className="chico" onClick={() => onAgregar({ id, tipo: 'salida' })}>
-            no declarado · agregar
-          </button>
-        )}
+        {noDeclarado && botonesDetectado(id, 'salida')}
         {automatica && <Etiqueta>automática</Etiqueta>}
         {envio && <Etiqueta>{envio}</Etiqueta>}
       </>
@@ -167,9 +183,7 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
             {extra.entradas.map(id => (
               <WidgetEntrada key={id} titulo={id} valor={estado[id]} unidad=""
                              w={widgetDe({ id, tipo: 'entrada' }, null)}>
-                <button className="chico" onClick={() => onAgregar({ id, tipo: 'entrada' })}>
-                  no declarado · agregar
-                </button>
+                <div className="etiquetas-boton">{botonesDetectado(id, 'entrada')}</div>
               </WidgetEntrada>
             ))}
           </div>

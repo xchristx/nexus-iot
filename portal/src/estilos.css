@@ -372,6 +372,7 @@ main.ancho { max-width: 900px; }
 .alumno .punto { display: inline-block; vertical-align: middle; margin-right: 4px; }
 .alumno.viva .punto { background: var(--acento); }
 .detalle.aviso { color: var(--ambar); }
+.detalle.error { margin: 3px 0 0; }
 
 /* --- v5: widgets, alertas y app Android ----------------------------- */
 

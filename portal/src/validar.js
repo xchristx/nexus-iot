@@ -9,9 +9,13 @@ export const MAX = 10
 // 6 a 11 son de la flash interna. 34 a 39 solo son entradas y no tienen
 // pull-up interno: un pulsador ahí necesita una resistencia externa.
 const FLASH = [6, 7, 8, 9, 10, 11]
+// Números que el ESP32 se salta: ninguna placa tiene un pin con ellos.
+const NO_EXISTEN = [20, 24, 28, 29, 30, 31]
 
 function errorGpio(pin, que, max) {
   if (!Number.isInteger(pin) || pin < 0 || pin > 39) return `El GPIO de ${que} tiene que ser un número entre 0 y 39.`
+  if (NO_EXISTEN.includes(pin))
+    return `El ESP32 no tiene GPIO ${pin}. Usa el número impreso junto al pin (D27, G27 o IO27 es el GPIO 27), no su posición en la placa.`
   if (FLASH.includes(pin)) return `GPIO ${pin} es de la memoria flash de la placa: no se puede usar para ${que}.`
   if (pin > max) return `GPIO ${pin} solo sirve como entrada y no tiene resistencia interna: para ${que} usa uno entre 0 y ${max}.`
   return null

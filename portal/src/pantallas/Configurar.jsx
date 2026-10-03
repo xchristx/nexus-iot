@@ -192,14 +192,19 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
         Conexión (opcional)
         <input value={f.conexion} onChange={campo('conexion')} maxLength={120}
                placeholder={esSalida ? 'IN1 del módulo de relés' : 'sensor capacitivo, salida analógica'} />
-        <span className="ayuda-campo">Aparece en el prompt, para que la IA sepa cómo está cableado.</span>
+        <span className="ayuda-campo">
+          {esSalida
+            ? 'Aparece en el prompt, para que la IA sepa cómo está cableado.'
+            : 'Aparece en el prompt: pon el modelo del sensor (DS18B20, LDR, HC-SR04…) y cómo está cableado, así la IA sabe cómo leerlo.'}
+        </span>
       </label>
 
       {!esSalida && (
         <label>
           Librería (opcional)
           <input value={f.libreria} onChange={campo('libreria')} maxLength={120}
-                 placeholder="DHT sensor library de Adafruit (DHT.h)" />
+                 placeholder="OneWire y DallasTemperature (para un DS18B20)" />
+          <span className="ayuda-campo">Si no sabes cuál, déjala vacía: la IA elige una y te dice cuál instalar.</span>
         </label>
       )}
 
@@ -511,6 +516,8 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
   const salidas = canales.filter(c => c.tipo === 'salida')
   const reglaDe = Object.fromEntries(reglas.map(g => [g.salida, g]))
   const alertaDe = Object.fromEntries(placa.alertas.map(a => [a.entrada, a]))
+  // Lo guardado antes de que el portal lo controlara (un GPIO que no existe, por ejemplo).
+  const problema = (c) => errorCanal(c, { canales, pulsadorModo: placa.pulsadorModo, nuevo: false })
 
   async function mover(id, paso) {
     try {
@@ -587,6 +594,7 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
                 <div className="tenue detalle">{[s.pin != null && `GPIO ${s.pin}`, s.conexion].filter(Boolean).join(' · ')}</div>
               )}
               {alertaDe[s.id] && <div className="detalle">Alerta: {textoAlerta(alertaDe[s.id], s.unidad)}</div>}
+              {problema(s) && <div className="detalle error">{problema(s)}</div>}
             </div>
             <div className="acciones-fila">
               {flechas(entradas, i)}
@@ -622,6 +630,7 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
                 <div className="detalle">
                   {g ? <>Regla: {textoRegla(g)}</> : <span className="tenue">Sin regla automática</span>}
                 </div>
+                {problema(r) && <div className="detalle error">{problema(r)}</div>}
               </div>
               <div className="acciones-fila">
                 {flechas(salidas, i)}

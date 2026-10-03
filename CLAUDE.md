@@ -147,6 +147,12 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
   La plantilla del curso puede traer `tablero` (mapa) y `alertas` (lista); el alta
   descarta lo que nombre un canal inexistente. `borrarCanal` borra también ambos.
 
+- La placa publica `estado` con `update`, que no borra: un id que un sketch viejo
+  mandaba queda para siempre y Mi placa lo muestra "no declarado". Por eso ahí hay
+  un botón **quitar** (`quitarDetectado`, 2026-10-03; vuelve si la placa lo sigue mandando).
+- GPIO 20, 24 y 28 a 31 no existen en el ESP32: `validar.js` los rechaza y
+  Configurar marca en rojo lo guardado antes con un problema (las reglas de RTDB no).
+
 - **Usuario** = `curso.toLowerCase() + '-' + nombre normalizado` (sin tildes,
   minúsculas, espacios→`_`): `iot2026-ana_perez`. **Correo** = usuario +
   `@nexus-iot.example.com` (no existe). Las reglas comparan

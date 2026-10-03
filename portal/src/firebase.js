@@ -232,6 +232,11 @@ export async function borrarCanal(usuario, c, reglas) {
   await update(ref(db, 'placas/' + usuario), cambios)
 }
 
+// La placa publica con update, que pisa pero no borra: un id que ya no está en
+// el sketch se queda en "estado" para siempre y Mi placa lo sigue mostrando
+// como "no declarado". Si la placa todavía lo manda, vuelve a aparecer.
+export const quitarDetectado = (usuario, id) => remove(placa(usuario, `estado/${id}`))
+
 // Mueve un canal un lugar (-1 arriba, +1 abajo) entre los de su tipo, y
 // renumera el orden de todos: así no importa si había dos con el mismo.
 export async function moverCanal(usuario, canales, id, paso) {
