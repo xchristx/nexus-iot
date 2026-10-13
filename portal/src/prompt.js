@@ -9,6 +9,8 @@
 //
 // La contraseña del alumno NUNCA va en el prompt: queda "" y la completa él.
 
+import { chipDe } from './validar.js'
+
 const numeroEjemplo = [24.5, 61.2]
 
 function lineaEntrada(e) {
@@ -26,6 +28,48 @@ function lineaSalida(s) {
   return `- "${s.id}": ${s.nombre || s.id}. GPIO ${s.pin}, se activa con nivel ${s.nivel_activo}.${conexion}${pulsador}`
 }
 
+function lineaModo(pulsadorModo, llaveModo) {
+  if (llaveModo != null) {
+    return `Llave selectora de modo automático: GPIO ${llaveModo} (dos posiciones, entre el GPIO y GND).
+Cerrada (lee LOW) = modo automático; abierta (lee HIGH) = manual. No hay pulsador de modo.`
+  }
+  return `Pulsador de modo automático: ${pulsadorModo != null
+    ? `GPIO ${pulsadorModo} (entre el GPIO y GND). Cada pulsación activa o desactiva el modo automático.`
+    : 'no hay. Deja la constante PIN_PULSADOR_MODO en -1.'}`
+}
+
+const PANTALLA = {
+  oled: {
+    hardware: 'OLED 0.96" SSD1306 de 128x64',
+    libreria: '"Adafruit SSD1306" y "Adafruit GFX Library", de Adafruit',
+    direcciones: '0x3C y 0x3D',
+    dibujo: `arriba "Modo" en tamaño de texto 1; en el medio "AUTOMATICO" o "MANUAL"
+  en tamaño 2; abajo, en tamaño 1, la conexión. Llama a display() una vez,
+  al terminar de dibujar.`,
+  },
+  lcd: {
+    hardware: 'LCD de 16x2 con módulo I2C (PCF8574)',
+    libreria: '"LiquidCrystal I2C" de Frank de Brabander (`#include <LiquidCrystal_I2C.h>`)',
+    direcciones: '0x27 y 0x3F',
+    dibujo: `renglón 1 "Modo: AUTOMATICO" o "Modo: MANUAL"; renglón 2 la conexión.
+  En vez de borrar la pantalla, rellena cada renglón con espacios hasta las 16
+  letras: borrarla la hace parpadear.`,
+  },
+}
+
+// Lo que la IA tiene que saber de los GPIO de cada chip. Los mismos datos que
+// CHIPS en validar.js, que es lo que el portal deja guardar.
+const PINES = {
+  esp32: `No uses GPIO 0, 12, 14 ni 15 para salidas: emiten pulsos durante el arranque y
+un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna,
+GPIO 34 a 39 solo sirven para entradas y GPIO 20, 24 y 28 a 31 no existen.`,
+  esp32s3: `Es un ESP32-S3: sus GPIO no son los del ESP32 clásico. Usa exactamente los de
+las listas de arriba. No uses GPIO 0 ni 3 para salidas: deciden cómo arranca la
+placa. GPIO 22 a 25 no existen, 26 a 32 son de la flash, 35 a 37 de la PSRAM
+(en las placas N8R8 y N16R8), 19 y 20 del USB, y 45 y 46 también deciden el
+arranque.`,
+}
+
 const lista = (items) => items.map((x) => `"${x.id}"`).join(', ')
 
 function estadoEjemplo(entradas, salidas) {
@@ -36,24 +80,30 @@ function estadoEjemplo(entradas, salidas) {
   return JSON.stringify(estado).replace(/,/g, ', ').replace(/:/g, ': ')
 }
 
-export function generarPrompt({ apiKey, databaseURL, usuario, canales, pulsadorModo }) {
+// pulsadorModo / llaveModo: GPIO o null (uno o el otro). pantalla: 'oled' | 'lcd' | null.
+// chip: 'esp32' (si falta) | 'esp32s3'.
+export function generarPrompt({ apiKey, databaseURL, usuario, canales, pulsadorModo, llaveModo, pantalla, chip }) {
   const entradas = canales.filter((c) => c.tipo === 'entrada')
   const salidas = canales.filter((c) => c.tipo === 'salida')
   const librerias = [...new Set(entradas.map((e) => e.libreria).filter(Boolean))]
-  const hayPulsadores = salidas.some((s) => s.pulsador != null) || pulsadorModo != null
+  const llave = llaveModo != null
+  if (llave) pulsadorModo = null
+  const hayPulsadores = salidas.some((s) => s.pulsador != null) || pulsadorModo != null || llave
+  const p = PANTALLA[pantalla]
+  const c = chipDe(chip)
 
   const salidaEj = salidas[0]?.id ?? 'vent'
   const entradaEj = entradas[0]?.id ?? 't'
 
   const s = []
 
-  s.push(`Necesito el código completo para un ESP32 (Arduino / C++) que lea entradas
+  s.push(`Necesito el código completo para un ${c.nombre} (Arduino / C++) que lea entradas
 (sensores, botones), maneje salidas (relés, LEDs) con pulsadores locales y un
 modo automático, y se comunique en tiempo real con Firebase Realtime Database.`)
 
   s.push(`## Hardware
 
-Placa ESP32 DevKit v1.
+Placa ${c.placa}.
 
 Entradas (lo que la placa mide o lee y manda como número):
 ${entradas.map(lineaEntrada).join('\n') || '(ninguna por ahora)'}
@@ -61,10 +111,10 @@ ${entradas.map(lineaEntrada).join('\n') || '(ninguna por ahora)'}
 Salidas (lo que se prende y se apaga):
 ${salidas.map(lineaSalida).join('\n') || '(ninguna por ahora)'}
 
-Pulsador de modo automático: ${pulsadorModo != null
-    ? `GPIO ${pulsadorModo} (entre el GPIO y GND). Cada pulsación activa o desactiva el modo automático.`
-    : 'no hay. Deja la constante PIN_PULSADOR_MODO en -1.'}
-
+${lineaModo(pulsadorModo, llaveModo)}
+${p ? `
+Pantalla: ${p.hardware}, por I2C: SDA en GPIO ${c.sda}, SCL en GPIO ${c.scl}.
+` : ''}
 Define las entradas y las salidas como **tablas**, para que agregar una sea
 agregar una fila:
 
@@ -80,9 +130,12 @@ Declara todos los structs arriba, antes de la primera función: el Arduino IDE
 agrega las declaraciones de las funciones antes de la primera, y si un struct
 que usan está más abajo, no compila.
 
-No uses GPIO 0, 12, 14 ni 15 para salidas: emiten pulsos durante el arranque y
-un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna,
-GPIO 34 a 39 solo sirven para entradas y GPIO 20, 24 y 28 a 31 no existen.`)
+${PINES[chip] || PINES.esp32}
+
+Una entrada que se lee con analogRead tiene que estar entre GPIO ${c.adc1[0]} y ${c.adc1[1]}
+(el ADC1): los demás pines analógicos son del ADC2, que con el WiFi prendido no
+lee bien. Si alguna de la lista está en otro GPIO, avísame al principio de tu
+respuesta.`)
 
   s.push(`## Librerías a usar
 
@@ -92,7 +145,7 @@ GPIO 34 a 39 solo sirven para entradas y GPIO 20, 24 y 28 a 31 no existen.`)
   discontinuadas y tienen otra API. Si no conoces bien FirebaseClient 2.x,
   copia el esqueleto de abajo tal cual.
 - ArduinoJson (versión 7), para leer y armar los JSON.
-- WiFi.h, WiFiClientSecure.h y Preferences.h, que vienen con el ESP32.${librerias.length ? `\n- Para las entradas: ${librerias.join('; ')}.` : ''}
+- WiFi.h, WiFiClientSecure.h y Preferences.h, que vienen con el ESP32.${librerias.length ? `\n- Para las entradas: ${librerias.join('; ')}.` : ''}${p ? `\n- Para la pantalla: Wire.h (viene con el ESP32) y ${p.libreria}.` : ''}
 
 Si una entrada necesita una librería que no nombré, usa la más conocida para
 ese sensor (una que esté en el Gestor de librerías del Arduino IDE) y, al
@@ -211,9 +264,13 @@ Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo
 
 Procésalo en este orden:
 
-1. **"auto"**: activa o desactiva el modo automático. Excepción: si el
+${llave ? `1. **"auto"**: el modo lo elige la llave, no lo que llegue. Si "auto" falta o
+   no coincide con la posición de la llave, no lo apliques: vuelve a escribir
+   la posición en \`control/auto\` y, si llegó un valor distinto, escribe en
+   "aviso" "modo: lo elige la llave de la placa". Excepción: mientras la placa
+   no terminó de escribir la posición, ignora el valor que llega (es viejo).` : `1. **"auto"**: activa o desactiva el modo automático. Excepción: si el
    pulsador de modo lo cambió y todavía no se pudo escribir en Firebase, ignora
-   el valor que llega (es viejo).
+   el valor que llega (es viejo).`}
 2. **"reglas"**: reemplazan completas a las anteriores (si no hay, no hay
    ninguna regla). Guárdalas en Preferences como el texto JSON recibido,
    **solo si cambió**, y cárgalas al arrancar.
@@ -225,8 +282,10 @@ Después, evalúa las reglas.`)
 
   s.push(`## Modo automático y control local
 
-Hay UN modo automático para toda la placa (\`auto\`), guardado en Preferences
-para que sobreviva a un reinicio.
+${llave ? `Hay UN modo automático para toda la placa (\`auto\`), y lo elige la llave
+selectora: al arrancar, lee su posición y úsala (no hace falta guardar el
+modo en Preferences).` : `Hay UN modo automático para toda la placa (\`auto\`), guardado en Preferences
+para que sobreviva a un reinicio.`}
 
 - **Modo automático activado**: las salidas que tienen regla las maneja la
   regla. Cualquier acción manual sobre ellas (un "cmd" de la app o del portal,
@@ -235,7 +294,7 @@ para que sobreviva a un reinicio.
   regla se siguen manejando a mano.
 - **Modo automático desactivado**: las reglas no se evalúan; todo es manual.
 ${hayPulsadores ? `
-Pulsadores (todos entre el GPIO y GND):
+${llave ? 'Pulsadores y llave' : 'Pulsadores'} (todos entre el GPIO y GND):
 
 - Configúralos con \`pinMode(pin, INPUT_PULLUP)\`: suelto lee HIGH, apretado lee LOW.
 - **Antirrebote obligatorio**: la lectura tiene que quedarse igual 50 ms antes
@@ -244,10 +303,14 @@ Pulsadores (todos entre el GPIO y GND):
   a LOW. Nada de un \`while\` que espere a que lo suelten.
 - El pulsador de una salida la alterna (si estaba prendida la apaga y
   viceversa), como acción manual.
-- El pulsador de modo alterna el modo automático, lo guarda en Preferences, y
+${llave ? `- La llave de modo usa el mismo antirrebote, pero actúa en los dos cambios:
+  al pasar a LOW activa el modo automático y al pasar a HIGH lo desactiva. Al
+  arrancar y en cada cambio, escribe el modo en \`control/auto\` (apenas haya
+  conexión, si no la hay). Mientras no se haya escrito, el "auto" que llega de
+  Firebase se ignora.` : `- El pulsador de modo alterna el modo automático, lo guarda en Preferences, y
   lo escribe en \`control/auto\` (apenas haya conexión, si no la hay). Mientras
-  no se haya escrito, el "auto" que llega de Firebase se ignora.
-- Revisa los pulsadores en CADA vuelta del loop, con o sin internet.
+  no se haya escrito, el "auto" que llega de Firebase se ignora.`}
+- Revisa ${llave ? 'los pulsadores y la llave' : 'los pulsadores'} en CADA vuelta del loop, con o sin internet.
 ` : ''}
 Cada regla es:
 
@@ -272,6 +335,23 @@ alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
   entrada todavía no tiene ninguna lectura buena, ignórala.
 - Una misma salida no puede cambiar de estado por una regla más de una vez cada
   30 segundos.`)
+
+  if (p) s.push(`## Pantalla
+
+Muestra el modo y la conexión, sin tildes (la pantalla no las tiene):
+
+- ${p.dibujo}
+- La conexión es "En linea" con WiFi y \`app.ready()\`, "Conectando..." con
+  WiFi pero todavía sin \`app.ready()\` (y al arrancar, antes de intentar el
+  WiFi), y "Sin WiFi" sin WiFi.
+- \`Wire.begin(${c.sda}, ${c.scl})\`. La dirección cambia según el módulo: al arrancar,
+  prueba ${p.direcciones} con \`Wire.beginTransmission\` y
+  \`Wire.endTransmission\`, y usa la que conteste. Si no contesta ninguna,
+  imprime por serie que se revisen SDA, SCL y la alimentación, y sigue sin
+  pantalla: todo lo demás tiene que andar igual.
+- Redibújala solo cuando cambia el modo o la conexión, nunca en cada vuelta.
+- Actualízala en cada vuelta del loop ANTES de revisar el WiFi: así también
+  muestra "Sin WiFi".`)
 
   s.push(`## Cuándo publicar el estado
 
@@ -333,7 +413,7 @@ const char *API_KEY      = "${apiKey}";
 const char *DATABASE_URL = "${databaseURL}";
 const char *USUARIO      = "${usuario}";
 const char *CONTRASENA   = "";    // la completo yo: es la misma del portal
-const int PIN_PULSADOR_MODO = ${pulsadorModo ?? -1};
+${llave ? `const int PIN_LLAVE_MODO = ${llaveModo};` : `const int PIN_PULSADOR_MODO = ${pulsadorModo ?? -1};`}
 \`\`\``)
 
   s.push(`## Qué quiero de ti

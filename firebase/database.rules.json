@@ -84,7 +84,7 @@
               "unidad":   { ".validate": "newData.isString() && newData.val().length <= 10" },
               "conexion": { ".validate": "newData.isString() && newData.val().length <= 120" },
               "libreria": { ".validate": "newData.isString() && newData.val().length <= 120" },
-              "pin":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 39 && newData.val() % 1 === 0" },
+              "pin":      { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0 && (newData.val() <= 39 || (newData.val() <= 48 && newData.parent().parent().parent().child('chip').val() === 'esp32s3'))" },
               "orden":    { ".validate": "newData.isNumber()" },
               "$otro":    { ".validate": false }
             }
@@ -94,14 +94,17 @@
               ".validate": "$id.matches(/^[a-z][a-z0-9_]{0,14}$/) && $id !== 'visto' && $id !== 'aviso' && $id !== 'auto' && $id !== 'cmd' && $id !== 'reglas' && newData.hasChildren(['pin', 'nivel_activo', 'orden']) && !newData.parent().parent().child('entradas').child($id).exists()",
               "nombre":       { ".validate": "newData.isString() && newData.val().length <= 40" },
               "conexion":     { ".validate": "newData.isString() && newData.val().length <= 120" },
-              "pin":          { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 33 && newData.val() % 1 === 0" },
+              "pin":          { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0 && (newData.val() <= 33 || (newData.val() <= 48 && newData.parent().parent().parent().child('chip').val() === 'esp32s3'))" },
               "nivel_activo": { ".validate": "newData.val() === 'LOW' || newData.val() === 'HIGH'" },
-              "pulsador":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 33 && newData.val() % 1 === 0" },
+              "pulsador":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0 && (newData.val() <= 33 || (newData.val() <= 48 && newData.parent().parent().parent().child('chip').val() === 'esp32s3'))" },
               "orden":        { ".validate": "newData.isNumber()" },
               "$otro":        { ".validate": false }
             }
           },
-          "pulsador_modo": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 33 && newData.val() % 1 === 0" },
+          "pulsador_modo": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0 && (newData.val() <= 33 || (newData.val() <= 48 && newData.parent().child('chip').val() === 'esp32s3')) && !newData.parent().child('llave_modo').exists()" },
+          "llave_modo":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0 && (newData.val() <= 33 || (newData.val() <= 48 && newData.parent().child('chip').val() === 'esp32s3')) && !newData.parent().child('pulsador_modo').exists()" },
+          "pantalla":      { ".validate": "newData.isString() && newData.val().matches(/^(oled|lcd)$/)" },
+          "chip":          { ".validate": "newData.isString() && newData.val().matches(/^(esp32|esp32s3)$/)" },
           "$otro":         { ".validate": false }
         },
 

@@ -88,6 +88,10 @@ entradas (lo que la placa mide o lee) y sus salidas (lo que prende y apaga).
 - **En modo automático, una salida con regla no obedece.** La placa ignora el
   comando (y el pulsador) y deja un aviso, que la app muestra al final de la
   lista. Para manejarla a mano, primero `modoAuto(false)`.
+- **Si la placa tiene llave selectora, `BotonModo` no cambia nada:** el modo lo
+  elige la llave. La placa vuelve a escribir el de la llave enseguida y deja el
+  aviso "modo: lo elige la llave de la placa". En ese caso conviene ocultar el
+  botón (`Visible` en falso) y dejar solo `LabelModo`.
 - **Los pulsadores de la placa se ven solos:** cuando alguien aprieta uno, la
   salida cambia y la app se entera igual que con cualquier otro dato.
 - **El reloj `RelojConexion` no usa internet.** Solo vuelve a llamar a

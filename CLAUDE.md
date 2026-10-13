@@ -27,6 +27,18 @@ Alumno vincula su placa; docente vincula un "Echo del laboratorio" con un curso 
 elige placas. Solo algunos alumnos la van a usar: sin `VITE_ALEXA_CLIENTE_ID` el
 portal no muestra nada. Nada de Amazon se probó todavía.
 
+**Llave selectora y pantalla (2026-10-08), opcionales por placa:** el modo
+automático se puede elegir con una **llave selectora** (en vez del pulsador de modo;
+la llave manda) y una **pantalla I2C** (OLED SSD1306 o LCD 16x2, GPIO 21/22) muestra
+el modo y la conexión. El docente todavía no confirmó qué pantalla tienen: por eso
+están las dos. Verificado con emuladores y compilando; nada con hardware real.
+
+**ESP32 o ESP32-S3 (2026-10-13), por placa:** varios alumnos se pasan al S3 (más
+flash para librerías). Cada alumno lo elige en Configurar > "Tu placa"
+(`config/chip`); sin chip = ESP32 clásico. Cambian la validación de GPIO, las
+reglas (el S3 llega al 48), la pantalla (8 y 9 en vez de 21 y 22), el prompt y el
+aviso del ADC2. Compila para los dos; nadie flasheó un S3 todavía.
+
 Pedidos que motivaron v4:
 
 - **Tiempo real** en vez de cada 5 s.
@@ -53,9 +65,9 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | Ruta | Qué es |
 |---|---|
 | `firebase/database.rules.json` | Reglas de RTDB: aislamiento por usuario, docente, validación de forma |
-| `firebase/pruebas/reglas.test.mjs` | 34 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
-| `firebase/pruebas/alexa.test.mjs` | 15 pruebas de la Lambda contra el emulador, con `simular-placa.mjs` de hijo (mismo `npm test`, archivos en serie: `--test-concurrency=1`) |
-| `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores |
+| `firebase/pruebas/reglas.test.mjs` | 38 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
+| `firebase/pruebas/alexa.test.mjs` | 16 pruebas de la Lambda contra el emulador, con `simular-placa.mjs` de hijo (mismo `npm test`, archivos en serie: `--test-concurrency=1`) |
+| `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores (`m` gira la llave si la placa tiene `llave_modo`) |
 | `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
 | `firebase/LEEME.md` | Puesta en marcha en Firebase, recetas del docente, límites, emuladores |
 | `portal/` | React + Vite, para Netlify. `src/firebase.js` (toda la capa de datos), `src/validar.js`, `src/pantallas/` (Entrar, MiPlaca, Configurar, MisDatos, Clase = docente) |
@@ -66,7 +78,8 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | `portal/android/`, `capacitor.config.json`, `ANDROID.md` | App Android (Capacitor 7). `ANDROID.md`: compilar, firmar, Play Store (prueba interna), emuladores |
 | `portal/public/sw.js`, `privacidad.html` | Service worker mínimo (solo notificaciones en Chrome Android) y la política de privacidad que pide Play |
 | `portal/assets/` | `icono.svg` → PNG (`generar-iconos.mjs`) → `npx capacitor-assets generate --android` |
-| `portal/src/prompt.js` | Genera el prompt del firmware con el hardware del alumno. **Única fuente** de `PROMPT.md` (`cd portal && npm run prompt`) |
+| `portal/src/prompt.js` | Genera el prompt del firmware con el hardware del alumno. **Única fuente** de `PROMPT.md` (`cd portal && npm run prompt`). Pruebas: `portal/pruebas/prompt.test.mjs` |
+| `portal/src/validar.js` | Mensajes de validación (GPIO según `CHIPS`, ids, pines ocupados con `pinesFijos`: pulsador/llave de modo y pantalla en SDA/SCL del chip; `problemasCon` = qué deja de servir al cambiar de chip). Importa `RESERVADOS` de `nombres.js` (no de `firebase.js`) para poder probarse en Node: `portal/pruebas/validar.test.mjs` |
 | `portal/src/plantilla-ejemplo.js` | Kit de ejemplo; solo para `PROMPT.md`. Igual a `plantilla-kit-ejemplo.json` y a las tablas de `main.cpp` |
 | `src/main.cpp` | Firmware de referencia (PlatformIO, FirebaseClient 2.2.13). Tablas de entradas y salidas (con pulsador), reglas, modo |
 | `arduino/NexusIoT/NexusIoT.ino` | Mismo firmware para Arduino IDE = `arduino/cabecera.txt` + `main.cpp` con `USAR_DHT 0` y WiFi/contraseña vacíos |
@@ -126,9 +139,12 @@ credenciales/{usuario} {contrasena, creado}   SOLO el docente lee y escribe (v6)
 docentes/{uid}       true        (se crea a mano en la consola)
 alumnos/{usuario}    {curso, nombre, creado}
 placas/{usuario}/
-  config/entradas/{id}   {nombre, unidad, conexion, libreria, pin, orden}
+  config/entradas/{id}   {nombre, unidad, conexion, libreria, pin (0-39), orden}
   config/salidas/{id}    {nombre, pin (0-33), nivel_activo LOW|HIGH, pulsador (0-33), conexion, orden}
-  config/pulsador_modo   GPIO
+  config/pulsador_modo   GPIO                (uno u otro: las reglas rechazan los dos)
+  config/llave_modo      GPIO                llave selectora: cerrada (LOW) = AUTO; la llave manda
+  config/pantalla        "oled" | "lcd"      I2C en GPIO 21 (SDA) y 22 (SCL); en el S3, 8 y 9
+  config/chip            "esp32s3"           sin chip = ESP32 clásico; con S3 todos los GPIO hasta 48
   control/auto           bool (o "1"/"true"… si lo escribe Kodular)
   control/reglas/{salida} {entrada, condicion >|<, umbral, hist}
   control/cmd/{salida}   1|0 (o texto); la placa lo aplica y lo BORRA
@@ -152,6 +168,12 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
   un botón **quitar** (`quitarDetectado`, 2026-10-03; vuelve si la placa lo sigue mandando).
 - GPIO 20, 24 y 28 a 31 no existen en el ESP32: `validar.js` los rechaza y
   Configurar marca en rojo lo guardado antes con un problema (las reglas de RTDB no).
+- **Chip** (`CHIPS` en `validar.js`): el S3 no tiene 22-25; 26-32 son de su flash,
+  35-37 de la PSRAM octal (N8R8/N16R8), 19-20 del USB, 45-46 de arranque: todos
+  rechazados; ADC1 = 1-10 (clásico 32-39). Las reglas solo cuentan hasta qué número
+  (clásico 39 entradas / 33 el resto; S3 48), leyendo `config/chip`. Cambiar de
+  chip se guarda siempre: lo que no sirve queda en rojo (canal, modo, pantalla).
+  El portal guarda el clásico como `null`; las reglas aceptan también `"esp32"`.
 
 - **Usuario** = `curso.toLowerCase() + '-' + nombre normalizado` (sin tildes,
   minúsculas, espacios→`_`): `iot2026-ana_perez`. **Correo** = usuario +
@@ -180,14 +202,27 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
   auto → reglas → cmd (aplica como manual y borra). No interpretar rutas del SSE.
 - Publica `estado` con `update`: salidas al instante, entradas si cambian ≥ 0,1 y a
   lo sumo 1/s, latido cada 15 s, todo al reconectar. `aviso` se borra a los 20 s.
-- Pulsadores `INPUT_PULLUP` a GND, antirrebote 50 ms. Pulsador de modo: cambia
-  `modoAuto`, lo guarda y lo escribe en `control/auto` (flag `modoLocal`: mientras
-  no se escribió, se ignora el `auto` remoto).
+- Pulsadores `INPUT_PULLUP` a GND, antirrebote 50 ms (`cambioFirme`; `seApreto` =
+  cambio a LOW). Pulsador de modo: cambia `modoAuto`, lo guarda y lo escribe en
+  `control/auto` (flag `modoLocal`: mientras no se escribió, se ignora el `auto`
+  remoto; `modoEnviado` evita perder un segundo cambio mientras viaja el primero).
+- Llave de modo (`PIN_LLAVE_MODO`, -1 = no hay): al arrancar y en cada cambio fija
+  el modo y lo escribe. Si `control/auto` dice otra cosa, `procesarControl` lo
+  reescribe y avisa "modo: lo elige la llave de la placa".
+- Pantalla (`#define PANTALLA` 0/1 OLED/2 LCD, como `USAR_DHT`): busca la
+  dirección (0x3C/0x3D, 0x27/0x3F), se actualiza antes del chequeo de WiFi y solo
+  redibuja si cambia el modo o la conexión (enum `Conexion`, con los structs).
 - Sin WiFi no llama a `app.loop()` pero sigue leyendo, regulando y atendiendo
   pulsadores.
 - **Los structs van antes de cualquier función**: el convertidor de `.ino` inserta
   prototipos antes de la primera función (falló así; el prompt también lo pide).
-- ~73 % de la flash.
+- ~73 % de la flash; 74 % con LCD, 75 % con OLED. En el S3, ~28 % (partición de 3 MB).
+- **ESP32-S3**: mismo código, `#if CONFIG_IDF_TARGET_ESP32S3` (I2C en 8/9 y
+  `gpioNoSirve`). `revisarPines()` en `setup` deja en -1 y avisa por serie un GPIO
+  de las tablas que no sirve: en el S3, `pinMode` sobre 26-32 (los del kit)
+  reinicia la placa sin parar. Por eso las salidas con pin -1 no se escriben y el
+  modo usa `llaveModo.pin`, no `PIN_LLAVE_MODO`. `platformio.ini`: `[env]`
+  compartido, `esp32dev` por defecto y `pio run -e esp32s3`.
 
 ## Decisiones tomadas (no revertir sin hablarlo con el usuario)
 
@@ -238,6 +273,19 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
     espera ≤ 3 s a `estado`. Sin eventos proactivos (`proactivelyReported: false`).
     Reparto por **beta** (90 días, no se extiende; 500 testers). Alexa no tiene es-BO: es-US/es-MX.
 
+16. **La llave selectora manda** (2026-10-08, pedido del usuario): con
+    `llave_modo`, la posición de la llave ES el modo. Portal y app lo muestran sin
+    botón; Alexa no ofrece "Modo automático" (`NO_SUCH_ENDPOINT` si lo tenía);
+    Kodular no cambia: si escribe `auto`, la placa lo revierte con un aviso (las
+    reglas no pueden impedirlo: la placa y la app usan la misma cuenta). Pulsador o
+    llave **por placa**, no reemplaza al pulsador. Con un cable suelto queda en
+    manual.
+
+17. **ESP32 o ESP32-S3, lo elige el alumno por placa** (2026-10-13, pedido del
+    usuario). No por curso: hay cursos mezclados. La plantilla puede traer
+    `chip`. El kit de ejemplo sigue siendo del clásico (sus pines 25-27 y 32 no
+    sirven en el S3); el firmware se protege con `revisarPines()`.
+
 Presupuesto: Spark gratis. Techo real = **100 conexiones simultáneas** (~3 por
 alumno: placa, app, portal). Descarga estimada 1,5–3 GB/mes de 10. RTDB no se
 pausa: no hay keep-alive.
@@ -273,6 +321,8 @@ zip), `firebase/pruebas/simular-placa.mjs`, `kodular/generar-aia.mjs` y `GUIA.md
 (+ `node kodular/generar-aia.mjs`), y los `LEEME`. Si la placa suma una clave a
 `estado` que no es entrada ni salida, va en `RESERVADOS` (firebase.js), en las
 reglas y en `SISTEMA` del generador. El kit de ejemplo está en tres lugares iguales.
+Los GPIO de cada chip están en cuatro: `CHIPS` (`validar.js`), `PINES`
+(`prompt.js`), `gpioNoSirve()` (`main.cpp`) y el tope en las reglas.
 La Lambda de Alexa lee `config`, `control`, `estado` y `tablero/{id}/icono`:
 `alexa/lambda/placa.mjs` (con `aBool`/`LATIDO_MAX`/`esTemperatura` copiados del
 portal) y `hogar.mjs`, + `npm test` y volver a subir el zip.
@@ -290,7 +340,7 @@ el 5.1 escribe las rutas con `\`):
   Android Studio: `export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"` y
   `PATH="$JAVA_HOME/bin:$PATH"` (formato `/c/...`: con `C:/` los dos puntos rompen el
   PATH de bash).
-- **Reglas y Lambda**: 34 + 15 pruebas, `cd firebase && npm test` (o `npx firebase
+- **Reglas y Lambda**: 38 + 16 pruebas, `cd firebase && npm test` (o `npx firebase
   emulators:start --project demo-nexus` en segundo plano y `node --test
   --test-concurrency=1 pruebas/`: en paralelo, `clearDatabase` de las reglas borra
   lo que siembra la de Alexa). Un `creado: Date.now()` puede coincidir al ms con el
@@ -339,8 +389,18 @@ el 5.1 escribe las rutas con `\`):
   `redirect_uri` ajeno; docente elige alumnos, casillas en la clase, desvincular el
   Echo conserva la elección; borrar alumno lo saca del Echo. Ojo: el portal pinta
   el cambio antes de que confirme el servidor; esperar ~300 ms antes de leer por REST.
-- **Firmware**: `~/.platformio/penv/Scripts/pio.exe run`, y el `.ino` con
-  `pio ci --project-conf platformio.ini arduino/NexusIoT/NexusIoT.ino`.
+- **Llave y pantalla en el navegador**: 22 chequeos (elegir llave, choque de GPIO,
+  pantalla, canal en GPIO 21 rechazado, Mi placa sin botón, girar la llave con
+  `m`, la placa revierte un `auto` de afuera en ~120 ms y avisa, Mis datos y el
+  prompt, volver al pulsador). `playwright-core` no está instalado en el repo:
+  `npm install playwright-core` en el scratchpad.
+- **Firmware**: `~/.platformio/penv/Scripts/pio.exe run -e esp32dev -e esp32s3`, y
+  el `.ino` con `pio ci --project-conf platformio.ini arduino/NexusIoT/NexusIoT.ino`
+  (`pio ci` compila TODOS los entornos, ignora `default_envs`). El toolchain del S3
+  ya está instalado. Para confirmar una rama `#if` por chip, un `#error` al final
+  de una copia: falla solo en el entorno que la toma. Para probar
+  llave o pantalla sin tocar `main.cpp`: copia con `sed` al scratchpad cambiando
+  `PIN_LLAVE_MODO`/`PANTALLA` y `pio ci` de esa copia.
 
 ## Trampas del entorno (Windows + Git Bash)
 
@@ -365,6 +425,10 @@ el 5.1 escribe las rutas con `\`):
 
 - Un proyecto Firebase real (apps web y Android registradas, reglas publicadas).
 - La placa real con FirebaseClient: auth, stream, pulsadores, cortar el WiFi.
+- La llave selectora y las dos pantallas reales (dirección, lectura, LCD de 5 V
+  con el ESP32 de 3,3 V), y Kodular cambiando el modo con la llave puesta.
+- Un ESP32-S3 real (N16R8): que arranque, el monitor serie por cada USB (UART y
+  nativo, `USB CDC On Boot`), la pantalla en 8/9 y `revisarPines()` con el kit.
 - El `.aia` en Kodular: importar, compilar con `google-services.json`, y **cómo
   codifica los valores `KodularFirebaseDatabase`** (código cerrado). También si
   cambiar `ProjectPath` por bloques re-engancha el listener (por las dudas, al

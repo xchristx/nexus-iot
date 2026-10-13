@@ -215,6 +215,54 @@ test('un mismo id no puede ser entrada y salida', async () => {
   await assertFails(set(ref(db, 'placas/iot2026-beto/config/salidas/t'), { orden: 2, pin: 2, nivel_activo: 'HIGH' }))
 })
 
+test('el modo en la placa: pulsador o llave (GPIO 0-33), nunca los dos', async () => {
+  const db = alumno('iot2026-beto')
+  const config = 'placas/iot2026-beto/config'
+  // KIT ya tiene pulsador_modo: 25
+  await assertFails(set(ref(db, config + '/llave_modo'), 14))
+  await assertSucceeds(update(ref(db, config), { pulsador_modo: null, llave_modo: 14 }))
+  await assertFails(set(ref(db, config + '/pulsador_modo'), 25))
+  for (const v of [34, -1, 2.5, '14']) await assertFails(set(ref(db, config + '/llave_modo'), v))
+  await assertSucceeds(update(ref(db, config), { llave_modo: null, pulsador_modo: 25 }))
+})
+
+test('la pantalla es "oled" o "lcd"', async () => {
+  const db = alumno('iot2026-beto')
+  const pantalla = ref(db, 'placas/iot2026-beto/config/pantalla')
+  await assertSucceeds(set(pantalla, 'oled'))
+  await assertSucceeds(set(pantalla, 'lcd'))
+  for (const v of ['OLED', 'tft', 1, true]) await assertFails(set(pantalla, v))
+  await assertSucceeds(remove(pantalla))
+})
+
+test('el chip: sin chip, los GPIO del ESP32; con "esp32s3", hasta el 48', async () => {
+  const db = alumno('iot2026-beto')
+  const config = 'placas/iot2026-beto/config'
+  const chip = ref(db, config + '/chip')
+  for (const v of ['ESP32S3', 'esp32c3', 1, true]) await assertFails(set(chip, v))
+  // KIT no tiene chip: es un ESP32 clásico
+  await assertFails(set(ref(db, config + '/entradas/pot'), { orden: 2, pin: 40 }))
+  await assertFails(set(ref(db, config + '/salidas/luz'), { orden: 2, pin: 40, nivel_activo: 'HIGH' }))
+  await assertFails(set(ref(db, config + '/pulsador_modo'), 41))
+  await assertSucceeds(set(chip, 'esp32s3'))
+  await assertSucceeds(set(ref(db, config + '/entradas/pot'), { orden: 2, pin: 48 }))
+  await assertSucceeds(set(ref(db, config + '/salidas/luz'), { orden: 3, pin: 40, nivel_activo: 'HIGH', pulsador: 47 }))
+  await assertSucceeds(set(ref(db, config + '/pulsador_modo'), 41))
+  await assertFails(set(ref(db, config + '/entradas/pot2'), { orden: 4, pin: 49 }))
+  await assertFails(update(ref(db, config), { pulsador_modo: null, llave_modo: 49 }))
+  await assertSucceeds(update(ref(db, config), { pulsador_modo: null, llave_modo: 42 }))
+  await assertSucceeds(set(chip, 'esp32'))
+  await assertSucceeds(remove(chip))
+})
+
+test('el alta copia el chip junto con los GPIO del S3', async () => {
+  const bomba = { ...KIT.config.salidas.bomba, pin: 40, pulsador: 41 }
+  const conChip = { ...KIT.config, chip: 'esp32s3', salidas: { bomba } }
+  const { chip, ...sinChip } = conChip
+  await assertSucceeds(update(ref(docente()), { ...ALTA('iot2026-ana', 'Ana Pérez'), 'placas/iot2026-ana': { ...KIT, config: conChip } }))
+  await assertFails(update(ref(docente()), { ...ALTA('iot2026-eva', 'Eva Rojas'), 'placas/iot2026-eva': { ...KIT, config: sinChip } }))
+})
+
 test('campos desconocidos se rechazan', async () => {
   const db = alumno('iot2026-beto')
   await assertFails(set(ref(db, 'placas/iot2026-beto/config/entradas/t/color'), 'rojo'))

@@ -2,7 +2,7 @@
 // Alexa, y su estado. Sin acceso a la base: se prueba solo.
 //
 //   cada salida            interruptor (Alexa.PowerController)  "{usuario}:{id}"
-//   el modo automático     interruptor "Modo automático"         "{usuario}:auto"
+//   el modo automático     interruptor "Modo automático"         "{usuario}:auto"  (no, si tiene llave)
 //   cada entrada en °C     termómetro (Alexa.TemperatureSensor)  "{usuario}:{id}"
 //
 // "auto" es un id reservado (RESERVADOS en el portal y en las reglas): nunca
@@ -49,7 +49,8 @@ export function dispositivosDe(usuario, placa, alumno) {
     categoria: CATEGORIA[placa?.tablero?.[s.id]?.icono] || 'SWITCH',
     descripcion: `Salida "${s.id}" de ${usuario}`,
   }))
-  if (salidas.length) {
+  // Con llave selectora el modo lo elige la llave de la placa: Alexa no lo ofrece.
+  if (salidas.length && placa?.config?.llave_modo == null) {
     lista.push({
       endpointId: `${usuario}:auto`, usuario, id: 'auto', tipo: 'auto',
       nombre: 'Modo automático' + de, categoria: 'SWITCH',

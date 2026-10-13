@@ -53,6 +53,9 @@ Antes de prender una salida, la Lambda mira la placa:
   con el estado real.
 
 El modo automático se cambia aunque la placa esté desconectada, como en el portal.
+Si la placa tiene **llave selectora** (`config/llave_modo`), el modo lo elige la
+llave: "Modo automático" no aparece en Discovery, y si Alexa lo tenía de antes,
+contesta que ya no existe (`NO_SUCH_ENDPOINT`: "descubre dispositivos").
 
 ## Qué hace falta
 
@@ -198,7 +201,7 @@ Les llega una invitación con el link para activarla.
 
 `cd firebase && npm test` corre las pruebas de la Lambda contra los emuladores
 (`firebase/pruebas/alexa.test.mjs`): el canje, Discovery, prender con la placa
-simulada, el modo automático, la placa desconectada, los tokens, el Echo del
+simulada, el modo automático, la llave selectora, la placa desconectada, los tokens, el Echo del
 docente y la firma del token de Google.
 
 ## Lo que falta probar en el mundo real

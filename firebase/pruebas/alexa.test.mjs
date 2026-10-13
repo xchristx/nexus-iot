@@ -270,6 +270,21 @@ test('con la placa desconectada, "no responde" y el comando no queda en cola; el
   assert.equal(await rtdb.leer('placas/iot2026-beto/control/auto'), false)
 })
 
+test('con llave selectora, el modo automático no es un dispositivo: lo elige la llave', async () => {
+  await rtdb.escribir('placas/iot2026-caro/config/llave_modo', 14)
+  try {
+    const { access_token } = await vincular({ usuario: 'iot2026-caro' })
+    const ids = (await directiva('Alexa.Discovery', 'Discover', access_token)).event.payload.endpoints.map(e => e.endpointId)
+    assert.deepEqual(ids, ['iot2026-caro:bomba', 'iot2026-caro:luz', 'iot2026-caro:t'])
+    // Si Alexa lo tenía de antes de poner la llave: no existe y no se escribe nada.
+    const r = await directiva('Alexa.PowerController', 'TurnOn', access_token, 'iot2026-caro:auto')
+    assert.equal(tipoError(r), 'NO_SUCH_ENDPOINT')
+    assert.equal(await rtdb.leer('placas/iot2026-caro/control/auto'), false)
+  } finally {
+    await rtdb.borrar('placas/iot2026-caro/config/llave_modo')
+  }
+})
+
 test('si la placa conectada no confirma a tiempo, contesta lo pedido y el comando queda', async () => {
   await rtdb.escribir('placas/iot2026-beto/estado/visto', Date.now())
   const { access_token } = await vincular({ usuario: 'iot2026-beto' })

@@ -21,7 +21,7 @@ function detectados(estado, canales) {
 }
 
 export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
-  const { canales, reglas, estado, cmd, auto, pulsadorModo, tablero } = placa
+  const { canales, reglas, estado, cmd, auto, pulsadorModo, llaveModo, tablero } = placa
   const [desfase, setDesfase] = useState(0)
   const [ahora, setAhora] = useState(Date.now())
   const [aviso, setAviso] = useState(null)
@@ -259,15 +259,22 @@ export default function MiPlaca({ usuario, placa, onAgregar, onConfigurar }) {
             <div>
               <h3>Modo automático</h3>
               <p className="ayuda sin-margen">
-                {auto
-                  ? 'Las salidas con regla las maneja la placa. Para manejarlas a mano, apaga el modo automático.'
-                  : 'Todo se maneja a mano. Préndelo para que la placa aplique las reglas.'}
+                {llaveModo != null
+                  ? (auto ? 'Las salidas con regla las maneja la placa.' : 'Todo se maneja a mano.') +
+                    ` Lo elige la llave selectora de la placa (GPIO ${llaveModo}): desde acá no se cambia.`
+                  : auto
+                    ? 'Las salidas con regla las maneja la placa. Para manejarlas a mano, apaga el modo automático.'
+                    : 'Todo se maneja a mano. Préndelo para que la placa aplique las reglas.'}
                 {pulsadorModo != null && ` También se cambia con el pulsador de GPIO ${pulsadorModo}.`}
               </p>
             </div>
-            <button className={'chico' + (auto ? ' activo' : '')} disabled={cambiandoModo} onClick={alternarModo}>
-              {cambiandoModo ? '…' : auto ? 'ACTIVADO' : 'DESACTIVADO'}
-            </button>
+            {llaveModo != null ? (
+              <span className={'modo-llave' + (auto ? ' activo' : '')}>{auto ? 'ACTIVADO' : 'DESACTIVADO'}</span>
+            ) : (
+              <button className={'chico' + (auto ? ' activo' : '')} disabled={cambiandoModo} onClick={alternarModo}>
+                {cambiandoModo ? '…' : auto ? 'ACTIVADO' : 'DESACTIVADO'}
+              </button>
+            )}
           </div>
         </div>
       )}

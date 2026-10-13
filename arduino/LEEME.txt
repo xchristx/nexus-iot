@@ -8,7 +8,7 @@ QUE ES ESTO
   Arduino IDE espera encontrarlo.
 
 COMO ABRIRLO
-  Descomprimi todo y abri  NexusIoT/NexusIoT.ino  con doble clic.
+  Descomprime todo y abre  NexusIoT/NexusIoT.ino  con doble clic.
   IMPORTANTE: la carpeta tiene que seguir llamandose NexusIoT. Si le cambias
   el nombre a la carpeta o al archivo, el IDE no lo abre.
 
@@ -23,13 +23,19 @@ PASO 1 - SOPORTE PARA ESP32  (una sola vez)
 PASO 2 - LIBRERIAS  (una sola vez)
   Programa > Incluir libreria > Administrar bibliotecas
     Instala:  FirebaseClient  (de Mobizt, version 2.2 o mayor)
-              Cuando pregunte por ESP_SSLClient, elegi "Install all".
+              Cuando pregunte por ESP_SSLClient, elige "Install all".
     Instala:  ArduinoJson     (de Benoit Blanchon, version 7 o mayor)
 
   Solo si vas a conectar el DHT22 de verdad, instala ademas:
     DHT sensor library        (de Adafruit)
     Adafruit Unified Sensor   (de Adafruit)
   y en el codigo cambia  #define USAR_DHT 0  por  1.
+
+  Solo si tienes pantalla (ver LLAVE Y PANTALLA, mas abajo), instala:
+    OLED 0.96"   -> Adafruit SSD1306 (de Adafruit). Cuando pregunte por
+                    Adafruit GFX y BusIO, elige "Install all".
+    LCD 16x2 I2C -> LiquidCrystal I2C (de Frank de Brabander). Si avisa que
+                    es para otra arquitectura, compila igual.
 
   WiFi, WiFiClientSecure y Preferences NO se instalan: ya vienen con el
   paquete ESP32.
@@ -57,6 +63,9 @@ PASO 4 - QUE TU SKETCH COINCIDA CON TU PORTAL
                    el mismo id, pin, nivel (LOW o HIGH) y pulsador del portal
                    (-1 si no tiene pulsador).
     El pulsador de modo -> PIN_PULSADOR_MODO en la configuracion (-1 si no hay).
+    La llave de modo    -> PIN_LLAVE_MODO (-1 si no hay). Va el pulsador o la
+                           llave, no los dos: el otro queda en -1.
+    La pantalla         -> #define PANTALLA  0 ninguna, 1 OLED, 2 LCD 16x2.
 
   Las reglas del modo automatico NO se escriben aca: se arman en el portal y
   le llegan solas a la placa.
@@ -66,16 +75,18 @@ PASO 4 - QUE TU SKETCH COINCIDA CON TU PORTAL
 
 PASO 5 - SUBIR
   Herramientas > Placa > esp32 > ESP32 Dev Module
-    (si no anda, proba "DOIT ESP32 DEVKIT V1" o "NodeMCU-32S")
+    (si no anda, prueba "DOIT ESP32 DEVKIT V1" o "NodeMCU-32S";
+    con un ESP32-S3, ESP32S3 Dev Module: ver CON UN ESP32-S3, mas abajo)
   Herramientas > Puerto > el COM que aparece al enchufar la placa
   Boton Subir (la flechita)
   Herramientas > Monitor Serie, a 115200 baudios
 
   Si al subir dice que no entra en la memoria, en
-  Herramientas > Partition Scheme elegi "Huge APP (3MB No OTA)".
-  El sketch usa ~73% de la flash porque TLS ocupa bastante.
+  Herramientas > Partition Scheme elige "Huge APP (3MB No OTA)".
+  El sketch usa ~73% de la flash porque TLS ocupa bastante (~75% con
+  pantalla).
 
-CONEXIONES DEL KIT DE EJEMPLO
+CONEXIONES DEL KIT DE EJEMPLO  (ESP32 clasico)
   GPIO 26 -> IN1 del modulo de reles  (salida "bomba")
   GPIO 27 -> IN2 del modulo de reles  (salida "vent")
   GPIO 2  -> LED de la placa          (salida "luz")
@@ -86,6 +97,38 @@ CONEXIONES DEL KIT DE EJEMPLO
 
   Los pulsadores van entre el GPIO y GND, sin resistencia: se usa la
   interna. No sirven los GPIO 34 a 39 (no tienen resistencia interna).
+  Las entradas analogicas (analogRead) van en GPIO 32 a 39: en los otros
+  pines analogicos el ESP32 no lee con el WiFi prendido.
+
+CON UN ESP32-S3
+  Funciona igual, pero sus GPIO no son los del ESP32 clasico:
+    - No tiene del 22 al 25. Del 26 al 32 y del 35 al 37 son de la
+      memoria, el 19 y el 20 del USB, y el 45 y el 46 deciden como arranca.
+    - El kit de ejemplo NO sirve tal cual (usa 25, 26, 27 y 32). En el
+      portal, en Configurar > Tu placa, elige ESP32-S3: te marca en rojo lo
+      que no sirve. Despues pon en el sketch los mismos pines que el portal.
+    - Pantalla: SDA -> GPIO 8, SCL -> GPIO 9.
+    - Entradas analogicas (analogRead): en GPIO 1 a 10.
+    - El LED de la placa no esta en el GPIO 2: es uno de colores (48 o 38).
+  Placa: Herramientas > Placa > esp32 > ESP32S3 Dev Module.
+  Si el Monitor Serie no muestra nada: Herramientas > USB CDC On Boot >
+  Enabled, o enchufa el cable en el otro USB de la placa (dice UART o COM).
+  Si te olvidas de cambiar un pin, la placa lo dice al arrancar, por ejemplo
+  "[error] salida bomba: GPIO 26 es de la memoria flash. Queda sin usar".
+
+LLAVE Y PANTALLA  (opcionales)
+  Llave selectora de modo (dos posiciones), en vez del pulsador de modo:
+    un contacto entre el GPIO y GND, sin resistencia.
+    Cerrada = modo automatico, abierta = manual. Si te queda al reves, usa el
+    otro contacto del bloque (NA en vez de NC). Si se suelta un cable, queda
+    en manual.
+  Pantalla, por I2C (OLED 0.96" SSD1306 o LCD 16x2 con modulo I2C):
+    SDA -> GPIO 21    SCL -> GPIO 22    GND -> GND
+    (en el ESP32-S3, SDA -> GPIO 8 y SCL -> GPIO 9)
+    VCC -> 3V3 la OLED, VIN (5 V) la LCD
+    Muestra el modo y si la placa esta conectada. La direccion la busca sola.
+    En la LCD, si se prende pero no se ven las letras, gira el potenciometro
+    azul de atras (es el contraste).
 
 EL MODO AUTOMATICO
   Activado: las salidas que tienen regla las maneja la placa. Los botones de
@@ -93,9 +136,12 @@ EL MODO AUTOMATICO
   portal que lo ignoro). Las salidas sin regla se siguen manejando a mano.
   Desactivado: todo se maneja a mano.
   Se cambia desde la app, desde el portal o con el pulsador de modo.
+  Con llave selectora, manda la llave: la app y el portal muestran el modo
+  pero no lo cambian (si lo intentan, la placa vuelve a poner el de la llave
+  y avisa).
 
 SI ALGO FALLA
-  Lo primero: abri el portal y mira "Mi placa". Ahi ves si la placa esta
+  Lo primero: abre el portal y mira "Mi placa". Ahi ves si la placa esta
   conectada, los valores y los avisos.
 
   "[firebase] entrar: ..."       -> no pudo entrar: USUARIO o CONTRASENA
@@ -107,9 +153,15 @@ SI ALGO FALLA
                                     portal.
   "sin conexion"                 -> no hay WiFi o la red es de 5 GHz. Las
                                     reglas y los pulsadores siguen andando.
+  "[error] ...: GPIO 26 ..."     -> ese pin no sirve en tu placa y quedo
+                                    sin usar. Cambialo en el sketch y en el
+                                    portal (ver CON UN ESP32-S3).
   No aparece el puerto COM       -> falta el driver USB de la placa
-                                    (CP2102 o CH340)
+                                    (CP2102, CH340 o CH343)
   Una salida queda al reves      -> en la tabla salidas[], cambia LOW por HIGH
                                     (y tambien en el portal)
   Un pulsador prende y apaga     -> revisa que vaya a GND y no a 3.3V
   solo
+  "[pantalla] no responde"       -> revisa SDA (21; en el S3, 8), SCL (22;
+                                    en el S3, 9), GND y VCC.
+                                    La placa sigue andando sin pantalla.

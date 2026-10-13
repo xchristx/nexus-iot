@@ -137,6 +137,17 @@ La plantilla también puede traer cómo se ve cada canal (`tablero`, un mapa por
 y alertas (`alertas`, una lista), como el kit de ejemplo. Lo que nombre un canal
 que el kit no tiene se ignora.
 
+Para el modo desde la placa, la plantilla lleva `"pulsador_modo": 25` (como el kit)
+o `"llave_modo": 25` si el laboratorio usa llave selectora; si trae las dos, gana la
+llave. Para la pantalla, `"pantalla": "oled"` o `"pantalla": "lcd"` (va en GPIO 21 y
+22: que ningún canal del kit los use).
+
+Si todo el curso usa ESP32-S3, la plantilla puede llevar `"chip": "esp32s3"`, y
+entonces sus GPIO pueden llegar hasta el 48 (la pantalla va en 8 y 9). Sin `chip`,
+cada alumno arranca con un ESP32 clásico y lo cambia él en Configurar > Tu placa.
+Ojo: el kit de ejemplo usa pines del clásico (25, 26, 27 y 32), que en el S3 no
+sirven.
+
 ## 5. Recetas del docente
 
 **Un alumno se olvidó la contraseña.** En el portal, en su fila, **ver** muestra
@@ -188,7 +199,8 @@ Con los emuladores corriendo:
 - **Un curso:** los emuladores arrancan vacíos. Se carga con
   `curl -X PATCH -H "Authorization: Bearer owner" -d @curso-ejemplo.json "http://127.0.0.1:9000/.json?ns=demo-nexus-default-rtdb"`.
 - **Una placa:** `node pruebas/simular-placa.mjs iot2026-tu_nombre tucontraseña --emulador`.
-  Escribiendo `p bomba` se simula el pulsador de la bomba, y `m` el de modo.
+  Escribiendo `p bomba` se simula el pulsador de la bomba, y `m` el de modo (o se
+  gira la llave, si la placa tiene `llave_modo`).
 
 La placa simulada también sirve contra el proyecto real, para mostrar la app en
 clase antes de tener el hardware (ver el encabezado del archivo).

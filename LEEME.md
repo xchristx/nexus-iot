@@ -32,7 +32,8 @@ se ve en la app igual de rápido.
 
 ```text
 placas/<usuario>/
-  config/    lo que el alumno declaró en el portal: entradas, salidas, pulsadores
+  config/    lo que el alumno declaró en el portal: entradas, salidas, pulsadores,
+             llave de modo y pantalla
   control/   lo que escriben la app y el portal:
                auto     el modo automático (true/false)
                reglas   una por salida: {entrada, condicion, umbral, hist}
@@ -103,7 +104,8 @@ portal ilegible ni mete CSS. Las pruebas: `cd portal && npm test`.
 
 Una skill **Smart Home**: "Alexa, prende la bomba", "Alexa, ¿está prendida la luz?",
 "Alexa, prende el modo automático". Cada salida es un dispositivo de la app Alexa,
-el modo automático es otro y cada entrada en °C es un termómetro. Un alumno vincula
+el modo automático es otro (salvo con llave selectora: lo elige la llave) y cada
+entrada en °C es un termómetro. Un alumno vincula
 su propia cuenta de Amazon con su placa; el docente puede vincular un **Echo del
 laboratorio** con un curso y elegir qué placas maneja ("Alexa, prende la bomba de
 Ana Pérez").
@@ -121,7 +123,18 @@ el comando en cola), y en modo automático no toca una salida con regla. Sin
   placa avisa en el portal que lo ignoró). Las salidas sin regla siguen siendo
   manuales. Desactivado: todo es manual.
 - Se cambia desde la app, desde el portal o con el **pulsador de modo** de la placa.
+- O con una **llave selectora** de dos posiciones (en vez del pulsador): cerrada es
+  automático, abierta es manual, y **la llave manda**. El portal y la app muestran
+  el modo pero no lo cambian; si algo lo cambia igual (un botón de Kodular), la
+  placa vuelve a escribir el de la llave y avisa. Con un cable suelto queda en manual.
 - Cada salida puede tener un **pulsador** que la alterna.
+- Una **pantalla** opcional (OLED 0.96" o LCD 16x2, por I2C en GPIO 21 y 22; en
+  el ESP32-S3, 8 y 9) muestra el modo y si la placa está conectada.
+- **ESP32 o ESP32-S3**: cada alumno elige su placa en Configurar ("Tu placa",
+  `config/chip`). Los GPIO cambian mucho entre los dos (el S3 no tiene del 22 al
+  25, y del 26 al 32 son de su flash), así que con el chip cambian la validación
+  del portal, las reglas (el S3 llega al GPIO 48), los pines de la pantalla y el
+  prompt. Sin chip guardado es un ESP32 clásico, como todas las placas de antes.
 - **Todo lo local anda sin internet**: lecturas, reglas y pulsadores. Al volver la
   conexión, la placa publica cómo quedó todo.
 
@@ -261,9 +274,25 @@ de `PROMPT.md`: cada alumno las cambia por lo que declaró. Las reglas y el modo
 guardan en la flash para seguir regulando al arrancar sin red, y el WiFi nunca
 bloquea el loop.
 
+La llave de modo y la pantalla son opcionales y van en la configuración:
+`PIN_LLAVE_MODO` (-1 si no hay; va el pulsador o la llave, no los dos) y
+`#define PANTALLA` (0 ninguna, 1 OLED SSD1306, 2 LCD 16x2 I2C). La pantalla sigue
+el patrón de `USAR_DHT`: con 0 no hace falta instalar su librería. Busca sola la
+dirección I2C (0x3C/0x3D la OLED, 0x27/0x3F la LCD) y, si no contesta, la placa
+sigue sin pantalla. Con pantalla, el firmware ocupa ~75 % de la flash (~73 % sin).
+
 Los structs van arriba de todo, antes de cualquier función: el Arduino IDE agrega
 las declaraciones de las funciones antes de la primera, y si un tipo está más
 abajo, no compila.
+
+El mismo código sirve para el **ESP32 y el ESP32-S3**: el chip lo da la placa con
+la que se compila (`pio run` para el clásico, `pio run -e esp32s3` para el S3; en
+el Arduino IDE, "ESP32 Dev Module" o "ESP32S3 Dev Module"). Con
+`CONFIG_IDF_TARGET_ESP32S3` cambian los pines de la pantalla (8 y 9) y la lista
+de GPIO que no sirven. Al arrancar, `revisarPines()` deja sin usar (y avisa por
+serie) el GPIO de una tabla que no existe o es de la memoria: en el S3, configurar
+uno de la flash (26 a 32, justo los del kit) reinicia la placa sin parar. Las
+tablas del ejemplo son para el clásico: con un S3 hay que cambiarles los pines.
 
 Si tocas `src/main.cpp`, regenera el `.ino` y el zip que se reparte:
 
@@ -316,21 +345,32 @@ El kit de ejemplo vive en tres lugares que conviene mantener iguales:
 `firebase/plantilla-kit-ejemplo.json`, `portal/src/plantilla-ejemplo.js` (de donde
 sale `PROMPT.md`) y las tablas de `src/main.cpp`.
 
+Los GPIO de cada chip están en `CHIPS` (`portal/src/validar.js`), con un resumen en
+`PINES` (`portal/src/prompt.js`), en `gpioNoSirve()` (`src/main.cpp`) y, solo hasta
+qué número llega, en las reglas de la base. Un chip nuevo se agrega en esos cuatro.
+
 ## Lo que falta probar en el mundo real
 
-Verificado: las reglas de la base con 34 pruebas contra el emulador; la Lambda de
-Alexa con 15 (canje, Discovery, prender con la placa simulada, modo automático,
-placa desconectada, tokens, Echo del docente); el portal
+Verificado: las reglas de la base con 38 pruebas contra el emulador; la Lambda de
+Alexa con 16 (canje, Discovery, prender con la placa simulada, modo automático,
+llave selectora, placa desconectada, tokens, Echo del docente); el portal
 recorrido en un navegador contra los emuladores, con una placa simulada (alta,
-configurar, comandos, modo automático, pulsadores, vista del docente, widgets y
-alertas con histéresis); la app Android en un emulador de Android contra los de
-Firebase (alta, tiempo real, alerta con notificación nativa, comandos); el firmware
-compilado en PlatformIO y como `.ino`; el `.aia` leído por `aia-kit`. Lo que no se
-puede probar desde ahí:
+configurar, comandos, modo automático, pulsadores, llave selectora y pantalla, vista
+del docente, widgets y alertas con histéresis); la app Android en un emulador de
+Android contra los de Firebase (alta, tiempo real, alerta con notificación nativa,
+comandos); el firmware compilado en PlatformIO y como `.ino`; el `.aia` leído por
+`aia-kit`. Lo que no se puede probar desde ahí:
 
 - **Un proyecto Firebase de verdad**, con la app web y la Android registradas.
 - **Una placa real** con FirebaseClient: que entre, que el stream reciba los
   cambios, los pulsadores y cortar el WiFi para ver que todo lo local sigue andando.
+- **Un ESP32-S3 de verdad** (compila y el portal lo valida, pero nadie lo flasheó):
+  que arranque con una N16R8, el monitor serie por cada USB, la pantalla en 8 y 9,
+  y que `revisarPines()` lo salve de los pines del kit.
+- **La llave selectora y la pantalla de verdad**: girar la llave con y sin WiFi,
+  cambiar el modo desde Kodular con la llave puesta (la placa lo tiene que
+  revertir con un aviso), y una OLED y una LCD reales (que encuentre la
+  dirección, que se lea, y la LCD de 5 V en los pines de 3,3 V del ESP32).
 - **El `.aia` en Kodular Creator**: que importe, que compile con el
   `google-services.json` y, sobre todo, **cómo guarda los valores** el componente
   nuevo (`KodularFirebaseDatabase`, de código cerrado). La placa y las reglas

@@ -17,6 +17,8 @@ const cuerpo = generarPrompt({
   usuario:      'iot2026-tu_nombre',
   canales:      canalesEjemplo,
   pulsadorModo: plantillaEjemplo.pulsador_modo,
+  llaveModo:    plantillaEjemplo.llave_modo,
+  pantalla:     plantillaEjemplo.pantalla,
 })
 
 const encabezado = `<!-- GENERADO AUTOMATICAMENTE — no editar a mano.

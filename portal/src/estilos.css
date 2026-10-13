@@ -363,6 +363,17 @@ pre {
 
 /* El modo automático cambia qué se puede tocar: tiene que verse de lejos. */
 .modo.encendido { border-color: var(--acento); }
+/* Con llave selectora el modo solo se muestra: no parece un botón. */
+.modo-llave {
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: calc(6px * var(--redondeo));
+  color: var(--tenue);
+  border: 1px dashed var(--borde-fuerte);
+}
+.modo-llave.activo { color: var(--acento); border-color: var(--acento); }
 
 /* Valores de una placa desconectada: son los últimos que mandó, no los de ahora. */
 .datos.viejos { opacity: .55; }

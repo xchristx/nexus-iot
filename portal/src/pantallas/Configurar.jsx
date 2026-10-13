@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
-  guardarCanal, borrarCanal, guardarRegla, borrarRegla, guardarPulsadorModo, mensajeError,
+  guardarCanal, borrarCanal, guardarRegla, borrarRegla, guardarModoPlaca, guardarPantalla, guardarChip, mensajeError,
   guardarWidget, guardarAlerta, borrarAlerta, moverCanal, aBinario,
 } from '../firebase.js'
-import { MAX, errorCanal, errorRegla, errorPulsadorModo, errorAlerta, errorWidget } from '../validar.js'
+import {
+  MAX, chipDe, pinesFijos, problemasCon, errorCanal, errorRegla, errorModoPlaca, errorPantalla, errorAlerta, errorWidget,
+} from '../validar.js'
 import { textoRegla } from '../componentes/comunes.jsx'
 import {
   WIDGETS_ENTRADA, WIDGETS_SALIDA, COLORES, ICONOS, widgetDe,
@@ -67,6 +69,7 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
   const setW = (nuevo) => { setWidget(nuevo); setError(null) }
   const campo = (k) => (ev) => setF({ ...f, [k]: ev.target.value })
   const esSalida = f.tipo === 'salida'
+  const chip = chipDe(placa.chip)
   const opciones = esSalida ? WIDGETS_SALIDA : WIDGETS_ENTRADA
   // El tipo lo fija el botón ("+ Agregar" de Entradas o de Salidas), pero el
   // tablero guardado podría traer un widget del otro tipo.
@@ -99,7 +102,7 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
   async function enviar(ev) {
     ev.preventDefault()
     const c = armar()
-    const e = errorCanal(c, { canales: placa.canales, pulsadorModo: placa.pulsadorModo, nuevo })
+    const e = errorCanal(c, { canales: placa.canales, fijos: pinesFijos(placa), nuevo, chip: placa.chip })
     if (e) { setError(e); return }
     const wid = armarWidget()
     const ew = errorWidget(wid)
@@ -157,7 +160,7 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
         <label>
           GPIO {esSalida ? '' : '(opcional)'}
           <input value={f.pin} onChange={campo('pin')} type="number" min={0}
-                 placeholder={esSalida ? '26' : '34'} required={esSalida} />
+                 placeholder={String(esSalida ? chip.ejemplo.salida : chip.ejemplo.entrada)} required={esSalida} />
         </label>
 
         {esSalida ? (
@@ -176,10 +179,18 @@ function FormCanal({ usuario, placa, inicial, nuevo, onListo, onCancelar }) {
         )}
       </div>
 
+      {!esSalida && (
+        <p className="ayuda">
+          Si la placa la lee con analogRead (un potenciómetro, un LDR, un sensor de humedad de
+          suelo), usa un GPIO entre {chip.adc1[0]} y {chip.adc1[1]}: en los otros pines analógicos
+          el {chip.nombre} no lee con el WiFi prendido.
+        </p>
+      )}
+
       {esSalida && (
         <label>
           Pulsador (GPIO, opcional)
-          <input value={f.pulsador} onChange={campo('pulsador')} type="number" min={0} placeholder="32" />
+          <input value={f.pulsador} onChange={campo('pulsador')} type="number" min={0} placeholder={String(chip.ejemplo.pulsador)} />
           <span className="ayuda-campo">
             Un pulsador entre ese GPIO y GND prende o apaga esta salida desde la placa. No
             hace falta resistencia: se usa la interna. Si la salida tiene regla y el modo
@@ -456,20 +467,79 @@ function FormAlerta({ usuario, entrada, inicial, onListo, onCancelar }) {
 }
 
 // ===================================================================
-//  Pulsador de modo
+//  Placa: chip, modo automático y pantalla
 // ===================================================================
 
-function PulsadorModo({ usuario, placa }) {
-  const [pin, setPin] = useState(placa.pulsadorModo ?? '')
+const AYUDA_CHIP = {
+  esp32: 'El ESP32 de siempre: GPIO hasta el 39, y del 34 al 39 solo sirven para entradas. La pantalla va en GPIO 21 y 22. En el Arduino IDE es la placa "ESP32 Dev Module".',
+  esp32s3: 'Sus GPIO no son los del ESP32 de siempre: no tiene del 22 al 25, del 26 al 32 y del 35 al 37 son de la memoria, y el 19 y el 20, del USB. La pantalla va en GPIO 8 y 9. En el Arduino IDE es la placa "ESP32S3 Dev Module"; si el monitor serie no muestra nada, activa "USB CDC On Boot" o enchufa el cable en el otro USB de la placa.',
+}
+
+function ChipPlaca({ usuario, placa }) {
+  const [chip, setChip] = useState(placa.chip)
   const [mensaje, setMensaje] = useState(null)
+  const cambia = chip !== placa.chip
+  const problemas = cambia ? problemasCon(placa, chip) : []
 
   async function guardar(ev) {
     ev.preventDefault()
-    const valor = numeroONull(pin)
-    const e = errorPulsadorModo(valor, placa.canales)
+    try {
+      await guardarChip(usuario, chip)
+      setMensaje({ ok: problemas.length ? 'Guardado. Corrige lo que quedó en rojo.' : 'Guardado.' })
+    } catch (err) {
+      setMensaje({ error: mensajeError(err) })
+    }
+  }
+
+  return (
+    <form className="tarjeta" onSubmit={guardar}>
+      <h3>Tu placa</h3>
+      <label>
+        Los GPIO que sirven dependen del chip: fíjate qué dice el chip o la caja de tu placa.
+        <select value={chip} onChange={ev => { setChip(ev.target.value); setMensaje(null) }}>
+          <option value="esp32">ESP32 (DevKit v1, NodeMCU-32S…)</option>
+          <option value="esp32s3">ESP32-S3 (DevKitC-1, N16R8…)</option>
+        </select>
+      </label>
+      <p className="ayuda">{AYUDA_CHIP[chip]}</p>
+      {problemas.length > 0 && (
+        <>
+          <p className="error">Con el {chipDe(chip).nombre}, esto queda en un GPIO que no sirve:</p>
+          <ul className="lista-avisos error">{problemas.map(t => <li key={t}>{t}</li>)}</ul>
+          <p className="ayuda">Puedes guardar igual y corregirlo después: queda marcado en rojo.</p>
+        </>
+      )}
+      {mensaje?.error && <p className="error">{mensaje.error}</p>}
+      {mensaje?.ok && <p className="ayuda">{mensaje.ok}</p>}
+      <div className="acciones">
+        <button className="principal" disabled={!cambia}>Guardar</button>
+      </div>
+    </form>
+  )
+}
+
+const AYUDA_MODO = {
+  '': 'El modo automático se cambia solo desde la app o el portal.',
+  pulsador: 'Un pulsador entre ese GPIO y GND: cada vez que lo aprietas, el modo automático se activa o se desactiva, igual que con el botón de la app.',
+  llave: 'Una llave selectora de dos posiciones entre ese GPIO y GND: cerrada es automático y abierta es manual. La llave manda: la app y el portal muestran el modo, pero no lo cambian. Si te queda al revés, usa el otro contacto del bloque (NA en vez de NC). Si se suelta un cable, queda en manual.',
+}
+
+function ModoPlaca({ usuario, placa }) {
+  const [tipo, setTipo] = useState(placa.llaveModo != null ? 'llave' : placa.pulsadorModo != null ? 'pulsador' : '')
+  const [pin, setPin] = useState(placa.llaveModo ?? placa.pulsadorModo ?? '')
+  const [mensaje, setMensaje] = useState(null)
+  const cambiar = (fijar) => (ev) => { fijar(ev.target.value); setMensaje(null) }
+  // Lo guardado puede haber quedado mal al cambiar de chip.
+  const problema = errorModoPlaca(placa.llaveModo != null ? 'llave' : placa.pulsadorModo != null ? 'pulsador' : null,
+    placa.llaveModo ?? placa.pulsadorModo, placa.canales, placa.pantalla, placa.chip)
+
+  async function guardar(ev) {
+    ev.preventDefault()
+    const valor = tipo ? numeroONull(pin) : null
+    const e = errorModoPlaca(tipo, valor, placa.canales, placa.pantalla, placa.chip)
     if (e) { setMensaje({ error: e }); return }
     try {
-      await guardarPulsadorModo(usuario, valor)
+      await guardarModoPlaca(usuario, tipo || null, valor)
       setMensaje({ ok: 'Guardado.' })
     } catch (err) {
       setMensaje({ error: mensajeError(err) })
@@ -478,19 +548,76 @@ function PulsadorModo({ usuario, placa }) {
 
   return (
     <form className="tarjeta" onSubmit={guardar}>
-      <h3>Pulsador de modo automático</h3>
-      <p className="ayuda">
-        Opcional. Un pulsador entre ese GPIO y GND activa y desactiva el modo
-        automático desde la placa, igual que el botón de la app. Déjalo vacío si
-        no usas uno.
-      </p>
-      <div className="fila-guardar">
-        <input value={pin} onChange={ev => { setPin(ev.target.value); setMensaje(null) }}
-               type="number" min={0} placeholder="25" aria-label="GPIO del pulsador de modo" />
-        <button>Guardar</button>
+      <h3>Modo automático desde la placa</h3>
+      <div className="dos-columnas">
+        <label>
+          Se elige con
+          <select value={tipo} onChange={cambiar(setTipo)}>
+            <option value="">Nada (solo la app y el portal)</option>
+            <option value="pulsador">Un pulsador</option>
+            <option value="llave">Una llave selectora</option>
+          </select>
+        </label>
+        {tipo && (
+          <label>
+            GPIO {tipo === 'llave' ? 'de la llave' : 'del pulsador'}
+            <input value={pin} onChange={cambiar(setPin)} type="number" min={0} placeholder={String(chipDe(placa.chip).ejemplo.modo)} />
+          </label>
+        )}
       </div>
+      <p className="ayuda">{AYUDA_MODO[tipo]}</p>
+      {!mensaje && problema && <p className="error">Lo guardado no sirve: {problema}</p>}
       {mensaje?.error && <p className="error">{mensaje.error}</p>}
       {mensaje?.ok && <p className="ayuda">{mensaje.ok}</p>}
+      <div className="acciones">
+        <button className="principal">Guardar</button>
+      </div>
+    </form>
+  )
+}
+
+const AYUDA_PANTALLA = {
+  oled: 'VCC a 3V3 y GND a GND. Muestra el modo en grande y si la placa está conectada.',
+  lcd: 'VCC a VIN (5 V) y GND a GND. Muestra el modo y si la placa está conectada. Si se prende pero no se ven las letras, gira el tornillo del potenciómetro azul de atrás (es el contraste).',
+}
+
+function PantallaPlaca({ usuario, placa }) {
+  const [tipo, setTipo] = useState(placa.pantalla ?? '')
+  const [mensaje, setMensaje] = useState(null)
+  const { sda, scl } = chipDe(placa.chip)
+  // Al cambiar de chip, la pantalla cambia de pines y puede chocar con un canal.
+  const problema = errorPantalla(placa.pantalla, placa.canales, placa)
+
+  async function guardar(ev) {
+    ev.preventDefault()
+    const e = errorPantalla(tipo || null, placa.canales, placa)
+    if (e) { setMensaje({ error: e }); return }
+    try {
+      await guardarPantalla(usuario, tipo || null)
+      setMensaje({ ok: 'Guardado.' })
+    } catch (err) {
+      setMensaje({ error: mensajeError(err) })
+    }
+  }
+
+  return (
+    <form className="tarjeta" onSubmit={guardar}>
+      <h3>Pantalla</h3>
+      <label>
+        Opcional. Va por I2C: SDA a GPIO {sda} y SCL a GPIO {scl}.
+        <select value={tipo} onChange={ev => { setTipo(ev.target.value); setMensaje(null) }}>
+          <option value="">Ninguna</option>
+          <option value="oled">OLED 0.96" (SSD1306, 128x64)</option>
+          <option value="lcd">LCD 16x2 con módulo I2C</option>
+        </select>
+      </label>
+      {tipo && <p className="ayuda">{AYUDA_PANTALLA[tipo]}</p>}
+      {!mensaje && problema && <p className="error">{problema}</p>}
+      {mensaje?.error && <p className="error">{mensaje.error}</p>}
+      {mensaje?.ok && <p className="ayuda">{mensaje.ok}</p>}
+      <div className="acciones">
+        <button className="principal">Guardar</button>
+      </div>
     </form>
   )
 }
@@ -517,7 +644,7 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
   const reglaDe = Object.fromEntries(reglas.map(g => [g.salida, g]))
   const alertaDe = Object.fromEntries(placa.alertas.map(a => [a.entrada, a]))
   // Lo guardado antes de que el portal lo controlara (un GPIO que no existe, por ejemplo).
-  const problema = (c) => errorCanal(c, { canales, pulsadorModo: placa.pulsadorModo, nuevo: false })
+  const problema = (c) => errorCanal(c, { canales, fijos: pinesFijos(placa), nuevo: false, chip: placa.chip })
 
   async function mover(id, paso) {
     try {
@@ -575,6 +702,8 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
       </p>
 
       {mensaje && <div className="tarjeta"><p className="ayuda">{mensaje}</p></div>}
+
+      <ChipPlaca usuario={usuario} placa={placa} />
 
       <div className="tarjeta">
         <div className="bloque-cab">
@@ -643,7 +772,8 @@ export default function Configurar({ usuario, placa, precarga, onPrecargaUsada }
         })}
       </div>
 
-      {salidas.length > 0 && <PulsadorModo key={placa.pulsadorModo ?? 'ninguno'} usuario={usuario} placa={placa} />}
+      {salidas.length > 0 && <ModoPlaca usuario={usuario} placa={placa} />}
+      <PantallaPlaca usuario={usuario} placa={placa} />
     </>
   )
 }

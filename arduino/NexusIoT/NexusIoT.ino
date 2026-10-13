@@ -13,28 +13,40 @@
  *  2) Librerias
  *     Programa > Incluir libreria > Administrar bibliotecas...
  *       - "FirebaseClient" de Mobizt  (version 2.2 o mayor). Cuando pregunte
- *         si instala tambien ESP_SSLClient, elegi "Install all".
+ *         si instala tambien ESP_SSLClient, elige "Install all".
  *       - "ArduinoJson" de Benoit Blanchon  (version 7 o mayor)
  *     Solo si vas a usar el DHT22 de verdad (USAR_DHT 1), instala tambien:
  *       - "DHT sensor library" de Adafruit
  *       - "Adafruit Unified Sensor" de Adafruit
+ *     Solo si tienes pantalla (PANTALLA 1 o 2):
+ *       - OLED (PANTALLA 1): "Adafruit SSD1306" de Adafruit. Cuando pregunte
+ *         si instala tambien Adafruit GFX y BusIO, elige "Install all".
+ *       - LCD 16x2 (PANTALLA 2): "LiquidCrystal I2C" de Frank de Brabander.
+ *         Si avisa que es para otra arquitectura, compila igual.
  *     WiFi, WiFiClientSecure y Preferences ya vienen con el paquete ESP32:
  *     no se instalan.
  *
  *  3) Al compilar
  *     Herramientas > Placa > esp32 > "ESP32 Dev Module"
+ *       (con un ESP32-S3: "ESP32S3 Dev Module". Si el Monitor Serie no
+ *       muestra nada, pon "USB CDC On Boot" en "Enabled" o enchufa el
+ *       cable en el otro USB de la placa)
  *     Herramientas > Partition Scheme > "Huge APP (3MB No OTA)" si dice
  *     que no entra en la memoria
  *     Herramientas > Puerto > el COM que aparezca al enchufar la placa
  *     Monitor Serie a 115200 baudios
  *
- *  Si la placa no es una DevKit generica, proba con "DOIT ESP32 DEVKIT V1"
+ *  Si la placa no es una DevKit generica, prueba con "DOIT ESP32 DEVKIT V1"
  *  o "NodeMCU-32S". Para una ESP32-C3, "ESP32C3 Dev Module".
+ *
+ *  Las tablas de ejemplo usan GPIO del ESP32 clasico: con un ESP32-S3,
+ *  cambialos por los que declaraste en el portal. Si alguno no sirve en tu
+ *  placa, el Monitor Serie lo dice al arrancar y queda sin usar.
  * ====================================================================
  */
 
 /*
- * Nexus IoT — ESP32 <-> Firebase Realtime Database, en tiempo real
+ * Nexus IoT — ESP32 o ESP32-S3 <-> Firebase Realtime Database, en tiempo real
  *
  * La placa entra a Firebase con el usuario y la contraseña del alumno (los
  * mismos del portal) y trabaja sobre su rama de la base:
@@ -53,9 +65,11 @@
  *
  * Control local, sin app:
  *   - Un pulsador por salida (opcional) la prende o la apaga.
- *   - Un pulsador de modo (opcional) activa o desactiva el modo automático.
+ *   - Un pulsador de modo o una llave selectora (opcionales) eligen el modo
+ *     automático. La llave manda: con llave, el modo no se cambia desde la app.
  *   - En modo automático, las salidas que tienen regla las maneja la regla:
  *     se ignora todo lo manual (app, portal o pulsador) y se avisa.
+ *   - Una pantalla (opcional) muestra el modo y si la placa está conectada.
  *
  * Todo sigue funcionando sin internet: lecturas, reglas y pulsadores. Al
  * volver la conexión, la placa publica cómo quedó todo.
@@ -100,6 +114,17 @@ const char *CONTRASENA   = "";
 // -1 si no hay.
 const int PIN_PULSADOR_MODO = 25;
 
+// O una llave selectora de dos posiciones, entre el GPIO y GND: cerrada =
+// automático, abierta = manual. La llave manda: si cambian el modo desde la
+// app o el portal, la placa vuelve a poner el de la llave y avisa. -1 si no
+// hay. Va el pulsador o la llave, no los dos.
+const int PIN_LLAVE_MODO = -1;
+
+// Pantalla para ver el modo y la conexión, por I2C (SDA en GPIO 21, SCL en
+// GPIO 22; en el ESP32-S3, SDA en 8 y SCL en 9): 0 = ninguna, 1 = OLED 0.96"
+// (SSD1306), 2 = LCD 16x2 con módulo I2C.
+#define PANTALLA 0
+
 // Una salida no puede conmutar por una regla más seguido que esto. Junto con
 // la histéresis, es lo que evita que un relé quede haciendo clic-clic y se queme.
 const unsigned long MIN_ENTRE_CAMBIOS = 30000;   // 30 s
@@ -113,9 +138,28 @@ const unsigned long ANTIRREBOTE = 50;      // ms que un pulsador tiene que queda
   DHT dht(PIN_DHT, DHT22);
 #endif
 
+#if PANTALLA
+  #include <Wire.h>
+  // Los pines I2C dependen del chip, que lo elige la placa con la que compilas.
+  #if CONFIG_IDF_TARGET_ESP32S3
+    const int PIN_SDA = 8, PIN_SCL = 9;
+  #else
+    const int PIN_SDA = 21, PIN_SCL = 22;
+  #endif
+#endif
+#if PANTALLA == 1
+  #include <Adafruit_SSD1306.h>
+  Adafruit_SSD1306 oled(128, 64, &Wire, -1);
+#elif PANTALLA == 2
+  #include <LiquidCrystal_I2C.h>
+  LiquidCrystal_I2C *lcd = nullptr;   // se crea al encontrar su dirección
+#endif
+
 // Los tipos van antes de cualquier función: el Arduino IDE agrega solo las
 // declaraciones de las funciones arriba de la primera, y si los tipos
 // estuvieran más abajo no compilaría.
+
+enum Conexion { SIN_WIFI, CONECTANDO, EN_LINEA };   // lo que muestra la pantalla
 
 struct Entrada {
   const char *id;
@@ -178,11 +222,14 @@ const int N_ENTRADAS = sizeof(entradas) / sizeof(entradas[0]);
 // ===================================================================
 //
 // Entre el GPIO y GND, con la resistencia interna (INPUT_PULLUP): suelto lee
-// HIGH, apretado lee LOW. No sirven los GPIO 34 a 39, que no tienen
-// resistencia interna.
+// HIGH, apretado lee LOW. En el ESP32 no sirven los GPIO 34 a 39, que no
+// tienen resistencia interna; en el ESP32-S3 la tienen todos.
 //
 // El antirrebote es obligatorio: al apretar, el contacto rebota varias veces
 // en pocos milisegundos y sin esto un solo toque prende y apaga.
+//
+// La llave selectora se cablea y se lee igual, pero lo que cuenta es su
+// posición y no el momento de apretar.
 
 void iniciarPulsador(Pulsador &p) {
   if (p.pin < 0) return;
@@ -191,19 +238,29 @@ void iniciarPulsador(Pulsador &p) {
   p.cambio  = millis();
 }
 
-// true una sola vez por pulsación, en el momento de apretar.
-bool seApreto(Pulsador &p) {
+// true una vez cada vez que la lectura cambia y se queda quieta: al apretar
+// o soltar un pulsador, o al girar una llave.
+bool cambioFirme(Pulsador &p) {
   if (p.pin < 0) return false;
   bool ahora = digitalRead(p.pin);
   if (ahora != p.lectura) { p.lectura = ahora; p.cambio = millis(); }
   if (millis() - p.cambio >= ANTIRREBOTE && p.lectura != p.estable) {
     p.estable = p.lectura;
-    return p.estable == LOW;
+    return true;
   }
   return false;
 }
 
+// true una sola vez por pulsación, en el momento de apretar.
+bool seApreto(Pulsador &p) {
+  return cambioFirme(p) && p.estable == LOW;
+}
+
 Pulsador pulsadorModo = { PIN_PULSADOR_MODO, true, true, 0 };
+Pulsador llaveModo    = { PIN_LLAVE_MODO,    true, true, 0 };
+
+// Cerrada (LOW) es automático. Con un cable suelto queda abierta: manual.
+bool llaveEnAuto() { return llaveModo.estable == LOW; }
 
 // ===================================================================
 //  4. Salidas — una fila por salida
@@ -216,6 +273,12 @@ Pulsador pulsadorModo = { PIN_PULSADOR_MODO, true, true, 0 };
 // arranque. Evita 0, 12, 14 y 15: emiten pulsos al encender la placa y un
 // relé haría un clic en cada reinicio. 6 a 11 son de la flash interna y 34 a
 // 39 solo sirven para entradas.
+//
+// Con un ESP32-S3 los GPIO cambian, y este ejemplo no sirve tal cual: no
+// tiene del 22 al 25, y del 26 al 32 son de su flash. Al arrancar, la placa
+// revisa los pines (gpioNoSirve, más abajo) y deja sin usar el que no sirve.
+// En el S3 el LED de la placa no está en el GPIO 2: es uno de colores, en el
+// 48 o en el 38.
 //
 // La mayoría de los módulos de relé se activan con LOW; un LED, con HIGH.
 // Por eso el nivel va por fila y no es una constante global.
@@ -277,8 +340,9 @@ Preferences memoria;
 bool   pedirControl     = false;   // llegó un evento del stream
 bool   publicarPendiente = true;   // cambió algún valor
 bool   hayUrgente       = true;    // cambió una salida: publicar ya, sin esperar
-bool   modoLocal        = false;   // el pulsador cambió el modo y falta avisarle a Firebase
+bool   modoLocal        = false;   // el pulsador o la llave cambiaron el modo y falta avisarle a Firebase
 bool   enviandoModo     = false;
+bool   modoEnviado      = false;   // lo que se mandó: si el modo cambió mientras viajaba, se manda de nuevo
 String avisoTexto       = "";      // último aviso, para verlo en el portal
 bool   avisoPendiente   = false;
 unsigned long avisoEn   = 0;
@@ -338,6 +402,7 @@ void avisar(const String &texto) {
 // ===================================================================
 
 void escribirPin(const Salida &s) {
+  if (s.pin < 0) return;   // su GPIO no servía (ver revisarPines)
   digitalWrite(s.pin, s.encendido ? s.nivelActivo : !s.nivelActivo);
 }
 
@@ -451,10 +516,20 @@ void procesarControl(const char *json) {
     return;
   }
 
-  // 1. El modo. Si el pulsador lo cambió y todavía no se avisó a Firebase,
-  //    manda el pulsador: lo que hay en la base es viejo.
+  // 1. El modo. Si el pulsador o la llave lo cambiaron y todavía no se avisó
+  //    a Firebase, manda la placa: lo que hay en la base es viejo.
   bool nuevoModo;
-  if (!modoLocal && aBool(doc["auto"], nuevoModo)) fijarModo(nuevoModo);
+  bool llegoModo = aBool(doc["auto"], nuevoModo);
+  if (llaveModo.pin >= 0) {
+    // Con llave, el modo lo elige la llave. Si en la base dice otra cosa (lo
+    // cambiaron desde la app), se vuelve a escribir la posición de la llave.
+    if (!modoLocal && (!llegoModo || nuevoModo != modoAuto)) {
+      if (llegoModo) avisar("modo: lo elige la llave de la placa");
+      modoLocal = true;
+    }
+  } else if (!modoLocal && llegoModo) {
+    fijarModo(nuevoModo);
+  }
 
   // 2. Las reglas: la lista reemplaza completa a la anterior. Solo se toca
   //    la flash si cambiaron.
@@ -505,7 +580,8 @@ void alResultado(AsyncResult &r) {
     procesarControl(r.c_str());
   } else if (r.uid() == "modo") {
     enviandoModo = false;
-    modoLocal    = false;
+    // Si el modo volvió a cambiar mientras viajaba, sigue pendiente.
+    if (modoEnviado == modoAuto) modoLocal = false;
   }
 }
 
@@ -578,18 +654,130 @@ void conectarWiFi() {
 unsigned long ultimoIntentoWiFi = 0;
 
 // ===================================================================
-//  14. setup / loop
+//  14. Pantalla (opcional)
 // ===================================================================
+//
+// Muestra el modo y si la placa está conectada. Va por I2C: SDA en GPIO 21 y
+// SCL en GPIO 22 (en el ESP32-S3, 8 y 9). La dirección cambia según el
+// módulo, así que la busca sola.
+// Si no la encuentra, la placa sigue andando igual, sin pantalla.
+
+bool hayPantalla      = false;
+int  pantallaModo     = -1;   // lo que muestra ahora, para redibujar solo si cambia
+int  pantallaConexion = -1;
+
+#if PANTALLA
+// true si algo contesta en esa dirección del bus I2C
+bool responde(uint8_t direccion) {
+  Wire.beginTransmission(direccion);
+  return Wire.endTransmission() == 0;
+}
+#endif
+
+void iniciarPantalla() {
+#if PANTALLA
+  Wire.begin(PIN_SDA, PIN_SCL);
+  #if PANTALLA == 1
+    uint8_t dir = responde(0x3C) ? 0x3C : responde(0x3D) ? 0x3D : 0;
+    hayPantalla = dir && oled.begin(SSD1306_SWITCHCAPVCC, dir);
+  #else
+    uint8_t dir = responde(0x27) ? 0x27 : responde(0x3F) ? 0x3F : 0;
+    if (dir) {
+      lcd = new LiquidCrystal_I2C(dir, 16, 2);
+      lcd->init();
+      lcd->backlight();
+      hayPantalla = true;
+    }
+  #endif
+  if (hayPantalla) Serial.printf("[pantalla] lista, direccion 0x%02X\n", dir);
+  else Serial.printf("[pantalla] no responde: revisa SDA (GPIO %d), SCL (GPIO %d) y la alimentacion. Sigo sin pantalla\n",
+                     PIN_SDA, PIN_SCL);
+#endif
+}
+
+// Sin tildes: la LCD no las tiene. Solo redibuja si algo cambió: escribir la
+// pantalla tarda, y una LCD que se borra a cada rato parpadea.
+void mostrarPantalla(Conexion conexion) {
+#if PANTALLA
+  if (!hayPantalla || (pantallaModo == modoAuto && pantallaConexion == conexion)) return;
+  pantallaModo     = modoAuto;
+  pantallaConexion = conexion;
+  const char *texto = conexion == EN_LINEA ? "En linea" : conexion == CONECTANDO ? "Conectando..." : "Sin WiFi";
+  #if PANTALLA == 1
+    oled.clearDisplay();
+    oled.setTextColor(SSD1306_WHITE);
+    oled.setTextSize(1);
+    oled.setCursor(0, 0);
+    oled.print("Modo");
+    oled.setTextSize(2);   // 12 px por letra: "AUTOMATICO" entra justo en 128
+    oled.setCursor(0, 16);
+    oled.print(modoAuto ? "AUTOMATICO" : "MANUAL");
+    oled.setTextSize(1);
+    oled.setCursor(0, 52);
+    oled.print(texto);
+    oled.display();
+  #else
+    // Cada renglón se rellena hasta 16 letras: tapa lo anterior sin borrar.
+    lcd->setCursor(0, 0);
+    lcd->printf("%-16s", modoAuto ? "Modo: AUTOMATICO" : "Modo: MANUAL");
+    lcd->setCursor(0, 1);
+    lcd->printf("%-16s", texto);
+  #endif
+#endif
+}
+
+// ===================================================================
+//  15. setup / loop
+// ===================================================================
+
+// El ESP32 y el ESP32-S3 no tienen los mismos GPIO, y configurar uno que es
+// de la memoria cuelga la placa: se reinicia sin parar y no se entiende por
+// qué. Por eso, antes de usarlos, se revisan los pines de las tablas. El chip
+// es el de la placa que elegiste al compilar. El portal controla lo mismo
+// (CHIPS en validar.js).
+const char *gpioNoSirve(int pin) {
+#if CONFIG_IDF_TARGET_ESP32S3
+  if (pin > 48 || (pin >= 22 && pin <= 25)) return "no existe en el ESP32-S3";
+  if (pin >= 26 && pin <= 32) return "es de la memoria flash";
+  if (pin >= 35 && pin <= 37) return "es de la memoria PSRAM (en las placas N8R8 y N16R8)";
+  if (pin == 19 || pin == 20) return "es del USB";
+  if (pin == 45 || pin == 46) return "decide como arranca la placa";
+#else
+  if (pin > 39 || pin == 20 || pin == 24 || (pin >= 28 && pin <= 31)) return "no existe en el ESP32";
+  if (pin >= 6 && pin <= 11) return "es de la memoria flash";
+  if (pin >= 34) return "solo sirve de entrada, sin resistencia interna";
+#endif
+  return nullptr;
+}
+
+// Si el GPIO no sirve, lo deja en -1 (sin usar) y lo dice por el monitor.
+void revisarPin(int &pin, const String &que) {
+  const char *motivo = pin >= 0 ? gpioNoSirve(pin) : nullptr;
+  if (!motivo) return;
+  Serial.printf("[error] %s: GPIO %d %s. Queda sin usar: cambialo en el sketch y en el portal\n",
+                que.c_str(), pin, motivo);
+  pin = -1;
+}
+
+void revisarPines() {
+  for (int i = 0; i < N_SALIDAS; i++) {
+    revisarPin(salidas[i].pin, String("salida ") + salidas[i].id);
+    revisarPin(salidas[i].pulsador.pin, String("pulsador de ") + salidas[i].id);
+  }
+  revisarPin(pulsadorModo.pin, "pulsador de modo");
+  revisarPin(llaveModo.pin, "llave de modo");
+}
 
 void setup() {
   Serial.begin(115200);
   delay(300);
   Serial.println("\n== Nexus IoT ==");
+  revisarPines();
 
   // Restaurar cómo estaba cada salida antes del último apagón
   memoria.begin("salidas", true);
   for (int i = 0; i < N_SALIDAS; i++) {
-    pinMode(salidas[i].pin, OUTPUT);
+    if (salidas[i].pin >= 0) pinMode(salidas[i].pin, OUTPUT);
     salidas[i].encendido = memoria.getBool(salidas[i].id, false);
     escribirPin(salidas[i]);
     iniciarPulsador(salidas[i].pulsador);
@@ -597,6 +785,7 @@ void setup() {
   }
   memoria.end();
   iniciarPulsador(pulsadorModo);
+  iniciarPulsador(llaveModo);
 
   // Y el modo y las últimas reglas, para regular aunque arranque sin red
   memoria.begin("control", true);
@@ -606,9 +795,16 @@ void setup() {
   reglasGuardadas = memoria.getString("json", "{}");
   memoria.end();
 
+  // Con llave, el modo es el de la llave, y se escribe en Firebase apenas se pueda.
+  if (llaveModo.pin >= 0) {
+    fijarModo(llaveEnAuto());
+    modoLocal = true;
+  }
+
   JsonDocument guardadas;
   if (!deserializeJson(guardadas, reglasGuardadas)) cargarReglas(guardadas.as<JsonObjectConst>());
-  Serial.printf("[flash] modo automatico %s, %d reglas\n", modoAuto ? "activado" : "desactivado", nReglas);
+  Serial.printf("[flash] modo automatico %s%s, %d reglas\n", modoAuto ? "activado" : "desactivado",
+                llaveModo.pin >= 0 ? " (lo da la llave)" : "", nReglas);
 
 #if USAR_DHT
   dht.begin();
@@ -616,6 +812,8 @@ void setup() {
   Serial.println("[info] modo simulado: valores del DHT22 inventados");
 #endif
 
+  iniciarPantalla();
+  mostrarPantalla(CONECTANDO);
   conectarWiFi();
 
   // Sin validar el certificado: lo que autentica es el usuario y la
@@ -650,6 +848,12 @@ void loop() {
     publicarPendiente = true;
     evaluarReglas();
   }
+  if (cambioFirme(llaveModo)) {
+    fijarModo(llaveEnAuto());
+    modoLocal = true;
+    publicarPendiente = true;
+    evaluarReglas();
+  }
 
   // Entradas y reglas, una vez por segundo
   if (millis() - ultimaLectura >= LEER_CADA) {
@@ -663,6 +867,9 @@ void loop() {
       publicarPendiente = true;
     }
   }
+
+  // La pantalla también sin internet: justo ahí sirve para saber que no hay.
+  mostrarPantalla(WiFi.status() != WL_CONNECTED ? SIN_WIFI : app.ready() ? EN_LINEA : CONECTANDO);
 
   if (WiFi.status() != WL_CONNECTED) {
     estabaLista = false;
@@ -686,6 +893,7 @@ void loop() {
 
   if (modoLocal && !enviandoModo) {
     enviandoModo = true;
+    modoEnviado  = modoAuto;
     Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo");
   }
 

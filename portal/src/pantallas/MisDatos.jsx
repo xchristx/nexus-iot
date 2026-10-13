@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { firebaseConfig, desvincularAlexa, mensajeError } from '../firebase.js'
 import { generarPrompt } from '../prompt.js'
+import { chipDe } from '../validar.js'
 import { CLIENTE_ALEXA, NOMBRE_SKILL } from '../alexa.js'
 import { Bloque, Copiar, textoRegla, BajarApp } from '../componentes/comunes.jsx'
 
 export default function MisDatos({ usuario, placa }) {
-  const { canales, reglas, pulsadorModo } = placa
+  const { canales, reglas, pulsadorModo, llaveModo, pantalla, chip } = placa
   const entradas = canales.filter(c => c.tipo === 'entrada')
   const salidas = canales.filter(c => c.tipo === 'salida')
+  const { nombre: nombreChip, sda, scl } = chipDe(chip)
 
   const prompt = canales.length
-    ? generarPrompt({ apiKey: firebaseConfig.apiKey, databaseURL: firebaseConfig.databaseURL, usuario, canales, pulsadorModo })
+    ? generarPrompt({ apiKey: firebaseConfig.apiKey, databaseURL: firebaseConfig.databaseURL, usuario, canales, pulsadorModo, llaveModo, pantalla, chip })
     : null
 
   const sketch =
@@ -22,7 +24,8 @@ export default function MisDatos({ usuario, placa }) {
   const rutas =
     'placas/' + usuario + '/estado       lo que manda la placa (se lee)\n' +
     'placas/' + usuario + '/control/cmd  prender o apagar: etiqueta = id, valor = 1 o 0\n' +
-    'placas/' + usuario + '/control      etiqueta "auto": true o false'
+    'placas/' + usuario + '/control      etiqueta "auto": true o false' +
+    (llaveModo != null ? '  (tu placa tiene llave: no lo cambies, lo elige la llave)' : '')
 
   return (
     <>
@@ -36,6 +39,7 @@ export default function MisDatos({ usuario, placa }) {
           ? <p className="ayuda">Todavía no declaraste nada.</p>
           : (
             <ul className="hardware">
+              <li>Placa {nombreChip}</li>
               {entradas.map(s => (
                 <li key={s.id}>
                   <code>"{s.id}"</code> {s.nombre || s.id}{s.unidad ? ` (${s.unidad})` : ''}
@@ -57,6 +61,8 @@ export default function MisDatos({ usuario, placa }) {
                 )
               })}
               {pulsadorModo != null && <li>Pulsador de modo automático en GPIO {pulsadorModo}</li>}
+              {llaveModo != null && <li>Llave selectora de modo automático en GPIO {llaveModo}</li>}
+              {pantalla && <li>Pantalla {pantalla === 'oled' ? 'OLED 0.96"' : 'LCD 16x2'} en GPIO {sda} (SDA) y {scl} (SCL)</li>}
             </ul>
           )}
       </Bloque>

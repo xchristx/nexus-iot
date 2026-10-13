@@ -13,23 +13,35 @@
  *  2) Librerias
  *     Programa > Incluir libreria > Administrar bibliotecas...
  *       - "FirebaseClient" de Mobizt  (version 2.2 o mayor). Cuando pregunte
- *         si instala tambien ESP_SSLClient, elegi "Install all".
+ *         si instala tambien ESP_SSLClient, elige "Install all".
  *       - "ArduinoJson" de Benoit Blanchon  (version 7 o mayor)
  *     Solo si vas a usar el DHT22 de verdad (USAR_DHT 1), instala tambien:
  *       - "DHT sensor library" de Adafruit
  *       - "Adafruit Unified Sensor" de Adafruit
+ *     Solo si tienes pantalla (PANTALLA 1 o 2):
+ *       - OLED (PANTALLA 1): "Adafruit SSD1306" de Adafruit. Cuando pregunte
+ *         si instala tambien Adafruit GFX y BusIO, elige "Install all".
+ *       - LCD 16x2 (PANTALLA 2): "LiquidCrystal I2C" de Frank de Brabander.
+ *         Si avisa que es para otra arquitectura, compila igual.
  *     WiFi, WiFiClientSecure y Preferences ya vienen con el paquete ESP32:
  *     no se instalan.
  *
  *  3) Al compilar
  *     Herramientas > Placa > esp32 > "ESP32 Dev Module"
+ *       (con un ESP32-S3: "ESP32S3 Dev Module". Si el Monitor Serie no
+ *       muestra nada, pon "USB CDC On Boot" en "Enabled" o enchufa el
+ *       cable en el otro USB de la placa)
  *     Herramientas > Partition Scheme > "Huge APP (3MB No OTA)" si dice
  *     que no entra en la memoria
  *     Herramientas > Puerto > el COM que aparezca al enchufar la placa
  *     Monitor Serie a 115200 baudios
  *
- *  Si la placa no es una DevKit generica, proba con "DOIT ESP32 DEVKIT V1"
+ *  Si la placa no es una DevKit generica, prueba con "DOIT ESP32 DEVKIT V1"
  *  o "NodeMCU-32S". Para una ESP32-C3, "ESP32C3 Dev Module".
+ *
+ *  Las tablas de ejemplo usan GPIO del ESP32 clasico: con un ESP32-S3,
+ *  cambialos por los que declaraste en el portal. Si alguno no sirve en tu
+ *  placa, el Monitor Serie lo dice al arrancar y queda sin usar.
  * ====================================================================
  */
 

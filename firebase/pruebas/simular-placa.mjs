@@ -10,7 +10,8 @@
 //
 // Entradas: "t" y "h" (un DHT22 inventado). Salidas: las que el alumno tenga
 // declaradas en el portal. Escribiendo en la consola "p <salida>" se simula
-// el pulsador de esa salida, y "m" el pulsador de modo.
+// el pulsador de esa salida, y "m" el pulsador de modo (o gira la llave, si
+// la placa tiene llave selectora: arranca abierta, en manual).
 
 import { initializeApp } from 'firebase/app'
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth'
@@ -47,6 +48,10 @@ const entradas = { t: 22, h: 55 }
 let modoAuto = false
 let reglas = {}
 let aviso = null
+// Con llave, el modo es el de la llave: se escribe al arrancar y lo que diga la
+// base se corrige.
+const llave = config.llave_modo != null
+if (llave) await set(ref(db, RAIZ + '/control/auto'), modoAuto)
 
 async function publicar() {
   const cuerpo = { ...entradas, ...salidas, visto: serverTimestamp() }
@@ -86,7 +91,15 @@ function evaluarReglas() {
 onValue(ref(db, RAIZ + '/control'), async (snap) => {
   const c = snap.val() || {}
   const auto = aBool(c.auto)
-  if (auto !== null && auto !== modoAuto) { modoAuto = auto; console.log('[modo] automatico', modoAuto ? 'ACTIVADO' : 'DESACTIVADO') }
+  if (llave) {
+    if (auto !== modoAuto) {
+      if (auto !== null) avisar('modo: lo elige la llave de la placa')
+      await set(ref(db, RAIZ + '/control/auto'), modoAuto)
+    }
+  } else if (auto !== null && auto !== modoAuto) {
+    modoAuto = auto
+    console.log('[modo] automatico', modoAuto ? 'ACTIVADO' : 'DESACTIVADO')
+  }
   reglas = c.reglas || {}
   for (const [id, v] of Object.entries(c.cmd || {})) {
     const encender = aBool(v)
@@ -114,9 +127,9 @@ rl.on('line', async (linea) => {
   if (orden === 'p' && id) manual(id, !salidas[id], 'pulsador')
   else if (orden === 'm') {
     modoAuto = !modoAuto
-    console.log('[modo] automatico', modoAuto ? 'ACTIVADO' : 'DESACTIVADO', '(pulsador)')
+    console.log('[modo] automatico', modoAuto ? 'ACTIVADO' : 'DESACTIVADO', llave ? '(llave)' : '(pulsador)')
     await set(ref(db, RAIZ + '/control/auto'), modoAuto)
-  } else return console.log('comandos: "p <salida>" (pulsador), "m" (pulsador de modo)')
+  } else return console.log('comandos: "p <salida>" (pulsador), "m" (' + (llave ? 'girar la llave' : 'pulsador de modo') + ')')
   evaluarReglas()
   await publicar()
 })

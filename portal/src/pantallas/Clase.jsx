@@ -5,6 +5,7 @@ import {
   desvincularAlexaCurso, elegirAlexa,
 } from '../firebase.js'
 import { prepararLista, listaParaCopiar } from '../cuentas.js'
+import { chipDe } from '../validar.js'
 import { cruza, textoAlerta } from '../alertas.js'
 import { CLIENTE_ALEXA, NOMBRE_SKILL, MAX_DISPOSITIVOS, dispositivosDe } from '../alexa.js'
 import { Titulo, Copiar, Etiqueta } from '../componentes/comunes.jsx'
@@ -342,6 +343,7 @@ function FilaAlumno({ f, ahora, echo, onEcho, onBorrar, onRegenerar }) {
           {' · '}{entradas.length} entrada{entradas.length === 1 ? '' : 's'}, {salidas.length} salida{salidas.length === 1 ? '' : 's'}
           {p.reglas.length > 0 && ` · ${p.reglas.length} regla${p.reglas.length === 1 ? '' : 's'}`}
           {p.auto && ' · modo automático'}
+          {p.chip !== 'esp32' && ` · ${chipDe(p.chip).nombre}`}
         </div>
         {!nunca && valores.length > 0 && <div className="detalle">{valores.join(' · ')}</div>}
         {alertas.map(a => (

@@ -24,8 +24,9 @@ import {
 
 import { generarContrasena } from './cuentas.js'
 import { nuevoCodigo, hashCodigo, urlDeVuelta } from './alexa.js'
-import { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo } from './nombres.js'
-export { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo }
+import { PANTALLAS, CHIPS } from './validar.js'
+import { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo, RESERVADOS } from './nombres.js'
+export { DOMINIO, normalizarNombre, normalizarCurso, usuarioDe, correoDe, usuarioDeCorreo, RESERVADOS }
 
 const env = import.meta.env
 
@@ -38,9 +39,6 @@ export const firebaseConfig = {
 }
 
 export const configurado = Boolean(firebaseConfig.apiKey && firebaseConfig.databaseURL)
-
-// Ids que la base usa para otra cosa dentro de "estado".
-export const RESERVADOS = ['visto', 'aviso', 'auto', 'cmd', 'reglas']
 
 let auth, db
 if (configurado) {
@@ -117,7 +115,12 @@ function placaDesdePlantilla(p) {
   let orden = 0
   for (const { id, tipo, ...e } of lista(p?.entradas)) config.entradas[id] = sinVacios({ ...e, orden: orden++ })
   for (const { id, tipo, ...s } of lista(p?.salidas)) config.salidas[id] = sinVacios({ ...s, orden: orden++ })
-  if (p?.pulsador_modo != null) config.pulsador_modo = p.pulsador_modo
+  // Pulsador o llave de modo, no los dos (la base lo rechaza): gana la llave.
+  if (p?.llave_modo != null) config.llave_modo = p.llave_modo
+  else if (p?.pulsador_modo != null) config.pulsador_modo = p.pulsador_modo
+  if (PANTALLAS.includes(p?.pantalla)) config.pantalla = p.pantalla
+  // Sin chip es un ESP32 clásico: solo se guarda si es otro.
+  if (CHIPS[p?.chip] && p.chip !== 'esp32') config.chip = p.chip
   const reglas = {}
   for (const g of lista(p?.reglas)) {
     reglas[g.salida] = { entrada: g.entrada, condicion: g.condicion, umbral: g.umbral, hist: g.hist ?? 1 }
@@ -192,6 +195,9 @@ export function normalizarPlaca(p) {
     canales,
     reglas,
     pulsadorModo: config.pulsador_modo ?? null,
+    llaveModo: config.llave_modo ?? null,
+    pantalla: config.pantalla ?? null,
+    chip: CHIPS[config.chip] ? config.chip : 'esp32',
     auto: aBool(control.auto),
     cmd: control.cmd || {},
     estado: p?.estado || {},
@@ -265,7 +271,16 @@ export async function guardarRegla(usuario, { salida, entrada, condicion, umbral
 export const borrarRegla = (usuario, salida) => remove(placa(usuario, `control/reglas/${salida}`))
 export const enviarComando = (usuario, salida, valor) => set(placa(usuario, `control/cmd/${salida}`), valor)
 export const fijarAuto = (usuario, auto) => set(placa(usuario, 'control/auto'), auto)
-export const guardarPulsadorModo = (usuario, gpio) => set(placa(usuario, 'config/pulsador_modo'), gpio)
+// tipo: 'pulsador' | 'llave' | null. Las dos claves van juntas en un update:
+// la base no deja que existan las dos a la vez.
+export const guardarModoPlaca = (usuario, tipo, gpio) => update(placa(usuario, 'config'), {
+  pulsador_modo: tipo === 'pulsador' ? gpio : null,
+  llave_modo: tipo === 'llave' ? gpio : null,
+})
+// tipo: 'oled' | 'lcd' | null
+export const guardarPantalla = (usuario, tipo) => set(placa(usuario, 'config/pantalla'), tipo)
+// chip: 'esp32' | 'esp32s3'. El clásico no se guarda: es el que se supone si falta.
+export const guardarChip = (usuario, chip) => set(placa(usuario, 'config/chip'), chip === 'esp32' ? null : chip)
 
 // ===================================================================
 //  Docente

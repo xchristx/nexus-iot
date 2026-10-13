@@ -55,6 +55,11 @@ No uses GPIO 0, 12, 14 ni 15 para salidas: emiten pulsos durante el arranque y
 un relé haría un clic en cada reinicio. GPIO 6 a 11 son de la flash interna,
 GPIO 34 a 39 solo sirven para entradas y GPIO 20, 24 y 28 a 31 no existen.
 
+Una entrada que se lee con analogRead tiene que estar entre GPIO 32 y 39
+(el ADC1): los demás pines analógicos son del ADC2, que con el WiFi prendido no
+lee bien. Si alguna de la lista está en otro GPIO, avísame al principio de tu
+respuesta.
+
 ## Librerías a usar
 
 - **FirebaseClient de Mobizt, versión 2.2 o mayor** (`#include <FirebaseClient.h>`).
