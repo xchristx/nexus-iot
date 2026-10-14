@@ -358,8 +358,8 @@ qué número llega, en las reglas de la base. Un chip nuevo se agrega en esos cu
 ## Lo que falta probar en el mundo real
 
 Verificado: las reglas de la base con 39 pruebas contra el emulador; la Lambda de
-Alexa con 16 (canje, Discovery, prender con la placa simulada, modo automático,
-llave selectora, placa desconectada, tokens, Echo del docente); el portal
+Alexa con 18 (canje, Discovery, prender con la placa simulada, modo automático,
+llave selectora, placa desconectada, entradas y umbral, tokens, Echo del docente); el portal
 recorrido en un navegador contra los emuladores, con una placa simulada (alta,
 configurar, comandos, modo automático, pulsadores, llave selectora y pantalla, vista
 del docente, widgets y alertas con histéresis); la app Android en un emulador de

@@ -23,7 +23,7 @@ const { handler } = await import('../../alexa/lambda/index.mjs')
 const rtdb = await import('../../alexa/lambda/rtdb.mjs')
 const { crear } = await import('../../alexa/lambda/tokens.mjs')
 const { hashDe } = await import('../../alexa/lambda/vinculo.mjs')
-const { catalogo, esTemperatura, dispositivosDe } = await import('../../alexa/lambda/placa.mjs')
+const { catalogo, esTemperatura, dispositivosDe, umbralDe, aEndpoint } = await import('../../alexa/lambda/placa.mjs')
 
 const DOMINIO = '@nexus-iot.example.com'
 const REDIRECT = 'https://pitangui.amazon.com/api/skill/link/M2PRUEBA'
@@ -73,17 +73,24 @@ async function vincular(datos) {
 }
 
 // Lo que manda Alexa por el disparador Smart Home.
-function directiva(namespace, name, token, endpointId) {
-  const header = { namespace, name, payloadVersion: '3', messageId: randomUUID(), ...(endpointId && { correlationToken: 'correlacion' }) }
+function directiva(namespace, name, token, endpointId, { payload = {}, instance } = {}) {
+  const header = {
+    namespace, name, payloadVersion: '3', messageId: randomUUID(),
+    ...(instance && { instance }), ...(endpointId && { correlationToken: 'correlacion' }),
+  }
   const scope = { type: 'BearerToken', token }
   return handler({
     directive: endpointId
-      ? { header, endpoint: { scope, endpointId, cookie: {} }, payload: {} }
+      ? { header, endpoint: { scope, endpointId, cookie: {} }, payload }
       : { header, payload: { scope } },
   })
 }
 const tipoError = (r) => r.event.header.name === 'ErrorResponse' ? r.event.payload.type : null
 const prop = (r, name) => r.context?.properties.find(p => p.name === name)?.value
+// El valor de una instancia de Alexa.RangeController (el umbral, una entrada).
+const rango = (r, instance) => r.context?.properties.find(p => p.instance === instance)?.value
+const umbral = (token, name, payload, endpointId = 'iot2026-ana:bomba', instance = 'Regla.Umbral') =>
+  directiva('Alexa.RangeController', name, token, endpointId, { payload, instance })
 
 // --- la clase y la placa simulada -----------------------------------------
 
@@ -184,7 +191,7 @@ test('los códigos que nadie canjeó se limpian en el próximo canje', async () 
 
 // --- lo que ve y hace Alexa -------------------------------------------------
 
-test('descubrir: las salidas, el modo y las temperaturas, con los nombres del portal', async () => {
+test('descubrir: las salidas, el modo, las temperaturas y las demás entradas, con los nombres del portal', async () => {
   const { access_token } = await vincular({ usuario: 'iot2026-ana' })
   const r = await directiva('Alexa.Discovery', 'Discover', access_token)
   assert.equal(r.event.header.name, 'Discover.Response')
@@ -194,12 +201,33 @@ test('descubrir: las salidas, el modo y las temperaturas, con los nombres del po
     ['iot2026-ana:luz', 'Luz', 'LIGHT'],
     ['iot2026-ana:auto', 'Modo automático', 'SWITCH'],
     ['iot2026-ana:t', 'Temperatura', 'TEMPERATURE_SENSOR'],
+    ['iot2026-ana:_entradas', 'Placa', 'OTHER'],
   ])
   const interfaces = (e) => e.capabilities.map(c => c.interface)
-  assert.deepEqual(interfaces(eps[0]), ['Alexa.PowerController', 'Alexa.EndpointHealth', 'Alexa'])
+  assert.deepEqual(interfaces(eps[0]), ['Alexa.PowerController', 'Alexa.RangeController', 'Alexa.EndpointHealth', 'Alexa'], 'la bomba tiene regla: su umbral')
+  assert.deepEqual(interfaces(eps[1]), ['Alexa.PowerController', 'Alexa.EndpointHealth', 'Alexa'], 'la luz no tiene regla')
   assert.deepEqual(interfaces(eps[2]), ['Alexa.PowerController', 'Alexa'])
   assert.deepEqual(interfaces(eps[3]), ['Alexa.TemperatureSensor', 'Alexa.EndpointHealth', 'Alexa'])
+  assert.deepEqual(interfaces(eps[4]), ['Alexa.RangeController', 'Alexa.EndpointHealth', 'Alexa'])
   assert.ok(eps.every(e => e.manufacturerName && e.description))
+
+  // El umbral de la bomba: su regla mira la temperatura, así que va en °C.
+  const u = eps[0].capabilities[1]
+  assert.equal(u.instance, 'Regla.Umbral')
+  assert.deepEqual(u.properties, { supported: [{ name: 'rangeValue' }], retrievable: true, proactivelyReported: false, nonControllable: false })
+  assert.deepEqual(u.configuration, {
+    supportedRange: { minimumValue: -20, maximumValue: 80, precision: 0.5 },
+    unitOfMeasure: 'Alexa.Unit.Temperature.Celsius',
+  })
+  const textos = (c) => c.capabilityResources.friendlyNames.map(n => `${n.value.text}/${n.value.locale}`)
+  assert.deepEqual(textos(u), ['umbral/es-US', 'umbral/es-MX', 'límite/es-US', 'límite/es-MX'])
+
+  // La humedad, de solo lectura, con el nombre del portal.
+  const h = eps[4].capabilities[0]
+  assert.equal(h.instance, 'Entrada.h')
+  assert.equal(h.properties.nonControllable, true)
+  assert.equal(h.configuration.unitOfMeasure, 'Alexa.Unit.Percent')
+  assert.deepEqual(textos(h), ['Humedad/es-US', 'Humedad/es-MX'])
 })
 
 test('"Alexa, prende la bomba": la placa lo aplica y Alexa contesta cuando ya cambió', async () => {
@@ -244,15 +272,62 @@ test('en modo automático, una salida con regla no se toca; una sin regla sí', 
   }
 })
 
-test('"¿qué temperatura hay?": la entrada en °C; la humedad no es un dispositivo', async () => {
+test('"¿qué temperatura hay?" y "¿cuál es la humedad de la placa?"', async () => {
   const { access_token } = await vincular({ usuario: 'iot2026-ana' })
-  const r = await directiva('Alexa', 'ReportState', access_token, 'iot2026-ana:t')
+  let r = await directiva('Alexa', 'ReportState', access_token, 'iot2026-ana:t')
   assert.equal(r.event.header.name, 'StateReport')
   const t = prop(r, 'temperature')
   assert.equal(t.scale, 'CELSIUS')
   assert.ok(t.value >= 14 && t.value <= 30, 'la placa simulada anda entre 14 y 30: ' + t.value)
+
+  r = await directiva('Alexa', 'ReportState', access_token, 'iot2026-ana:_entradas')
+  assert.equal(r.event.header.name, 'StateReport')
+  const h = rango(r, 'Entrada.h')
+  assert.ok(h >= 45 && h <= 65, 'la placa simulada anda entre 45 y 65: ' + h)
+  assert.deepEqual(prop(r, 'connectivity'), { value: 'OK' })
+
+  // La humedad no es un dispositivo suelto, y las entradas no se prenden ni se ajustan.
   assert.equal(tipoError(await directiva('Alexa', 'ReportState', access_token, 'iot2026-ana:h')), 'NO_SUCH_ENDPOINT')
   assert.equal(tipoError(await directiva('Alexa.PowerController', 'TurnOn', access_token, 'iot2026-ana:t')), 'INVALID_DIRECTIVE')
+  assert.equal(tipoError(await umbral(access_token, 'SetRangeValue', { rangeValue: 3 }, 'iot2026-ana:_entradas', 'Entrada.h')), 'INVALID_DIRECTIVE')
+})
+
+test('"Alexa, pon el umbral de la bomba en 30": cambia la regla y nada más', async () => {
+  const { access_token } = await vincular({ usuario: 'iot2026-ana' })
+  const regla = () => rtdb.leer('placas/iot2026-ana/control/reglas/bomba')
+  try {
+    let r = await umbral(access_token, 'SetRangeValue', { rangeValue: 30 })
+    assert.equal(r.event.header.name, 'Response', JSON.stringify(r))
+    assert.equal(rango(r, 'Regla.Umbral'), 30)
+    assert.deepEqual(await regla(), { entrada: 't', condicion: '>', umbral: 30, hist: 1 })
+
+    r = await directiva('Alexa', 'ReportState', access_token, 'iot2026-ana:bomba')
+    assert.equal(rango(r, 'Regla.Umbral'), 30)
+    assert.ok(['ON', 'OFF'].includes(prop(r, 'powerState')))
+
+    // "Baja el umbral dos grados"; "sube el umbral" (sin número: paso de 1 en °C).
+    r = await umbral(access_token, 'AdjustRangeValue', { rangeValueDelta: -2, rangeValueDeltaDefault: false })
+    assert.equal(rango(r, 'Regla.Umbral'), 28)
+    r = await umbral(access_token, 'AdjustRangeValue', { rangeValueDelta: 10, rangeValueDeltaDefault: true })
+    assert.equal(rango(r, 'Regla.Umbral'), 29)
+    assert.equal((await regla()).umbral, 29)
+
+    // Fuera de la escala: SetRangeValue se rechaza, AdjustRangeValue se topa.
+    r = await umbral(access_token, 'SetRangeValue', { rangeValue: 500 })
+    assert.equal(tipoError(r), 'VALUE_OUT_OF_RANGE')
+    assert.deepEqual(r.event.payload.validRange, { minimumValue: -20, maximumValue: 80 })
+    assert.equal((await regla()).umbral, 29)
+    r = await umbral(access_token, 'AdjustRangeValue', { rangeValueDelta: 1000, rangeValueDeltaDefault: false })
+    assert.equal(rango(r, 'Regla.Umbral'), 80)
+    assert.equal(tipoError(await umbral(access_token, 'SetRangeValue', { rangeValue: 'mucho' })), 'INVALID_VALUE')
+
+    // Una salida sin regla no tiene umbral, y otra instancia no existe.
+    assert.equal(tipoError(await umbral(access_token, 'SetRangeValue', { rangeValue: 30 }, 'iot2026-ana:luz')), 'INVALID_DIRECTIVE')
+    assert.equal(tipoError(await umbral(access_token, 'SetRangeValue', { rangeValue: 30 }, 'iot2026-ana:bomba', 'Otra.Cosa')), 'INVALID_DIRECTIVE')
+    assert.equal(await rtdb.leer('placas/iot2026-ana/control/reglas/luz'), null)
+  } finally {
+    await rtdb.escribir('placas/iot2026-ana/control/reglas/bomba/umbral', 28)
+  }
 })
 
 test('con la placa desconectada, "no responde" y el comando no queda en cola; el modo se cambia igual', async () => {
@@ -262,6 +337,12 @@ test('con la placa desconectada, "no responde" y el comando no queda en cola; el
   assert.equal(tipoError(r), 'ENDPOINT_UNREACHABLE')
   assert.equal(await rtdb.leer('placas/iot2026-beto/control/cmd/bomba'), null)
   assert.equal(tipoError(await directiva('Alexa', 'ReportState', access_token, 'iot2026-beto:t')), 'ENDPOINT_UNREACHABLE')
+  assert.equal(tipoError(await directiva('Alexa', 'ReportState', access_token, 'iot2026-beto:_entradas')), 'ENDPOINT_UNREACHABLE')
+
+  // El umbral es configuración, como en el portal: se cambia igual y la placa lo recibe al volver.
+  r = await umbral(access_token, 'SetRangeValue', { rangeValue: 25 }, 'iot2026-beto:bomba')
+  assert.equal(rango(r, 'Regla.Umbral'), 25)
+  assert.equal(await rtdb.leer('placas/iot2026-beto/control/reglas/bomba/umbral'), 25)
 
   r = await directiva('Alexa.PowerController', 'TurnOn', access_token, 'iot2026-beto:auto')
   assert.equal(prop(r, 'powerState'), 'ON')
@@ -275,7 +356,7 @@ test('con llave selectora, el modo automático no es un dispositivo: lo elige la
   try {
     const { access_token } = await vincular({ usuario: 'iot2026-caro' })
     const ids = (await directiva('Alexa.Discovery', 'Discover', access_token)).event.payload.endpoints.map(e => e.endpointId)
-    assert.deepEqual(ids, ['iot2026-caro:bomba', 'iot2026-caro:luz', 'iot2026-caro:t'])
+    assert.deepEqual(ids, ['iot2026-caro:bomba', 'iot2026-caro:luz', 'iot2026-caro:t', 'iot2026-caro:_entradas'])
     // Si Alexa lo tenía de antes de poner la llave: no existe y no se escribe nada.
     const r = await directiva('Alexa.PowerController', 'TurnOn', access_token, 'iot2026-caro:auto')
     assert.equal(tipoError(r), 'NO_SUCH_ENDPOINT')
@@ -341,11 +422,13 @@ test('docente: el Echo del laboratorio ve solo a los alumnos elegidos, con su no
 
   const r = await directiva('Alexa.Discovery', 'Discover', access_token)
   const nombres = r.event.payload.endpoints.map(e => e.friendlyName)
-  assert.equal(nombres.length, 12)
+  assert.equal(nombres.length, 15)
   assert.ok(nombres.includes('Bomba de agua de Ana Pérez'))
   assert.ok(nombres.includes('Bomba de agua de Ana Pérez 2'), 'dos alumnos con el mismo nombre')
   assert.ok(nombres.includes('Modo automático de Beto'))
   assert.ok(nombres.includes('Temperatura de Beto'))
+  assert.ok(nombres.includes('Placa de Beto'))
+  assert.ok(nombres.includes('Placa de Ana Pérez 2'))
   assert.ok(!nombres.some(n => n.endsWith('de Caro')))
   assert.deepEqual(r.event.payload.endpoints.slice(0, 6).map(e => e.endpointId.split(':')[1]),
     ['bomba', 'luz', 'bomba', 'luz', 'bomba', 'luz'], 'primero las salidas')
@@ -389,6 +472,34 @@ test('qué cuenta como temperatura, y el nombre cuando no hay', () => {
   for (const u of ['%', 'cm', '°F', '', undefined]) assert.ok(!esTemperatura(u), String(u))
   const [d] = dispositivosDe('iot2026-x', { config: { salidas: { luz_patio: { orden: 0 } } } })
   assert.equal(d.nombre, 'luz patio')
+})
+
+test('la escala del umbral, y las entradas que se llaman igual', () => {
+  const regla = { entrada: 'suelo', condicion: '<', umbral: 40, hist: 5 }
+  assert.deepEqual(umbralDe(regla, { unidad: '%' }, {}),
+    { entrada: 'suelo', valor: 40, min: 0, max: 100, precision: 1, paso: 5, unidad: 'Alexa.Unit.Percent' })
+  const conWidget = umbralDe(regla, { unidad: '%' }, { suelo: { widget: 'barra', min: 10, max: 60 } })
+  assert.deepEqual([conWidget.min, conWidget.max], [10, 60], 'la escala del widget de la entrada')
+  assert.equal(umbralDe({ ...regla, umbral: 150 }, { unidad: '%' }, {}).max, 150, 'el umbral de ahora siempre entra')
+  const lux = umbralDe({ ...regla, umbral: 2000 }, { unidad: 'lux' }, {})
+  assert.deepEqual([lux.min, lux.max, lux.precision, lux.unidad], [-1000, 10000, 1, null])
+
+  const placa = {
+    config: {
+      entradas: { a: { nombre: 'Humedad', unidad: '%', orden: 0 }, b: { nombre: 'humedad', orden: 1 }, c: { unidad: '°C', orden: 2 } },
+      salidas: { s: { orden: 3 } },
+    },
+    control: { reglas: { s: { entrada: 'zz', condicion: '>', umbral: 1, hist: 0 } } },
+  }
+  const ds = dispositivosDe('iot2026-x', placa)
+  assert.equal(ds.find(x => x.tipo === 'salida').umbral, null, 'una regla con una entrada que no existe no tiene umbral')
+  const lecturas = ds.find(x => x.tipo === 'lecturas')
+  assert.deepEqual(lecturas.entradas.map(e => e.nombre), ['Humedad', 'humedad 2'])
+  const ep = aEndpoint(lecturas)
+  assert.equal(ep.capabilities[0].configuration.unitOfMeasure, 'Alexa.Unit.Percent')
+  assert.equal(ep.capabilities[1].configuration.unitOfMeasure, undefined, 'sin unidad conocida no se manda')
+  assert.ok(dispositivosDe('iot2026-x', { config: { entradas: { c: { unidad: '°C' } } } }).every(x => x.tipo !== 'lecturas'),
+    'solo con temperaturas no hay "Placa"')
 })
 
 // --- sin emulador: el token de Google con la cuenta de servicio -----------

@@ -25,7 +25,12 @@ Firebase real ni con una placa.
 en una Lambda de AWS (`alexa/`), implementada y verificada contra los emuladores.
 Alumno vincula su placa; docente vincula un "Echo del laboratorio" con un curso y
 elige placas. Solo algunos alumnos la van a usar: sin `VITE_ALEXA_CLIENTE_ID` el
-portal no muestra nada. Nada de Amazon se probó todavía.
+portal no muestra nada. Nada de Amazon se probó todavía. Desde 2026-10-13 también
+lee las entradas que no son °C (dispositivo "Placa", `Alexa.RangeController` de
+solo lectura, una instancia `Entrada.{id}` por entrada) y cambia el **umbral de la
+regla** de cada salida (`RangeController` `Regla.Umbral` en la salida: "pon el
+umbral de la bomba en 30"). Lo más incierto: si Alexa en español contesta por voz
+un `RangeController` de solo lectura.
 
 **Llave selectora y pantalla (2026-10-08), opcionales por placa:** el modo
 automático se puede elegir con una **llave selectora** (en vez del pulsador de modo;
@@ -66,7 +71,7 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 |---|---|
 | `firebase/database.rules.json` | Reglas de RTDB: aislamiento por usuario, docente, validación de forma |
 | `firebase/pruebas/reglas.test.mjs` | 39 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
-| `firebase/pruebas/alexa.test.mjs` | 16 pruebas de la Lambda contra el emulador, con `simular-placa.mjs` de hijo (mismo `npm test`, archivos en serie: `--test-concurrency=1`) |
+| `firebase/pruebas/alexa.test.mjs` | 18 pruebas de la Lambda contra el emulador, con `simular-placa.mjs` de hijo (mismo `npm test`, archivos en serie: `--test-concurrency=1`) |
 | `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores (`m` gira la llave si la placa tiene `llave_modo`) |
 | `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
 | `firebase/LEEME.md` | Puesta en marcha en Firebase, recetas del docente, límites, emuladores |
@@ -334,9 +339,13 @@ zip), `firebase/pruebas/simular-placa.mjs`, `kodular/generar-aia.mjs` y `GUIA.md
 reglas y en `SISTEMA` del generador. El kit de ejemplo está en tres lugares iguales.
 Los GPIO de cada chip están en cuatro: `CHIPS` (`validar.js`), `PINES`
 (`prompt.js`), `gpioNoSirve()` (`main.cpp`) y el tope en las reglas.
-La Lambda de Alexa lee `config`, `control`, `estado` y `tablero/{id}/icono`:
-`alexa/lambda/placa.mjs` (con `aBool`/`LATIDO_MAX`/`esTemperatura` copiados del
-portal) y `hogar.mjs`, + `npm test` y volver a subir el zip.
+La Lambda de Alexa lee `config`, `control`, `estado` y `tablero` (el ícono de la
+salida y la escala `min`/`max` de la entrada de una regla), y escribe `control/cmd`,
+`control/auto` y `control/reglas/{salida}/umbral` (como admin: las reglas de la base
+no la validan, lo hace `fijarUmbral`): `alexa/lambda/placa.mjs` (con
+`aBool`/`LATIDO_MAX`/`esTemperatura` copiados del portal) y `hogar.mjs`, + `npm test`
+y volver a subir el zip. Mis datos (las frases de ejemplo) y `AutorizarAlexa.jsx`
+(lo que Alexa va a poder hacer) describen lo que expone la skill.
 
 Regenerar el `.ino`: comando en `LEEME.md`, sección Firmware (vacía WiFi y
 contraseña por si `main.cpp` tiene los del usuario).
@@ -351,7 +360,7 @@ el 5.1 escribe las rutas con `\`):
   Android Studio: `export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"` y
   `PATH="$JAVA_HOME/bin:$PATH"` (formato `/c/...`: con `C:/` los dos puntos rompen el
   PATH de bash).
-- **Reglas y Lambda**: 39 + 16 pruebas, `cd firebase && npm test` (o `npx firebase
+- **Reglas y Lambda**: 39 + 18 pruebas, `cd firebase && npm test` (o `npx firebase
   emulators:start --project demo-nexus` en segundo plano y `node --test
   --test-concurrency=1 pruebas/`: en paralelo, `clearDatabase` de las reglas borra
   lo que siembra la de Alexa). Un `creado: Date.now()` puede coincidir al ms con el

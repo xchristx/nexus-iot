@@ -84,7 +84,8 @@ function ParaAlumno({ pedido, usuario }) {
       <ul className="lista-avisos">
         <li>prender y apagar tus salidas: "Alexa, prende la bomba"</li>
         <li>activar y desactivar el modo automático</li>
-        <li>decirte la temperatura de tus entradas en °C</li>
+        <li>decirte el valor de tus entradas: "Alexa, ¿cuál es la humedad de la placa?"</li>
+        <li>cambiar el umbral de tus reglas: "Alexa, pon el umbral de la bomba en 30"</li>
       </ul>
       <p className="ayuda">Lo cortas cuando quieras desde el portal, en Mis datos → Alexa.</p>
       {error && <p className="error">{error}</p>}
@@ -138,7 +139,8 @@ function ParaDocente({ pedido }) {
       <h2>Vincular el Echo del laboratorio</h2>
       <p className="ayuda">
         Esta cuenta de Amazon va a manejar las placas que elijas: "Alexa, prende la
-        bomba de Ana Pérez", "Alexa, ¿está prendida la luz de Beto?".
+        bomba de Ana Pérez", "Alexa, ¿está prendida la luz de Beto?", "Alexa, pon el
+        umbral de la bomba de Ana Pérez en 30".
       </p>
 
       {!cursos ? <p className="ayuda">Cargando…</p> : (

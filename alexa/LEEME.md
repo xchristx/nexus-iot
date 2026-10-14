@@ -1,13 +1,15 @@
 # Alexa: puesta en marcha (opcional)
 
 Una skill **Smart Home** para manejar las placas por voz: "Alexa, prende la bomba",
-"Alexa, ¿está prendida la luz?", "Alexa, prende el modo automático". Cada salida
+"Alexa, ¿está prendida la luz?", "Alexa, prende el modo automático", "Alexa, ¿cuál
+es la humedad de la placa?", "Alexa, pon el umbral de la bomba en 30". Cada salida
 aparece como un dispositivo en la app Alexa (con su interruptor, y se puede usar en
-rutinas) y cada entrada en °C, como un termómetro.
+rutinas), cada entrada en °C como un termómetro, y las demás entradas juntas en un
+dispositivo "Placa".
 
 Es **opcional**: mientras el portal no tenga `VITE_ALEXA_CLIENTE_ID`, no muestra nada
 de Alexa. **La placa, el firmware, el prompt y Kodular no cambian**: Alexa escribe
-en `control/cmd` y `control/auto`, igual que el portal.
+en `control/cmd`, `control/auto` y el `umbral` de `control/reglas`, igual que el portal.
 
 - **Un alumno** vincula su cuenta de Amazon (su Echo o la app Alexa del celular) con
   su placa, desde la app Alexa.
@@ -56,6 +58,27 @@ El modo automático se cambia aunque la placa esté desconectada, como en el por
 Si la placa tiene **llave selectora** (`config/llave_modo`), el modo lo elige la
 llave: "Modo automático" no aparece en Discovery, y si Alexa lo tenía de antes,
 contesta que ya no existe (`NO_SUCH_ENDPOINT`: "descubre dispositivos").
+
+### Entradas y umbrales
+
+Smart Home solo tiene un sensor propio para la temperatura (`Alexa.TemperatureSensor`).
+Para todo lo demás se usa `Alexa.RangeController`, un valor numérico con nombre:
+
+- **Las entradas que no son °C** (humedad, luz, suelo, distancia…) van juntas en un
+  dispositivo **"Placa"** ("Placa de Ana Pérez" en el Echo del laboratorio), con un
+  valor de solo lectura por entrada, nombrado como en el portal: "Alexa, ¿cuál es la
+  humedad de la placa?". La unidad se manda solo si es % (Alexa no tiene las demás).
+- **El umbral de la regla** de cada salida que tiene una: "Alexa, pon el umbral de
+  la bomba en 30", "Alexa, sube el umbral del ventilador" (de a 1, o de a 5 si es %).
+  Se escribe en `control/reglas/{salida}/umbral`, como al guardar la regla en el
+  portal: la placa la relee sola. No toca la histéresis ni el modo automático, y se
+  cambia aunque la placa esté desconectada (es configuración: la recibe al volver).
+  La escala es la del widget de la entrada si el alumno la eligió en el portal; si
+  no, de -20 a 80 en °C, de 0 a 100 en %, y de -1000 a 10000 en lo demás. Fuera de
+  la escala, Alexa dice hasta dónde se puede.
+
+Una regla nueva (o borrada) cambia lo que tiene el dispositivo de la salida: hasta
+"Alexa, descubre dispositivos", Alexa no sabe que tiene umbral.
 
 ## Qué hace falta
 
@@ -175,7 +198,7 @@ Les llega una invitación con el link para activarla.
 ## El día a día
 
 - **Alumno:** en el portal, **Mis datos → Alexa** tiene los pasos y, ya vinculada,
-  el botón **Desvincular**. Si cambia sus entradas o salidas: "Alexa, descubre
+  el botón **Desvincular**. Si cambia sus entradas, salidas o reglas: "Alexa, descubre
   dispositivos". Los nombres son los que puso en Configurar, y en la app Alexa los
   puede cambiar.
 - **Docente, Echo del laboratorio:** en la app Alexa de la cuenta del Echo, activa la
@@ -185,9 +208,11 @@ Les llega una invitación con el link para activarla.
 - **Temperatura en Fahrenheit:** la Lambda manda Celsius, pero Alexa en español de
   Estados Unidos convierte a Fahrenheit. Se cambia en la app Alexa, por aparato
   (cada Echo y "Alexa en este teléfono"): **Más → Configuración → Configuración del
-  dispositivo → el aparato → Unidades de medida → Temperatura → Celsius**.
+  dispositivo → el aparato → Unidades de medida → Temperatura → Celsius**. Con
+  Fahrenheit, también el umbral de una regla de temperatura podría entenderse en °F.
 - **Límite:** Alexa acepta hasta 300 dispositivos por cuenta. El portal los cuenta;
-  si se pasa, quedan afuera primero los termómetros y después los modos.
+  si se pasa, quedan afuera primero las "Placa" (las demás entradas), después los
+  termómetros y después los modos.
 
 ## Si se filtra un secreto
 
@@ -201,8 +226,8 @@ Les llega una invitación con el link para activarla.
 
 `cd firebase && npm test` corre las pruebas de la Lambda contra los emuladores
 (`firebase/pruebas/alexa.test.mjs`): el canje, Discovery, prender con la placa
-simulada, el modo automático, la llave selectora, la placa desconectada, los tokens, el Echo del
-docente y la firma del token de Google.
+simulada, el modo automático, la llave selectora, la placa desconectada, las entradas
+y el umbral, los tokens, el Echo del docente y la firma del token de Google.
 
 ## Lo que falta probar en el mundo real
 
@@ -210,3 +235,10 @@ Todo lo de Amazon: crear la skill, vincular desde la app Alexa, descubrir, prend
 apagar con una placa real, cómo lo dice Alexa en modo automático y con la placa
 desenchufada, la frase exacta para el modo automático y para preguntar la
 temperatura, el Echo del laboratorio con la cuenta del docente y una rutina.
+
+Y lo nuevo, que es lo más incierto: **si Alexa en español contesta por voz** "¿cuál
+es la humedad de la placa?" (un `RangeController` de solo lectura con nombre propio;
+en inglés anda, en español no está confirmado) o solo muestra el valor en la app;
+qué frase entiende para el umbral ("pon el umbral de…", "sube el límite de…"), y
+que Discovery acepte las escalas y los nombres tal como van. Si la lectura por voz
+no anda en español, el plan B es una custom skill aparte solo para preguntar.

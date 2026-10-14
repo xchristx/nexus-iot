@@ -2,16 +2,23 @@
 //
 //   Alexa.Discovery / Discover       qué dispositivos hay ("Alexa, descubre dispositivos")
 //   Alexa.PowerController / TurnOn   "Alexa, prende la bomba" (y TurnOff)
-//   Alexa / ReportState              "¿está prendida la bomba?", la app Alexa al abrir un dispositivo
+//   Alexa.RangeController / SetRangeValue     "Alexa, pon el umbral de la bomba en 30"
+//   Alexa.RangeController / AdjustRangeValue  "Alexa, sube el umbral de la bomba"
+//   Alexa / ReportState              "¿está prendida la bomba?", "¿cuál es la humedad de
+//                                    la placa?", la app Alexa al abrir un dispositivo
 //
 // Prender una salida hace lo mismo que el portal: escribe control/cmd/{id} y
-// la placa lo aplica y lo borra. El firmware no se entera de que fue Alexa.
+// la placa lo aplica y lo borra. El umbral se escribe en la regla, como al
+// guardarla en el portal, y la placa la relee sola. El firmware no se entera
+// de que fue Alexa.
 
 import { randomUUID } from 'node:crypto'
 import { abrir } from './tokens.mjs'
 import { leer, escribir } from './rtdb.mjs'
 import { cargar } from './vinculo.mjs'
-import { catalogo, dispositivosDe, aEndpoint, propiedades, conectada, aBool, aBinario } from './placa.mjs'
+import {
+  catalogo, dispositivosDe, aEndpoint, propiedades, propiedad, conectada, aBool, aBinario, UMBRAL,
+} from './placa.mjs'
 
 const ESPERA = Number(process.env.ESPERA_CONFIRMACION_MS ?? 3000)
 const PASO = 250
@@ -73,6 +80,9 @@ export async function atender({ header, endpoint, payload }) {
     if (header.namespace === 'Alexa.PowerController' && (header.name === 'TurnOn' || header.name === 'TurnOff')) {
       return await encender(r, usuario, d, p.placa, header.name === 'TurnOn')
     }
+    if (header.namespace === 'Alexa.RangeController' && (header.name === 'SetRangeValue' || header.name === 'AdjustRangeValue')) {
+      return await fijarUmbral(r, usuario, d, header, payload)
+    }
     if (header.namespace === 'Alexa' && header.name === 'ReportState') {
       const props = propiedades(d, p.placa)
       return props ? r.estado(props) : r.error('ENDPOINT_UNREACHABLE', 'La placa no está conectada.')
@@ -91,7 +101,7 @@ async function encender(r, usuario, d, placa, prender) {
     await escribir(raiz + '/control/auto', prender)
     return r.listo(propiedades(d, { ...placa, control: { ...placa.control, auto: prender } }))
   }
-  if (d.tipo !== 'salida') return r.error('INVALID_DIRECTIVE', 'Un termómetro no se prende.')
+  if (d.tipo !== 'salida') return r.error('INVALID_DIRECTIVE', 'Una entrada no se prende.')
 
   // Sin placa, el comando quedaría en cola y la bomba arrancaría cuando
   // vuelva: por voz es mejor un "no responde".
@@ -110,4 +120,32 @@ async function encender(r, usuario, d, placa, prender) {
     if (aBinario(await leer(`${raiz}/estado/${d.id}`)) === valor) break
   }
   return r.listo(propiedades(d, { ...placa, estado: { ...placa.estado, [d.id]: valor, visto: Date.now() } }))
+}
+
+// El umbral de la regla de una salida. Se cambia aunque la placa esté
+// desconectada, como en el portal: es configuración y la recibe al volver.
+// No toca el modo automático ni la histéresis.
+async function fijarUmbral(r, usuario, d, header, payload) {
+  if (header.instance !== UMBRAL || d.tipo !== 'salida') return r.error('INVALID_DIRECTIVE', 'Eso no se puede ajustar.')
+  const u = d.umbral
+  if (!u) return r.error('INVALID_DIRECTIVE', 'Esa salida ya no tiene regla: ármala en el portal.')
+
+  let valor
+  if (header.name === 'SetRangeValue') {
+    valor = Number(payload?.rangeValue)
+    if (Number.isFinite(valor) && (valor < u.min || valor > u.max)) {
+      return r.error('VALUE_OUT_OF_RANGE', `El umbral va de ${u.min} a ${u.max}.`, { validRange: { minimumValue: u.min, maximumValue: u.max } })
+    }
+  } else {
+    // "Sube el umbral", sin número: Alexa marca el delta como por defecto y
+    // se usa el paso propio (5 en %, 1 en lo demás). Al ajustar, se topa en la escala.
+    const delta = Number(payload?.rangeValueDelta)
+    const paso = payload?.rangeValueDeltaDefault ? Math.sign(delta || 1) * u.paso : delta
+    valor = Math.min(u.max, Math.max(u.min, u.valor + paso))
+  }
+  if (!Number.isFinite(valor)) return r.error('INVALID_VALUE', 'El umbral tiene que ser un número.')
+  valor = Math.round(valor * 10) / 10
+
+  await escribir(`placas/${usuario}/control/reglas/${d.id}/umbral`, valor)
+  return r.listo([propiedad('Alexa.RangeController', 'rangeValue', valor, Date.now(), UMBRAL)])
 }

@@ -126,13 +126,21 @@ function Alexa({ usuario, placa }) {
   }
 
   if (placa.alexa) {
+    const nombre = (c) => (c.nombre || c.id.replace(/_/g, ' ')).toLowerCase()
     const salida = placa.canales.find(c => c.tipo === 'salida')
-    const ejemplo = salida ? (salida.nombre || salida.id.replace(/_/g, ' ')).toLowerCase() : 'la bomba'
+    const conRegla = placa.canales.find(c => c.tipo === 'salida' && placa.reglas.some(g => g.salida === c.id))
+    // Las entradas que no son °C las lee el dispositivo "Placa" (alexa/lambda/placa.mjs).
+    const lecturas = placa.canales.some(c => c.tipo === 'entrada' && !/^\s*[°º]?\s*c\s*$/i.test(c.unidad || ''))
+    const frases = [
+      `"Alexa, prende ${salida ? nombre(salida) : 'la bomba'}"`,
+      conRegla && `"Alexa, pon el umbral de ${nombre(conRegla)} en 30"`,
+      lecturas && '"Alexa, ¿cuál es la humedad de la placa?" (con el nombre de tu entrada)',
+    ].filter(Boolean)
     return (
       <Bloque
         titulo="Alexa"
-        ayuda={`Vinculada desde el ${new Date(placa.alexa.desde).toLocaleDateString('es-BO')}. Prueba: "Alexa, prende ${ejemplo}". ` +
-               'Si cambias entradas o salidas, dile "Alexa, descubre dispositivos".'}>
+        ayuda={`Vinculada desde el ${new Date(placa.alexa.desde).toLocaleDateString('es-BO')}. Prueba: ${frases.join(', ')}. ` +
+               'Si cambias entradas, salidas o reglas, dile "Alexa, descubre dispositivos".'}>
         {error && <p className="error">{error}</p>}
         <button className="chico peligro" disabled={yendo} onClick={desvincular}>Desvincular</button>
       </Bloque>
