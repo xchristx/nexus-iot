@@ -65,7 +65,7 @@ Es un repo git (rama `main`, remoto `github.com/xchristx/nexus-iot`).
 | Ruta | Qué es |
 |---|---|
 | `firebase/database.rules.json` | Reglas de RTDB: aislamiento por usuario, docente, validación de forma |
-| `firebase/pruebas/reglas.test.mjs` | 38 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
+| `firebase/pruebas/reglas.test.mjs` | 39 pruebas de las reglas (`cd firebase && npm test`, necesita Java 21+) |
 | `firebase/pruebas/alexa.test.mjs` | 16 pruebas de la Lambda contra el emulador, con `simular-placa.mjs` de hijo (mismo `npm test`, archivos en serie: `--test-concurrency=1`) |
 | `firebase/pruebas/simular-placa.mjs` | Placa de mentira en Node (misma lógica que `main.cpp`); `p <salida>` y `m` simulan pulsadores (`m` gira la llave si la placa tiene `llave_modo`) |
 | `firebase/curso-ejemplo.json`, `plantilla-kit-ejemplo.json` | Curso vacío y kit de ejemplo, para importar en la consola |
@@ -163,7 +163,7 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
   La plantilla del curso puede traer `tablero` (mapa) y `alertas` (lista); el alta
   descarta lo que nombre un canal inexistente. `borrarCanal` borra también ambos.
 
-- La placa publica `estado` con `update`, que no borra: un id que un sketch viejo
+- La placa publica `estado` con `update` (rutas `estado/…` sobre la placa), que no borra: un id que un sketch viejo
   mandaba queda para siempre y Mi placa lo muestra "no declarado". Por eso ahí hay
   un botón **quitar** (`quitarDetectado`, 2026-10-03; vuelve si la placa lo sigue mandando).
 - GPIO 20, 24 y 28 a 31 no existen en el ESP32: `validar.js` los rechaza y
@@ -197,11 +197,22 @@ alexa/codigos/{sha256} {usuario} | {curso, docente}, redirect, creado(= now)  lo
 ## Firmware (src/main.cpp)
 
 - FirebaseClient (Mobizt) 2.2.x con `UserAuth`; dos `AsyncClientClass`: uno para
-  el stream de `control`, otro para get/update/remove/set.
+  el stream de `control`, otro para get/update/set. Cada cliente atiende **un
+  pedido a la vez** (cola FIFO) y solo avanza dentro de `app.loop()`: un loop
+  lento o un pedido de más se suman a la demora de cada comando.
 - **Ante cualquier evento del stream, relee `control` completo** y lo procesa:
-  auto → reglas → cmd (aplica como manual y borra). No interpretar rutas del SSE.
-- Publica `estado` con `update`: salidas al instante, entradas si cambian ≥ 0,1 y a
-  lo sumo 1/s, latido cada 15 s, todo al reconectar. `aviso` se borra a los 20 s.
+  auto → reglas → cmd (aplica como manual y lo anota en `cmdPorBorrar`). No
+  interpretar rutas del SSE.
+- **Publica con un solo `update` sobre `placas/{u}` con rutas** (2026-10-14):
+  `"estado/t"`, `"estado/visto"`, … y `"control/cmd/{id}": null` para vaciar el
+  buzón en el mismo viaje (antes era un `remove` aparte: "esperando a la placa"
+  tardaba hasta 4 s). Es todo o nada ante las reglas. Uid `publicar_cmd` si borra
+  comandos; si ese o la lectura `control` fallan, `releer` a los 2 s. Salidas al
+  instante, entradas si cambian ≥ 0,1 y a lo sumo 1/s, latido cada 15 s, todo al
+  reconectar. `aviso` se borra a los 20 s.
+- `WiFi.setSleep(false)` (con el ahorro, cada paquete entrante espera cientos de
+  ms). Por serie: `[cmd] leido/borrado a los N ms del aviso`, `conexion nueva con
+  el servidor` (reconexión TLS, 1–3 s) y la señal en dBm al conectar.
 - Pulsadores `INPUT_PULLUP` a GND, antirrebote 50 ms (`cambioFirme`; `seApreto` =
   cambio a LOW). Pulsador de modo: cambia `modoAuto`, lo guarda y lo escribe en
   `control/auto` (flag `modoLocal`: mientras no se escribió, se ignora el `auto`
@@ -340,7 +351,7 @@ el 5.1 escribe las rutas con `\`):
   Android Studio: `export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"` y
   `PATH="$JAVA_HOME/bin:$PATH"` (formato `/c/...`: con `C:/` los dos puntos rompen el
   PATH de bash).
-- **Reglas y Lambda**: 38 + 16 pruebas, `cd firebase && npm test` (o `npx firebase
+- **Reglas y Lambda**: 39 + 16 pruebas, `cd firebase && npm test` (o `npx firebase
   emulators:start --project demo-nexus` en segundo plano y `node --test
   --test-concurrency=1 pruebas/`: en paralelo, `clearDatabase` de las reglas borra
   lo que siembra la de Alexa). Un `creado: Date.now()` puede coincidir al ms con el

@@ -91,7 +91,9 @@ La placa entra a Firebase con un usuario y contraseña, y trabaja SOLO dentro de
   ```
 
   Los ids son exactamente esos, sin traducirlos ni cambiar mayúsculas. Una
-  entrada que todavía no tiene ninguna lectura buena no se manda.
+  entrada que todavía no tiene ninguna lectura buena no se manda. Cómo se
+  escribe (con rutas, junto con el borrado de los comandos) está en el
+  esqueleto de más abajo.
 - `/placas/iot2026-tu_nombre/control`: lo escriben la app y el portal; la placa lo
   lee. Ejemplo:
 
@@ -151,6 +153,7 @@ void alResultado(AsyncResult &r) {
   if (r.isError()) {
     Serial.printf("[firebase] %s: %s (codigo %d)\n", r.uid().c_str(),
                   r.error().message().c_str(), r.error().code());
+    if (r.uid() == "control" || r.uid() == "publicar_cmd") { releer = true; releerDesde = millis(); }
     return;
   }
   if (!r.available()) return;
@@ -161,11 +164,11 @@ void alResultado(AsyncResult &r) {
 // Leer control completo (con el cliente normal, NO con el del stream):
 Database.get(cliente, RAIZ + "/control", alResultado, false, "control");
 
-// Publicar el estado: un JSON armado con ArduinoJson, como object_t.
-Database.update(cliente, RAIZ + "/estado", object_t(cuerpoJson), alResultado, "publicar");
-
-// Borrar un comando ya procesado:
-Database.remove(cliente, RAIZ + "/control/cmd/" + id, alResultado, "borrar_cmd");
+// Publicar: UN solo update sobre RAIZ (no sobre RAIZ + "/estado"), con rutas
+// como claves. Lleva el estado y borra los comandos ya procesados (null = borrar):
+//   {"estado/t": 24.5, "estado/bomba": 1, "estado/visto": {".sv": "timestamp"},
+//    "control/cmd/bomba": null}
+Database.update(cliente, RAIZ, object_t(cuerpoJson), alResultado, hayCmd ? "publicar_cmd" : "publicar");
 
 // Escribir el modo automático:
 Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo");
@@ -176,8 +179,20 @@ Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo
   lee `control` completo con `Database.get` y procésalo entero. Así no hay
   que interpretar rutas parciales.
 - `control` puede venir "null" si todavía está vacío: trátalo como vacío.
-- Para "visto", manda `{"visto": {".sv": "timestamp"}}` dentro del mismo
+- **Los comandos se borran en la publicación, no con `Database.remove`**: al
+  procesar un cmd, guarda su id en una lista; la publicación que sale enseguida
+  agrega `"control/cmd/<id>": null` por cada uno (con ArduinoJson:
+  `doc[String("control/cmd/") + id] = nullptr;`) y vacía la lista. Un remove
+  aparte sería un viaje más a Firebase y el portal tardaría más en ver el cambio.
+- Todas las claves de la publicación empiezan con `estado/` o `control/cmd/`.
+  El update es todo o nada: una clave fuera de lugar (por ejemplo `"t"` sin
+  `estado/`) hace que Firebase rechace la publicación entera.
+- Para "visto", manda `"estado/visto": {".sv": "timestamp"}` dentro del mismo
   update: la hora la pone el servidor.
+- Si da error la lectura de control ("control") o una publicación que borraba
+  comandos ("publicar_cmd"), vuelve a leer control a los 2 segundos (con
+  millis(), sin delay). Si no, el comando queda en la base y el portal sigue
+  "esperando a la placa".
 - Si el pedido "entrar" da error, imprime que se revisen USUARIO y CONTRASENA
   (son los mismos del portal). Al arrancar, el stream puede dar un error de
   permisos antes de terminar de entrar: es normal y se reconecta solo.
@@ -195,8 +210,8 @@ Procésalo en este orden:
    ninguna regla). Guárdalas en Preferences como el texto JSON recibido,
    **solo si cambió**, y cárgalas al arrancar.
 3. **"cmd"**: por cada salida, aplica el comando como una acción manual (ver
-   "Modo automático") y bórralo de la base. Si nombra una salida que la placa
-   no tiene, avisa y bórralo igual.
+   "Modo automático") y anótalo para borrarlo en la publicación que sale
+   enseguida. Si nombra una salida que la placa no tiene, avisa y bórralo igual.
 
 Después, evalúa las reglas.
 
@@ -254,6 +269,8 @@ alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
 
 - Lee las entradas y evalúa las reglas una vez por segundo (con millis()).
 - Una salida que cambia (por regla, comando o pulsador) se publica enseguida.
+  Después de procesar un cmd también, aunque la salida no haya cambiado: esa
+  publicación es la que lo borra.
 - Una entrada se publica cuando cambió al menos su umbral respecto de lo
   último publicado, y como mucho una vez por segundo: no esperes al latido
   para mandarla. El umbral va en la tabla de entradas:
@@ -279,8 +296,13 @@ alrededor del umbral, la salida conmuta en cada lectura y un relé se quema.
   mucho 15 segundos y sigue. Si se cae, reintenta con WiFi.reconnect() cada 10
   segundos, sin esperar. Mientras no hay WiFi no llames a app.loop(), pero se
   siguen leyendo entradas, evaluando reglas y atendiendo los pulsadores.
+- Después de `WiFi.mode(WIFI_STA)`, llama a `WiFi.setSleep(false)`: con el
+  ahorro de energía, la radio duerme entre los avisos del router y cada
+  comando del portal tarda cientos de ms más.
 - **No uses delay()** en el loop, ni un `while` que espere algo (que suelten
-  un pulsador, una respuesta): mientras espera, nada más responde.
+  un pulsador, una respuesta): mientras espera, nada más responde. Además,
+  FirebaseClient solo avanza sus pedidos cuando el loop llama a `app.loop()`:
+  si una vuelta tarda 1 segundo, cada comando del portal tarda varios.
 - **Leer un sensor tampoco puede frenar el loop.** Algunas librerías esperan
   por dentro: un DS18B20 tarda unos 750 ms por lectura (usa
   `setWaitForConversion(false)`: pide la conversión y lee el resultado en la

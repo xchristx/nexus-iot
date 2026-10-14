@@ -209,6 +209,12 @@ función: un pedido más, mucha menos lógica.
 **Los comandos se borran al procesarlos.** `control/cmd/<salida>` es un buzón: la
 placa aplica y borra. Mientras el comando sigue ahí, el portal muestra "esperando a
 la placa…". Si la placa está apagada, el comando espera y se aplica al volver.
+El borrado va en la misma publicación que el estado nuevo: un solo `update` sobre
+`placas/<usuario>` con rutas (`"estado/bomba": 1`, `"control/cmd/bomba": null`).
+Antes eran dos pedidos seguidos, y cada viaje a Firebase se nota en el portal. Si
+falla, la placa vuelve a leer `control` a los 2 s, para que el comando no quede
+esperando para siempre. La placa también apaga el ahorro de energía del WiFi
+(`WiFi.setSleep(false)`): con él, cada paquete que llega puede esperar cientos de ms.
 
 **La app de Kodular puede guardar los valores como texto** ("1", "true", o con
 comillas adentro). Las reglas de la base y la placa aceptan todas esas formas para
@@ -351,7 +357,7 @@ qué número llega, en las reglas de la base. Un chip nuevo se agrega en esos cu
 
 ## Lo que falta probar en el mundo real
 
-Verificado: las reglas de la base con 38 pruebas contra el emulador; la Lambda de
+Verificado: las reglas de la base con 39 pruebas contra el emulador; la Lambda de
 Alexa con 16 (canje, Discovery, prender con la placa simulada, modo automático,
 llave selectora, placa desconectada, tokens, Echo del docente); el portal
 recorrido en un navegador contra los emuladores, con una placa simulada (alta,

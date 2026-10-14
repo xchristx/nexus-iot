@@ -58,6 +58,10 @@
  *                                 reglas   {salida: {entrada, condicion, umbral, hist}}
  *                                 cmd      {salida: 1|0}  la placa lo aplica y lo BORRA
  *
+ * La placa publica con un solo "update" sobre /placas/<USUARIO>, con rutas:
+ * "estado/t", "estado/visto"... y "control/cmd/bomba": null para borrar los
+ * comandos que ya aplicó. Así el cambio y el borrado viajan juntos.
+ *
  * La placa escucha "control" con un stream: apenas alguien toca un botón en
  * la app, llega un evento. Ante CUALQUIER evento la placa vuelve a leer
  * "control" completo y lo procesa entero. Así no hay que interpretar las
@@ -350,6 +354,14 @@ unsigned long ultimaPublicacion = 0;
 unsigned long ultimaLectura     = 0;
 bool   estabaLista      = false;
 String reglasGuardadas  = "{}";    // el JSON tal como llegó: se compara para no escribir la flash de más
+JsonDocument cmdPorBorrar;         // comandos ya procesados: se borran en la próxima publicación
+bool   releer           = false;   // falló leer control o borrar un comando: se reintenta
+unsigned long releerDesde = 0;
+
+// Para ver en el monitor serie cuánto tarda un comando del portal o la app.
+unsigned long eventoEn    = 0;     // cuándo avisó el stream; 0 = no hay aviso esperando
+unsigned long comandoEn   = 0;     // el aviso del último comando, para medir el borrado
+size_t        colaAlPedir = 0;     // pedidos que había delante de la lectura de control
 
 // ===================================================================
 //  7. Buscar por id
@@ -547,16 +559,26 @@ void procesarControl(const char *json) {
 
   // 3. Los comandos, después del modo: si en la app apagaron el automático y
   //    enseguida prendieron algo, el comando ya encuentra el modo manual.
-  //    Cada uno se BORRA de la base al procesarlo, se haya aplicado o no.
+  //    Cada uno se BORRA de la base, se haya aplicado o no: el borrado va en
+  //    la publicación que sale enseguida, junto con el estado nuevo.
+  bool habiaCmd = false;
   for (JsonPairConst par : doc["cmd"].as<JsonObjectConst>()) {
+    habiaCmd = true;
     const char *id = par.key().c_str();
     bool encender;
     Salida *s = buscarSalida(id);
     if (!s)                                 avisar(String("la placa no tiene la salida ") + id);
     else if (!aBool(par.value(), encender)) avisar(String(id) + ": valor de comando invalido");
     else                                    aplicarManual(*s, encender, "comando");
-    Database.remove(cliente, RAIZ + "/control/cmd/" + id, alResultado, "borrar_cmd");
+    cmdPorBorrar[String(id)] = true;
+    publicarPendiente = hayUrgente = true;
   }
+  if (habiaCmd && eventoEn) {
+    Serial.printf("[cmd] leido a los %lu ms del aviso (%u pedidos delante en la cola)\n",
+                  millis() - eventoEn, (unsigned)colaAlPedir);
+    comandoEn = eventoEn;
+  }
+  eventoEn = 0;
 
   evaluarReglas();   // por si se acaba de activar el modo o cambió una regla
 }
@@ -564,20 +586,34 @@ void procesarControl(const char *json) {
 // Todos los resultados de Firebase pasan por acá. Cada pedido lleva un nombre
 // (el último parámetro) para saber de cuál es la respuesta.
 void alResultado(AsyncResult &r) {
+  // Así avisa la librería que abre una conexión nueva: cada una tarda 1 a 3 s
+  // en el ESP32. Con la placa ya conectada no debería pasar seguido.
+  if (r.isDebug() && r.debug().startsWith("Connecting"))
+    Serial.printf("[firebase] %s: conexion nueva con el servidor\n", r.uid().c_str());
+
   if (r.isError()) {
     Serial.printf("[firebase] %s: %s (codigo %d)\n", r.uid().c_str(), r.error().message().c_str(), r.error().code());
     if (r.uid() == "entrar")
       Serial.println("   Revisa USUARIO y CONTRASENA: son los mismos con los que entras al portal.");
     if (r.uid() == "modo") enviandoModo = false;
+    // Si no se leyó control o no se borró un comando, el portal se quedaría
+    // "esperando a la placa…": se vuelve a leer control en un rato.
+    if (r.uid() == "control" || r.uid() == "publicar_cmd") {
+      releer      = true;
+      releerDesde = millis();
+    }
     return;
   }
   if (!r.available()) return;
 
   if (r.uid() == "stream") {
     // No importa qué cambió: se vuelve a leer "control" entero.
+    if (!eventoEn) eventoEn = millis();
     pedirControl = true;
   } else if (r.uid() == "control") {
     procesarControl(r.c_str());
+  } else if (r.uid() == "publicar_cmd") {
+    Serial.printf("[cmd] borrado a los %lu ms del aviso\n", millis() - comandoEn);
   } else if (r.uid() == "modo") {
     enviandoModo = false;
     // Si el modo volvió a cambiar mientras viajaba, sigue pendiente.
@@ -592,21 +628,32 @@ void alResultado(AsyncResult &r) {
 void publicar() {
   // El JSON se arma con ArduinoJson y no concatenando strings: una coma de
   // menos arma un JSON inválido que Firebase rechaza.
+  //
+  // Va sobre la raíz de la placa, con rutas ("estado/t", "control/cmd/bomba"),
+  // para borrar los comandos en el mismo viaje. Es todo o nada: si una ruta
+  // no pasa las reglas de la base, no se escribe ninguna.
   JsonDocument doc;
   for (int i = 0; i < N_ENTRADAS; i++) {
     // Una entrada que todavía no leyó nada no se manda: el portal la muestra "sin dato".
     if (isnan(entradas[i].valor)) continue;
-    doc[entradas[i].id] = round(entradas[i].valor * 10) / 10.0;
+    doc[String("estado/") + entradas[i].id] = round(entradas[i].valor * 10) / 10.0;
     entradas[i].publicado = entradas[i].valor;
   }
   for (int i = 0; i < N_SALIDAS; i++)
-    doc[salidas[i].id] = salidas[i].encendido ? 1 : 0;
-  doc["visto"][".sv"] = "timestamp";   // la hora la pone el servidor
-  if (avisoPendiente) doc["aviso"] = avisoTexto;
+    doc[String("estado/") + salidas[i].id] = salidas[i].encendido ? 1 : 0;
+  doc["estado/visto"][".sv"] = "timestamp";   // la hora la pone el servidor
+  if (avisoPendiente) doc["estado/aviso"] = avisoTexto;
+
+  bool conCmd = false;
+  for (JsonPairConst par : cmdPorBorrar.as<JsonObjectConst>()) {
+    doc[String("control/cmd/") + par.key().c_str()] = nullptr;   // null = borrar
+    conCmd = true;
+  }
+  cmdPorBorrar.clear();
 
   String cuerpo;
   serializeJson(doc, cuerpo);
-  Database.update(cliente, RAIZ + "/estado", object_t(cuerpo), alResultado, "publicar");
+  Database.update(cliente, RAIZ, object_t(cuerpo), alResultado, conCmd ? "publicar_cmd" : "publicar");
 
   avisoPendiente    = false;
   publicarPendiente = false;
@@ -640,13 +687,18 @@ void leerEntradas() {
 void conectarWiFi() {
   Serial.printf("[wifi] conectando a %s", WIFI_SSID);
   WiFi.mode(WIFI_STA);
+  // Sin el ahorro de energía: con él, la radio duerme entre los avisos del
+  // router y cada paquete que llega puede esperar cientos de ms. Un comando
+  // del portal son varios viajes y se nota. Gasta un poco más (nada, con USB).
+  WiFi.setSleep(false);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   unsigned long inicio = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - inicio < 15000) { delay(500); Serial.print("."); }
 
+  // La señal: de -30 a -67 dBm, bien; por debajo de -75, la placa está lejos del router.
   if (WiFi.status() == WL_CONNECTED)
-    Serial.printf("\n[wifi] listo, IP %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("\n[wifi] listo, IP %s, senal %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
   else
     Serial.println("\n[wifi] sin conexion por ahora: reglas y pulsadores siguen funcionando");
 }
@@ -897,8 +949,14 @@ void loop() {
     Database.set<bool>(cliente, RAIZ + "/control/auto", modoAuto, alResultado, "modo");
   }
 
+  if (releer && millis() - releerDesde >= 2000) {
+    releer       = false;
+    pedirControl = true;
+  }
+
   if (pedirControl) {
     pedirControl = false;
+    colaAlPedir  = cliente.taskCount();
     Database.get(cliente, RAIZ + "/control", alResultado, false, "control");
   }
 

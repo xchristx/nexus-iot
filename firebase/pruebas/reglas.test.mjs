@@ -181,6 +181,18 @@ test('la placa borra el cmd después de aplicarlo', async () => {
   await assertSucceeds(remove(ref(db, 'placas/iot2026-beto/control/cmd/bomba')))
 })
 
+test('la placa publica el estado y vacía el buzón en un solo update', async () => {
+  const db = alumno('iot2026-beto')
+  await assertSucceeds(set(ref(db, 'placas/iot2026-beto/control/cmd/bomba'), 1))
+  await assertSucceeds(update(ref(db, 'placas/iot2026-beto'), {
+    'estado/t': 24.5, 'estado/bomba': 1, 'estado/visto': serverTimestamp(), 'control/cmd/bomba': null,
+  }))
+  if ((await get(ref(db, 'placas/iot2026-beto/control/cmd'))).exists()) throw new Error('el cmd sigue ahí')
+  // Es todo o nada: una clave fuera de lugar tumba la publicación entera.
+  await assertFails(update(ref(db, 'placas/iot2026-beto'), { t: 24.5, 'control/cmd/bomba': null }))
+  await assertFails(update(ref(db, 'placas/iot2026-beto'), { 'estado/T': 1, 'control/cmd/bomba': null }))
+})
+
 test('auto acepta bool, 0/1 y texto', async () => {
   const db = alumno('iot2026-beto')
   for (const v of [true, false, 1, 0, 'true', '"false"']) {

@@ -60,6 +60,15 @@ test('LCD: su librería y sus direcciones', () => {
   assert.doesNotMatch(p, /SSD1306/)
 })
 
+test('publica y borra los comandos en un solo update sobre la placa', () => {
+  const p = prompt()
+  assert.match(p, /Database\.update\(cliente, RAIZ, object_t\(cuerpoJson\)/)
+  assert.match(p, /"control\/cmd\/bomba": null/)
+  assert.match(p, /"estado\/visto": \{"\.sv": "timestamp"\}/)
+  assert.doesNotMatch(p, /Database\.remove\(|RAIZ \+ "\/estado"\), object_t/)
+  assert.match(p, /WiFi\.setSleep\(false\)/)
+})
+
 test('la contraseña nunca va en el prompt', () => {
   for (const extra of [{}, { llaveModo: 14, pulsadorModo: null, pantalla: 'lcd' }]) {
     assert.match(prompt(extra), /const char \*CONTRASENA {3}= "";/)

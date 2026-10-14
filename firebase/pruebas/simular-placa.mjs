@@ -15,7 +15,7 @@
 
 import { initializeApp } from 'firebase/app'
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth'
-import { getDatabase, connectDatabaseEmulator, ref, onValue, get, update, remove, set, serverTimestamp } from 'firebase/database'
+import { getDatabase, connectDatabaseEmulator, ref, onValue, get, update, set, serverTimestamp } from 'firebase/database'
 import { createInterface } from 'node:readline'
 
 const [usuario, contrasena] = process.argv.slice(2).filter(a => !a.startsWith('--'))
@@ -48,15 +48,21 @@ const entradas = { t: 22, h: 55 }
 let modoAuto = false
 let reglas = {}
 let aviso = null
+const porBorrar = new Set()   // comandos ya procesados: se borran al publicar
 // Con llave, el modo es el de la llave: se escribe al arrancar y lo que diga la
 // base se corrige.
 const llave = config.llave_modo != null
 if (llave) await set(ref(db, RAIZ + '/control/auto'), modoAuto)
 
+// Como el firmware: un solo update sobre la placa, con rutas, que publica el
+// estado y borra los comandos ya procesados.
 async function publicar() {
-  const cuerpo = { ...entradas, ...salidas, visto: serverTimestamp() }
-  if (aviso !== null) { cuerpo.aviso = aviso; aviso = null }
-  await update(ref(db, RAIZ + '/estado'), cuerpo)
+  const cuerpo = { 'estado/visto': serverTimestamp() }
+  for (const [id, v] of Object.entries({ ...entradas, ...salidas })) cuerpo['estado/' + id] = v
+  if (aviso !== null) { cuerpo['estado/aviso'] = aviso; aviso = null }
+  for (const id of porBorrar) cuerpo['control/cmd/' + id] = null
+  porBorrar.clear()
+  await update(ref(db, RAIZ), cuerpo)
 }
 
 // Como el firmware: el aviso se borra solo a los 20 s.
@@ -105,7 +111,7 @@ onValue(ref(db, RAIZ + '/control'), async (snap) => {
     const encender = aBool(v)
     if (encender === null) avisar(id + ': valor de comando invalido')
     else manual(id, encender, 'comando')
-    await remove(ref(db, `${RAIZ}/control/cmd/${id}`))
+    porBorrar.add(id)
   }
   evaluarReglas()
   await publicar()
